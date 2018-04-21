@@ -2,8 +2,13 @@ runtime: go
 api_version: go1
 
 handlers:
+<<<<<<< HEAD
 - url: /favicon\.ico
   static_files: favicon.ico
   upload: favicon\.ico
 - url: /.*
   script: _go_app
+=======
+- url: /.*
+  script: _go_app
+>>>>>>> 519e2ed1149310bd10bddc6278e875e47c2d95df
