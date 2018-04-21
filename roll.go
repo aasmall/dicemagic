@@ -8,9 +8,11 @@ import (
 	"strings"
 	"strconv"
     "google.golang.org/appengine"
+    "regexp"
 )
 
 const UintBytes = 2
+var diceRegexp = regexp.MustCompile(`(?i)^\/(\d+)d(\d+)$`)
 
 func main() {
 	//minPtr := flag.Int("min", 1, "min value")
@@ -21,28 +23,17 @@ func main() {
 	appengine.Main()
 }
 func handle(w http.ResponseWriter, r *http.Request) { 
-	numberOfDice, sides:=parseDice(r.URL.Path)
-	fmt.Fprintln(w, roll(numberOfDice, sides))
-}
-func parseDice(s string) (int, int){
-
-	returnString:=strings.Replace(s,"/","",-1)
-
-	values:=strings.Split(returnString,"d")
-	numberOfDice:=values[0]
-	sides:=values[1]
-	intDice, err:=strconv.ParseInt(numberOfDice,10,0)
-	if intDice==0 {
-		intDice=1
+	//numberOfDice, sides:=parseDice(r.URL.Path)
+	content := r.URL.Path
+	if !diceRegexp.MatchString(content) {
+		fmt.Fprintf(w,"%s is not a valid roll\n", strings.Replace(content, "/","",-1))
+		return
 	}
-	intSides, err:=strconv.ParseInt(sides,10,0)
-
-	if err != nil {
-		panic(err)
-	}
-	return int(intDice), int(intSides)
-
+	numberOfDice,_:=strconv.ParseInt(diceRegexp.FindStringSubmatch(content)[1],10,0)
+	sides,_:=strconv.ParseInt(diceRegexp.FindStringSubmatch(content)[2],10,0)
+	fmt.Fprintln(w, roll(int(numberOfDice), int(sides)))
 }
+
 
 func GenerateRandomInt(min int, max int) int64 {
 	size := max - min + 1
