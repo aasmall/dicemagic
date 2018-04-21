@@ -31,7 +31,15 @@ func handle(w http.ResponseWriter, r *http.Request) {
 	}
 	numberOfDice,_:=strconv.ParseInt(diceRegexp.FindStringSubmatch(content)[1],10,0)
 	sides,_:=strconv.ParseInt(diceRegexp.FindStringSubmatch(content)[2],10,0)
-	fmt.Fprintln(w, roll(int(numberOfDice), int(sides)))
+	rollResult := roll(int(numberOfDice), int(sides))
+	diceWord:=""
+	if int(numberOfDice)>1 {
+		diceWord="dice"
+	}else{
+		diceWord="die"
+	}
+
+	fmt.Fprintf(w, "You rolled %d on %d %d sided %s\n", rollResult, numberOfDice, sides, diceWord)
 }
 
 
