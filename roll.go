@@ -22,13 +22,11 @@ func main() {
 	//fmt.Println("I rolled", roll(*minPtr,*maxPtr))
 	http.HandleFunc("/", handle)
 	http.HandleFunc("/slack/roll/", slackRoll)
-	http.HandleFunc("/slack/roll", slackRoll)
+	http.HandleFunc("/slack/events/", slackEventRouter)
 	appengine.Main()
 }
 func handle(w http.ResponseWriter, r *http.Request) {
 	expression := r.URL.Path[1:]
-	fmt.Fprintf(w, "%n\n", expression)
-
 	result := evaluate(parse(expression))
 	fmt.Fprintf(w, "%d\n", result)
 }
