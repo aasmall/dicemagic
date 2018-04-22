@@ -27,3 +27,24 @@ type ChallengeRequest struct {
 type KMSDecryptResponse struct {
 	plaintext string `json:"plaintext"`
 }
+type Message struct {
+	Channel string `json:"channel"`
+	Text    string `json:"text"`
+}
+type Approval struct {
+	AccessToken     string `json:"access_token"`
+	Scope           string `json:"scope"`
+	TeamName        string `json:"team_name"`
+	TeamID          string `json:"team_id"`
+	IncomingWebhook `json:"incoming_webhook"`
+	Bot             `json:"bot"`
+}
+type IncomingWebhook struct {
+	URL              string `json:"url"`
+	Channel          string `json:"channel"`
+	ConfigurationURL string `json:"configuration_url"`
+}
+type Bot struct {
+	BotUserID      string `json:"bot_user_id"`
+	BotAccessToken string `json:"bot_access_token"`
+}
