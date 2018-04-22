@@ -11,8 +11,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"strconv"
-	"strings"
 )
 
 type slashPostBody struct {
@@ -40,11 +38,8 @@ func slackKey(r *http.Request) string {
 	projectID := os.Getenv("PROJECT_ID")
 	keyRing := os.Getenv("KMSKEYRING")
 	key := os.Getenv("KMSKEY")
-	// Location of the key rings.
 	locationID := "global"
 
-	// Authorize the client using Application Default Credentials.
-	// See https://g.co/dv/identity/protocols/application-default-credentials
 	ctx := appengine.NewContext(r)
 	client, err := google.DefaultClient(ctx, cloudkms.CloudPlatformScope)
 	if err != nil {
@@ -73,22 +68,6 @@ func slackRoll(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm()
 
 	content := r.FormValue("text")
-	//channel_name := r.FormValue("channel_name")
-	//user_name := r.FormValue("user_name")
-	//fmt.Fprintln(w, slackKey(r))
-	if !diceRegexp.MatchString(content) {
-		fmt.Fprintf(w, "%s is not a valid roll\n", strings.Replace(content, "/", "", -1))
-		return
-	}
-	numberOfDice, _ := strconv.ParseInt(diceRegexp.FindStringSubmatch(content)[1], 10, 0)
-	sides, _ := strconv.ParseInt(diceRegexp.FindStringSubmatch(content)[2], 10, 0)
-	rollResult := roll(int(numberOfDice), int(sides))
-	diceWord := ""
-	if int(numberOfDice) > 1 {
-		diceWord = "dice"
-	} else {
-		diceWord = "die"
-	}
-
-	fmt.Fprintf(w, "You rolled %d on %d %d sided %s\n", rollResult, numberOfDice, sides, diceWord)
+	rollResult := evaluate(parse(content))
+	fmt.Fprintf(w, "You rolled %d\n", rollResult)
 }

@@ -27,6 +27,8 @@ func main() {
 }
 func handle(w http.ResponseWriter, r *http.Request) {
 	expression := r.URL.Path[1:]
+	fmt.Fprintf(w, "%n\n", expression)
+
 	result := evaluate(parse(expression))
 	fmt.Fprintf(w, "%d\n", result)
 }
@@ -51,8 +53,8 @@ func roll(numberOfDice int, sides int) int64 {
 
 type ExpressionNode struct {
 	expression string
-	left *ExpressionNode
-	right *ExpressionNode
+	left       *ExpressionNode
+	right      *ExpressionNode
 }
 
 // Create a tree of binary operations to execute
