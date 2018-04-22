@@ -16,10 +16,6 @@ const UintBytes = 2
 var diceRegexp = regexp.MustCompile(`(?i)^(\d+)d(\d+)$`)
 
 func main() {
-	//minPtr := flag.Int("min", 1, "min value")
-	//maxPtr := flag.Int("max", 4, "max value")
-	//flag.Parse()
-	//fmt.Println("I rolled", roll(*minPtr,*maxPtr))
 	http.HandleFunc("/", handle)
 	http.HandleFunc("/slack/roll/", slackRoll)
 	http.HandleFunc("/slack/events/", slackEventRouter)
