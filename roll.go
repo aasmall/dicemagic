@@ -13,7 +13,7 @@ import (
 
 const UintBytes = 2
 
-var diceRegexp = regexp.MustCompile(`(?i)^\/*(\d+)d(\d+)$`)
+var diceRegexp = regexp.MustCompile(`(?i)^(\d+)d(\d+)$`)
 
 func main() {
 	//minPtr := flag.Int("min", 1, "min value")
@@ -26,23 +26,9 @@ func main() {
 	appengine.Main()
 }
 func handle(w http.ResponseWriter, r *http.Request) {
-	//numberOfDice, sides:=parseDice(r.URL.Path)
-	content := r.URL.Path
-	if !diceRegexp.MatchString(content) {
-		fmt.Fprintf(w, "%s is not a valid roll\n", strings.Replace(content, "/", "", -1))
-		return
-	}
-	numberOfDice, _ := strconv.ParseInt(diceRegexp.FindStringSubmatch(content)[1], 10, 0)
-	sides, _ := strconv.ParseInt(diceRegexp.FindStringSubmatch(content)[2], 10, 0)
-	rollResult := roll(int(numberOfDice), int(sides))
-	diceWord := ""
-	if int(numberOfDice) > 1 {
-		diceWord = "dice"
-	} else {
-		diceWord = "die"
-	}
-
-	fmt.Fprintf(w, "You rolled %d on %d %d sided %s\n", rollResult, numberOfDice, sides, diceWord)
+	expression := r.URL.Path[1:]
+	result := evaluate(parse(expression))
+	fmt.Fprintf(w, "%d\n", result)
 }
 
 func GenerateRandomInt(min int, max int) int64 {
@@ -61,4 +47,62 @@ func roll(numberOfDice int, sides int) int64 {
 		result += x
 	}
 	return result
+}
+
+type ExpressionNode struct {
+	expression string
+	left *ExpressionNode
+	right *ExpressionNode
+}
+
+// Create a tree of binary operations to execute
+func parse(expression string) ExpressionNode {
+	node := ExpressionNode{}
+	sides := make([]string, 0)
+	if strings.Contains(expression, "+") {
+		node.expression = "+"
+		sides = strings.SplitN(expression, "+", 2)
+	} else if strings.Contains(expression, "-") {
+		node.expression = "-"
+		sides = strings.SplitN(expression, "-", 2)
+	} else if strings.Contains(expression, "*") {
+		node.expression = "*"
+		sides = strings.SplitN(expression, "*", 2)
+	} else if strings.Contains(expression, "/") {
+		node.expression = "/"
+		sides = strings.SplitN(expression, "/", 2)
+	} else {
+		node.expression = expression
+		return node
+	}
+	left := parse(sides[0])
+	right := parse(sides[1])
+	node.left = &left
+	node.right = &right
+	return node
+}
+
+// Evaluate a tree of binary operations
+func evaluate(node ExpressionNode) int64 {
+	if node.expression == "+" {
+		return evaluate(*node.left) + evaluate(*node.right)
+	}
+	if node.expression == "-" {
+		return evaluate(*node.left) - evaluate(*node.right)
+	}
+	if node.expression == "*" {
+		return evaluate(*node.left) * evaluate(*node.right)
+	}
+	if node.expression == "/" {
+		return evaluate(*node.left) / evaluate(*node.right)
+	}
+	if diceRegexp.MatchString(node.expression) {
+		numberOfDice, _ := strconv.ParseInt(diceRegexp.FindStringSubmatch(node.expression)[1], 10, 0)
+		sides, _ := strconv.ParseInt(diceRegexp.FindStringSubmatch(node.expression)[2], 10, 0)
+		rollResult := roll(int(numberOfDice), int(sides))
+		return rollResult
+	} else {
+		number, _ := strconv.ParseInt(node.expression, 10, 0)
+		return number
+	}
 }
