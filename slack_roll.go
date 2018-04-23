@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/davecgh/go-spew/spew"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/cloudkms/v1"
 	"google.golang.org/appengine"
@@ -15,9 +16,13 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"strings"
 )
 
 var naturalLanguageRegexp = regexp.MustCompile(`(?i)^.*roll\s+(?P<expression>\d+d\d+.+)$`)
+var sliceRegex = regexp.MustCompile(`(?i)[\+\-\/\*]*\d+d\d+.+?\)`)
+var damageTypeRegex = regexp.MustCompile(`(?i)\((.+?)\)`)
+var diceExpressionRegex = regexp.MustCompile(`(?i)[\+\-\/\*]*(\d+d\d+.*?)\(`)
 
 func slackOauthToken(ctx context.Context) string {
 	return decrypt(os.Getenv("SLACK_KEY"), ctx)
@@ -74,11 +79,6 @@ func url_verificationHandler(body []byte, w http.ResponseWriter, r *http.Request
 		log.Criticalf(ctx, fmt.Sprintf("%+v", err))
 		return
 	}
-	if challengeRequest.Token != slackClientSecret(ctx) {
-		err := fmt.Errorf("Received Token does not match ClientSecret: %s", challengeRequest.Token)
-		log.Debugf(ctx, fmt.Sprintf("%s", err))
-		return
-	}
 	fmt.Fprintln(w, challengeRequest.Challenge)
 
 }
@@ -105,11 +105,28 @@ func app_mentionHandler(innerEvent InnerEvent,
 	w http.ResponseWriter,
 	r *http.Request,
 	ctx context.Context) {
-	resultOfDice := parseMentionAndRoll(innerEvent.Text)
-	text := fmt.Sprintf("<@%s> rolled %d", innerEvent.User, resultOfDice)
-	log.Debugf(ctx, fmt.Sprintf("%+v", text))
-	postTextToChannel(ctx, innerEvent.Channel, text)
-	log.Debugf(ctx, fmt.Sprintf("%+v", innerEvent))
+	if strings.ContainsAny(innerEvent.Text, "()") {
+		naturalLanguageAttack := innerEvent.Text
+		var attack = parseLanguageintoAttack(ctx, naturalLanguageAttack)
+		m := attack.totalDamage()
+		var damageString string
+		log.Debugf(ctx, fmt.Sprintf("Map:%#v", m))
+		var total int64
+		for k := range m {
+			damageString += fmt.Sprintf("%d %s damage\n", m[k], k)
+			total += m[k]
+		}
+
+		log.Debugf(ctx, fmt.Sprintf("damagestring:%s", damageString))
+
+		text := fmt.Sprintf("<@%s> delt:\n %sFor a total of %d", innerEvent.User, damageString, total)
+		postTextToChannel(ctx, innerEvent.Channel, text)
+		fmt.Println(fmt.Sprintf("Attack: %+v", attack.totalDamage()))
+	} else {
+		resultOfDice := parseMentionAndRoll(innerEvent.Text)
+		text := fmt.Sprintf("<@%s> rolled %d", innerEvent.User, resultOfDice)
+		postTextToChannel(ctx, innerEvent.Channel, text)
+	}
 
 }
 func parseMentionAndRoll(text string) int64 {
@@ -133,15 +150,22 @@ func postTextToChannel(ctx context.Context, channel string, text string) {
 	message.Channel = channel
 	b, err := json.Marshal(message)
 	req, err := http.NewRequest("POST", methodUrl, bytes.NewBuffer(b))
-	req.Header.Set("Content-Type", "application/json; charset=utf-8")
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", slackBotAccessToken(ctx)))
-	resp, err := client.Do(req)
-
 	if err != nil {
 		log.Criticalf(ctx, fmt.Sprintf("%+v", err))
 		return
 	}
-	defer resp.Body.Close()
+	req.Header.Set("Content-Type", "application/json; charset=utf-8")
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", slackBotAccessToken(ctx)))
+	if appengine.IsDevAppServer() {
+		log.Debugf(ctx, spew.Sprintf("If this were deployed, I would issue this request:\n%#v", req))
+	} else {
+		resp, err := client.Do(req)
+		if err != nil {
+			log.Criticalf(ctx, fmt.Sprintf("%+v", err))
+			return
+		}
+		defer resp.Body.Close()
+	}
 }
 func slackEventRouter(w http.ResponseWriter, r *http.Request) {
 	ctx := appengine.NewContext(r)
@@ -160,4 +184,26 @@ func slackEventRouter(w http.ResponseWriter, r *http.Request) {
 		event_callbackHandler(body, w, r, ctx)
 	default:
 	}
+}
+func parseLanguageintoAttack(ctx context.Context, input string) *Attack {
+	if !(strings.ContainsAny(input, "()")) {
+		log.Criticalf(ctx, "Input does not contain damage types.")
+		return nil
+	}
+	attack := new(Attack)
+	segments := sliceRegex.FindAllString(input, -1)
+	for i, s := range segments {
+		attack.DamageSegment = append(attack.DamageSegment, DamageSegment{
+			damagetype:     damageTypeRegex.FindStringSubmatch(s)[1],
+			diceExpression: diceExpressionRegex.FindStringSubmatch(s)[1]})
+
+		operator := diceExpressionRegex.FindStringSubmatch(s)[0][0:1]
+		if !strings.ContainsAny(operator, "+/-*") {
+			attack.DamageSegment[i].operator = "+"
+		} else {
+			attack.DamageSegment[i].operator = operator
+		}
+
+	}
+	return attack
 }
