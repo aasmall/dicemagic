@@ -1,8 +1,8 @@
 package main
 
 import (
-        "context"
         "fmt"
+        "google.golang.org/appengine/aetest"
         "gopkg.in/yaml.v2"
         "io/ioutil"
         "os"
@@ -58,7 +58,11 @@ func TestComplexAttack(t *testing.T) {
         }
 }
 func TestAddListAndDeleteIntegration(t *testing.T) {
-        ctx := context.Background()
+        ctx, done, err := aetest.NewContext()
+        if err != nil {
+                t.Fatal(err)
+        }
+        defer done()
         db, err := configureDatastoreDB(ctx, os.Getenv("PROJECT_ID"))
         if err != nil {
                 t.Fatalf("%+v", err)
@@ -92,7 +96,11 @@ func TestAddListAndDeleteIntegration(t *testing.T) {
         fmt.Println(fmt.Sprintf("Deleted Integration. ID: %+v", integration.ID))
 }
 func TestEncryptDecrypt(t *testing.T) {
-        ctx := context.Background()
+        ctx, done, err := aetest.NewContext()
+        if err != nil {
+                t.Fatal(err)
+        }
+        defer done()
         testString := "EncryptThis"
         fmt.Printf("testString: %v\n", testString)
         ciphertext := encrypt(testString, ctx)

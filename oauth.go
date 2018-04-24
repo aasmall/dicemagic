@@ -25,6 +25,7 @@ func slackOauthHandler(w http.ResponseWriter, r *http.Request) {
 	oAuthAccessRequest.ClientID = os.Getenv("SLACK_CLIENT_ID")
 	oAuthAccessRequest.ClientSecret = slackClientSecret(ctx)
 	PostOAuthAccessRequest(ctx, oAuthAccessRequest)
+
 }
 func PostOAuthAccessRequest(ctx context.Context, oAuthAccessRequest OauthAccessRequest) {
 	methodUrl := "https://slack.com/api/oauth.access"

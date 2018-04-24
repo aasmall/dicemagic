@@ -11,8 +11,6 @@ import (
 	"strings"
 )
 
-const UintBytes = 2
-
 var diceRegexp = regexp.MustCompile(`(?i)^(\d+)d(\d+)$`)
 
 func main() {
@@ -21,6 +19,7 @@ func main() {
 	http.HandleFunc("/slack/roll/", slackRoll)
 	http.HandleFunc("/slack/events/", slackEventRouter)
 	http.HandleFunc("/slack/oauth/", slackOauthHandler)
+	http.HandleFunc("/dflow/", dialogueWebhookHandler)
 	appengine.Main()
 }
 func handle(w http.ResponseWriter, r *http.Request) {
