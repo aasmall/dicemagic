@@ -3,12 +3,9 @@ package main
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"github.com/davecgh/go-spew/spew"
-	"golang.org/x/oauth2/google"
-	"google.golang.org/api/cloudkms/v1"
 	"google.golang.org/appengine"
 	"google.golang.org/appengine/log"
 	"google.golang.org/appengine/urlfetch"
@@ -23,44 +20,6 @@ var naturalLanguageRegexp = regexp.MustCompile(`(?i)^.*roll\s+(?P<expression>\d+
 var sliceRegex = regexp.MustCompile(`(?i)[\+\-\/\*]*\d+d\d+.+?\)`)
 var damageTypeRegex = regexp.MustCompile(`(?i)\((.+?)\)`)
 var diceExpressionRegex = regexp.MustCompile(`(?i)[\+\-\/\*]*(\d+d\d+.*?)\(`)
-
-func slackOauthToken(ctx context.Context) string {
-	return decrypt(os.Getenv("SLACK_KEY"), ctx)
-}
-func slackClientSecret(ctx context.Context) string {
-	return decrypt(os.Getenv("SLACK_CLIENT_SECRET"), ctx)
-}
-func slackBotAccessToken(ctx context.Context) string {
-	return decrypt(os.Getenv("SLACK_BOT_USER_ACCES_TOKEN"), ctx)
-}
-
-func decrypt(ciphertext string, ctx context.Context) string {
-	projectID := os.Getenv("PROJECT_ID")
-	keyRing := os.Getenv("KMSKEYRING")
-	key := os.Getenv("KMSKEY")
-	locationID := "global"
-
-	client, err := google.DefaultClient(ctx, cloudkms.CloudPlatformScope)
-	if err != nil {
-		log.Criticalf(ctx, fmt.Sprintf("%+v", err))
-	}
-
-	kmsService, err := cloudkms.New(client)
-	if err != nil {
-		log.Criticalf(ctx, fmt.Sprintf("%+v", err))
-	}
-	parentName := fmt.Sprintf("projects/%s/locations/%s/keyRings/%s/cryptoKeys/%s",
-		projectID, locationID, keyRing, key)
-	req := &cloudkms.DecryptRequest{
-		Ciphertext: ciphertext,
-	}
-	resp, err := kmsService.Projects.Locations.KeyRings.CryptoKeys.Decrypt(parentName, req).Do()
-	if err != nil {
-		log.Criticalf(ctx, fmt.Sprintf("%+v", err))
-	}
-	decodedString, _ := base64.StdEncoding.DecodeString(resp.Plaintext)
-	return string(decodedString)
-}
 
 func slackRoll(w http.ResponseWriter, r *http.Request) {
 
@@ -82,26 +41,27 @@ func url_verificationHandler(body []byte, w http.ResponseWriter, r *http.Request
 	fmt.Fprintln(w, challengeRequest.Challenge)
 
 }
-func event_callbackHandler(body []byte, w http.ResponseWriter, r *http.Request, ctx context.Context) {
+func event_callbackHandler(integration *Integration, body []byte, w http.ResponseWriter, r *http.Request, ctx context.Context) {
 	var eventCallback EventCallback
 	err := json.Unmarshal(body, &eventCallback)
 	if err != nil {
 		log.Criticalf(ctx, fmt.Sprintf("%+v", err))
 		return
 	}
-	if eventCallback.Token != slackClientSecret(ctx) {
-		err := fmt.Errorf("Received Token does not match ClientSecret: %+v", eventCallback.Token)
+	if eventCallback.Token != slackVerificationToken(ctx) {
+		err := fmt.Errorf("Received Token does not match VerificationToken: %+v", eventCallback.Token)
 		log.Debugf(ctx, fmt.Sprintf("%s", err))
 		return
 	}
 	switch eventCallback.InnerEvent.Type {
 	case "app_mention":
-		app_mentionHandler(InnerEvent(eventCallback.InnerEvent), w, r, ctx)
+		app_mentionHandler(integration, InnerEvent(eventCallback.InnerEvent), w, r, ctx)
 	default:
 		log.Debugf(ctx, fmt.Sprintf("Unknown Callback Event: %+v", eventCallback.InnerEvent.Type))
 	}
 }
-func app_mentionHandler(innerEvent InnerEvent,
+func app_mentionHandler(integration *Integration,
+	innerEvent InnerEvent,
 	w http.ResponseWriter,
 	r *http.Request,
 	ctx context.Context) {
@@ -119,13 +79,13 @@ func app_mentionHandler(innerEvent InnerEvent,
 
 		log.Debugf(ctx, fmt.Sprintf("damagestring:%s", damageString))
 
-		text := fmt.Sprintf("<@%s> delt:\n %sFor a total of %d", innerEvent.User, damageString, total)
-		postTextToChannel(ctx, innerEvent.Channel, text)
+		text := fmt.Sprintf("<@%s> delt:\n%sFor a total of %d", innerEvent.User, damageString, total)
+		postTextToChannel(ctx, integration, innerEvent.Channel, text)
 		fmt.Println(fmt.Sprintf("Attack: %+v", attack.totalDamage()))
 	} else {
 		resultOfDice := parseMentionAndRoll(innerEvent.Text)
 		text := fmt.Sprintf("<@%s> rolled %d", innerEvent.User, resultOfDice)
-		postTextToChannel(ctx, innerEvent.Channel, text)
+		postTextToChannel(ctx, integration, innerEvent.Channel, text)
 	}
 
 }
@@ -140,7 +100,7 @@ func parseMentionAndRoll(text string) int64 {
 	roll := evaluate(parse(paramsMap["expression"]))
 	return roll
 }
-func postTextToChannel(ctx context.Context, channel string, text string) {
+func postTextToChannel(ctx context.Context, integration *Integration, channel string, text string) {
 	methodUrl := "https://slack.com/api/chat.postMessage"
 
 	client := urlfetch.Client(ctx)
@@ -155,7 +115,7 @@ func postTextToChannel(ctx context.Context, channel string, text string) {
 		return
 	}
 	req.Header.Set("Content-Type", "application/json; charset=utf-8")
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", slackBotAccessToken(ctx)))
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", slackBotAccessToken(ctx, integration)))
 	if appengine.IsDevAppServer() {
 		log.Debugf(ctx, spew.Sprintf("If this were deployed, I would issue this request:\n%#v", req))
 	} else {
@@ -176,13 +136,41 @@ func slackEventRouter(w http.ResponseWriter, r *http.Request) {
 		log.Criticalf(ctx, fmt.Sprintf("%+v", err))
 	}
 	defer r.Body.Close()
+	//
+	//parse TeamID from unstructured request
+	teamID, _ := result["team_id"].(string)
+	integration := IntegrationsForRequest(ctx, teamID)
+
+	log.Debugf(ctx, "Found Integration: %+v", integration)
+	//
+	//route to appropriate handler for eventy type
 	eventType := result["type"]
 	switch eventType {
 	case "url_verification":
 		url_verificationHandler(body, w, r, ctx)
 	case "event_callback":
-		event_callbackHandler(body, w, r, ctx)
+		event_callbackHandler(integration, body, w, r, ctx)
 	default:
+	}
+}
+func IntegrationsForRequest(ctx context.Context, teamID string) *Integration {
+
+	//find Integration from cloud datastore
+	log.Debugf(ctx, "Looing for integrations for team_id: %s", teamID)
+	db, err := configureDatastoreDB(ctx, os.Getenv("PROJECT_ID"))
+	if err != nil {
+		log.Criticalf(ctx, "%+v", err)
+	}
+	integrations, _ := db.ListIntegrationsByTeam(ctx, teamID)
+
+	if len(integrations) < 0 {
+		log.Criticalf(ctx, "No Integrations found.")
+		return new(Integration)
+	} else if len(integrations) > 1 {
+		log.Criticalf(ctx, "More than one integration found for team. Returning first.")
+		return integrations[0]
+	} else {
+		return integrations[0]
 	}
 }
 func parseLanguageintoAttack(ctx context.Context, input string) *Attack {
