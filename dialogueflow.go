@@ -8,14 +8,22 @@ import (
 	"google.golang.org/appengine/log"
 	"io/ioutil"
 	"net/http"
+	"net/http/httputil"
 	"strings"
 )
 
 func dialogueWebhookHandler(w http.ResponseWriter, r *http.Request) {
 	//response := "This is a sample response from your webhook!"
 	ctx := appengine.NewContext(r)
-	body, err := ioutil.ReadAll(r.Body)
 
+	// Save a copy of this request for debugging.
+	requestDump, err := httputil.DumpRequest(r, true)
+	if err != nil {
+		log.Criticalf(ctx, "%v", err)
+	}
+	log.Debugf(ctx, "Whole Request: %s", string(requestDump))
+
+	body, err := ioutil.ReadAll(r.Body)
 	var dialogueFlowRequest DialogueFlowRequest
 	err = json.Unmarshal(body, &dialogueFlowRequest)
 	if err != nil {
@@ -28,7 +36,9 @@ func dialogueWebhookHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	log.Debugf(ctx, "Confidence %d\n", dialogueFlowRequest.QueryResult.IntentDetectionConfidence)
-	dialogueFlowResponse.FulfillmentText = dialogueFlowRequest.QueryResult.QueryText
+	queryText := dialogueFlowRequest.QueryResult.QueryText
+	dialogueFlowResponse.FulfillmentText = queryText
+	log.Debugf(ctx, "QueryText: %#v", queryText)
 
 	//diceExpression := dialogueFlowRequest.QueryResult.Parameters["DiceExpression"][0]
 	log.Debugf(ctx, "dialogueFlowRequest.QueryResult.Parameters: %#v",
@@ -44,6 +54,7 @@ func dialogueWebhookHandler(w http.ResponseWriter, r *http.Request) {
 	log.Debugf(ctx, "Parameters %+v\n\n", dialogueFlowRequest.QueryResult.Parameters)
 
 	if strings.Count(diceExpression, ")") < strings.Count(diceExpression, "(") {
+		//TODO: move to recursive function
 		diceExpression += ")"
 	}
 

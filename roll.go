@@ -20,6 +20,7 @@ func main() {
 	http.HandleFunc("/slack/events/", slackEventRouter)
 	http.HandleFunc("/slack/oauth/", slackOauthHandler)
 	http.HandleFunc("/dflow/", dialogueWebhookHandler)
+	http.HandleFunc("/parse/", parseHandler)
 	appengine.Main()
 }
 func handle(w http.ResponseWriter, r *http.Request) {
