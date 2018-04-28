@@ -5,13 +5,8 @@ package main
 import (
 	"bufio"
 	"bytes"
-	"context"
-	"encoding/json"
 	"fmt"
-	"google.golang.org/appengine"
-	"google.golang.org/appengine/log"
 	"io"
-	"net/http"
 	"strconv"
 	"strings"
 	"unicode"
@@ -38,14 +33,15 @@ type RollStatement struct {
 	DiceSegments []DiceSegment
 }
 type DiceSegment struct {
-	DiceRoll         []DiceRoll
+	DiceRoll struct {
+		NumberOfDice int64
+		Sides        int64
+	}
+	DiceRollResult   int64
 	ModifierOperator string
 	Modifier         int64
 	DamageType       string
-}
-type DiceRoll struct {
-	NumberOfDice int64
-	Sides        int64
+	TrailingOperator string
 }
 
 var eof = rune(0)
@@ -250,84 +246,110 @@ func (p *Parser) scanIgnoreWhitespace() (tok Token, lit string) {
 }
 
 func (p *Parser) Parse() (*RollStatement, error) {
-	//First we’ll define the AST structure we want to return from our function:
-
 	stmt := new(RollStatement)
-	//Then we’ll make sure there’s a ROLL token. If we don’t see the token we expect then we’ll return an error to report the string we found instead.
 	tok, lit := p.scanIgnoreWhitespace()
 	_, err := populateRequired(tok, lit, ROLL)
 	if err != nil {
 		return nil, fmt.Errorf("found %q, expected ROLL", lit)
 	}
 
+	//flow control
+	rollback := false
+	rollbackModifier := int64(0)
+	tok, lit = ILLEGAL, ""
 	//dat parse loops
 	for {
+		//creat this loops objects
 		diceSgmt := new(DiceSegment)
-		diceRoll := new(DiceRoll)
-		// Read in number of dice of first expression
-		tok, lit := p.scanIgnoreWhitespace()
+		if !rollback {
+			tok, lit = p.scanIgnoreWhitespace()
+		} else {
+			diceSgmt.DiceRoll.NumberOfDice = rollbackModifier
+		}
 		if tok == EOF {
 			break
 		}
+		//
 		//optional: n
-		if numberOfDice, consumed := populateOptional(tok, lit, NUMBER, "1"); consumed {
-			diceRoll.NumberOfDice, _ = strconv.ParseInt(numberOfDice, 10, 0)
-			tok, lit = p.scanIgnoreWhitespace()
+		if !rollback {
+			if numberOfDice, found := populateOptional(tok, lit, NUMBER); found {
+				diceSgmt.DiceRoll.NumberOfDice, _ = strconv.ParseInt(numberOfDice, 10, 0)
+				tok, lit = p.scanIgnoreWhitespace()
+			} else {
+				diceSgmt.DiceRoll.NumberOfDice = 1
+			}
 		} else {
-			diceRoll.NumberOfDice, _ = strconv.ParseInt(numberOfDice, 10, 0)
+			rollback = false
 		}
+		//
 		//required: d
 		_, err := populateRequired(tok, lit, D)
 		if err != nil {
 			return nil, fmt.Errorf("found %q, expected D", lit)
 		} else {
-			log.Debugf(ctx, "found tok %q", lit)
 			tok, lit = p.scanIgnoreWhitespace()
 		}
+		//
 		//optional: n
-		if sides, consumed := populateOptional(tok, lit, NUMBER, "0"); consumed {
-			diceRoll.Sides, _ = strconv.ParseInt(sides, 10, 0)
+		if sides, found := populateOptional(tok, lit, NUMBER); found {
+			diceSgmt.DiceRoll.Sides, _ = strconv.ParseInt(sides, 10, 0)
 			tok, lit = p.scanIgnoreWhitespace()
 		} else {
-			diceRoll.Sides, _ = strconv.ParseInt(sides, 10, 0)
+			diceSgmt.DiceRoll.Sides = 0
 		}
 		//optional: OPERATOR
-		if operator, consumed := populateOptional(tok, lit, OPERATOR, "+"); consumed {
+		if operator, found := populateOptional(tok, lit, OPERATOR); found {
 			diceSgmt.ModifierOperator = operator
 			tok, lit = p.scanIgnoreWhitespace()
 		} else {
-			diceSgmt.ModifierOperator = operator
+			diceSgmt.ModifierOperator = "+"
 		}
 		//optional: Modifier
-		if operator, consumed := populateOptional(tok, lit, NUMBER, "0"); consumed {
-			diceSgmt.Modifier, _ = strconv.ParseInt(operator, 10, 0)
+		if modifier, found := populateOptional(tok, lit, NUMBER); found {
+			diceSgmt.Modifier, _ = strconv.ParseInt(modifier, 10, 0)
 			tok, lit = p.scanIgnoreWhitespace()
 		} else {
-			diceSgmt.Modifier, _ = strconv.ParseInt(operator, 10, 0)
+			diceSgmt.Modifier = 0
 		}
 		//optional: OPAREN
-		if _, found := populateOptional(tok, lit, OPAREN, "("); found {
+		if _, found := populateOptional(tok, lit, OPAREN); found {
 			tok, lit = p.scanIgnoreWhitespace()
 			damageType, err := populateRequired(tok, lit, IDENT)
 			if err != nil {
 				return nil, fmt.Errorf("found %q, expected DamageType", lit)
 			} else {
 				diceSgmt.DamageType = damageType
-				log.Debugf(ctx, "found tok %q", lit)
 				tok, lit = p.scanIgnoreWhitespace()
 			}
+			//requrire close paren
 			_, err = populateRequired(tok, lit, CPAREN)
 			if err != nil {
 				return nil, fmt.Errorf("found %q, expected CPAREN", lit)
 			} else {
-				log.Debugf(ctx, "found tok %q", lit)
 				tok, lit = p.scanIgnoreWhitespace()
 			}
+			//I didn't find an open paren, instead I found a D
+			//I need to fix Modifier Operator to be the trailing operator
+			//and use the modifier as the first numeric result
+		} else if _, found := populateOptional(tok, lit, D); found {
+			rollback = true
+			rollbackModifier = diceSgmt.Modifier
+			diceSgmt.TrailingOperator = diceSgmt.ModifierOperator
+			diceSgmt.Modifier = 0
+			diceSgmt.ModifierOperator = "+"
+			//diceSgmt.DiceRoll = append(diceSgmt.DiceRoll, *diceRoll)
+			stmt.DiceSegments = append(stmt.DiceSegments, *diceSgmt)
+			continue
+		}
+		//optional: trailing OPERATOR
+		if operator, found := populateOptional(tok, lit, OPERATOR); found {
+			diceSgmt.TrailingOperator = operator
+		} else {
+			diceSgmt.ModifierOperator = ""
 		}
 
-		diceSgmt.DiceRoll = append(diceSgmt.DiceRoll, *diceRoll)
+		//diceSgmt.DiceRoll = append(diceSgmt.DiceRoll, *diceRoll)
 		stmt.DiceSegments = append(stmt.DiceSegments, *diceSgmt)
-		log.Debugf(ctx, "loopin!")
 
 		//after a complete nDn expression, require
 		//operator followed by a nother ndn expression
@@ -338,13 +360,11 @@ func (p *Parser) Parse() (*RollStatement, error) {
 	return stmt, nil
 }
 
-func populateOptional(tok Token, lit string, tokExpect Token, defaultValue string) (string, bool) {
+func populateOptional(tok Token, lit string, tokExpect Token) (string, bool) {
 	if tok == tokExpect {
-		log.Debugf(ctx, "found tok %q", lit)
 		return lit, true
 	} else {
-		log.Debugf(ctx, "found tok: %q. Using Default: %s", lit, defaultValue)
-		return defaultValue, false
+		return "", false
 	}
 }
 func populateRequired(tok Token, lit string, tokExpect Token) (string, error) {
@@ -353,34 +373,4 @@ func populateRequired(tok Token, lit string, tokExpect Token) (string, error) {
 	} else {
 		return "", fmt.Errorf("found %q, expected %v", lit, tokExpect)
 	}
-}
-
-var ctx context.Context
-
-func parseHandler(w http.ResponseWriter, r *http.Request) {
-	ctx = appengine.NewContext(r)
-	//Decode request into ParseRequest type
-	parseRequest := new(ParseRequest)
-	json.NewDecoder(r.Body).Decode(parseRequest)
-
-	//Prepare Response Object
-	parseResponse := new(ParseResponse)
-
-	//Call Parser and inject response into response object
-	//TODO idk, roll dice?
-	parsedString, err := parseString(parseRequest.Text)
-	if err != nil {
-		log.Criticalf(ctx, "%v", err)
-		return
-	}
-	parseResponse.Text = parsedString
-
-	//Encode response into response stream
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(parseResponse)
-}
-
-func parseString(text string) (string, error) {
-	stmt, err := NewParser(strings.NewReader(text)).Parse()
-	return fmt.Sprintf("%#v", stmt), err
 }

@@ -38,6 +38,7 @@ func GenerateRandomInt(min int, max int) int64 {
 	n := nBig.Int64()
 	return n + int64(min)
 }
+
 func roll(numberOfDice int, sides int) int64 {
 	result := int64(0)
 	for i := 0; i < numberOfDice; i++ {
