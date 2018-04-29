@@ -3,12 +3,13 @@ package main
 import (
 	"crypto/rand"
 	"fmt"
-	"google.golang.org/appengine"
 	"math/big"
 	"net/http"
 	"regexp"
 	"strconv"
 	"strings"
+
+	"google.golang.org/appengine"
 )
 
 var diceRegexp = regexp.MustCompile(`(?i)^(\d+)d(\d+)$`)
@@ -17,8 +18,6 @@ func main() {
 	http.HandleFunc("/", rootHandle)
 	http.HandleFunc("/roll/", handle)
 	http.HandleFunc("/slack/roll/", slackRoll)
-	http.HandleFunc("/slack/events/", slackEventRouter)
-	http.HandleFunc("/slack/oauth/", slackOauthHandler)
 	http.HandleFunc("/dflow/", dialogueWebhookHandler)
 	http.HandleFunc("/parse/", parseHandler)
 	appengine.Main()

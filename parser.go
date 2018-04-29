@@ -15,7 +15,6 @@ import (
 type Token int
 
 const (
-	// Special tokens
 	ILLEGAL Token = iota
 	WS
 	ROLL     // "roll" or "Roll"
@@ -23,26 +22,10 @@ const (
 	CPAREN   // )
 	OPERATOR // + - * /
 	D        // d or D
-	// Literals
-	NUMBER // Sides, Number of Dice
-	IDENT  //Damage Types
+	NUMBER   // Sides, Number of Dice
+	IDENT    //Damage Types
 	EOF
 )
-
-type RollStatement struct {
-	DiceSegments []DiceSegment
-}
-type DiceSegment struct {
-	DiceRoll struct {
-		NumberOfDice int64
-		Sides        int64
-	}
-	DiceRollResult   int64
-	ModifierOperator string
-	Modifier         int64
-	DamageType       string
-	TrailingOperator string
-}
 
 var eof = rune(0)
 
@@ -286,9 +269,9 @@ func (p *Parser) Parse() (*RollStatement, error) {
 		_, err := populateRequired(tok, lit, D)
 		if err != nil {
 			return nil, fmt.Errorf("found %q, expected D", lit)
-		} else {
-			tok, lit = p.scanIgnoreWhitespace()
 		}
+		tok, lit = p.scanIgnoreWhitespace()
+
 		//
 		//optional: n
 		if sides, found := populateOptional(tok, lit, NUMBER); found {
@@ -337,15 +320,18 @@ func (p *Parser) Parse() (*RollStatement, error) {
 			diceSgmt.TrailingOperator = diceSgmt.ModifierOperator
 			diceSgmt.Modifier = 0
 			diceSgmt.ModifierOperator = "+"
-			//diceSgmt.DiceRoll = append(diceSgmt.DiceRoll, *diceRoll)
 			stmt.DiceSegments = append(stmt.DiceSegments, *diceSgmt)
 			continue
 		}
 		//optional: trailing OPERATOR
 		if operator, found := populateOptional(tok, lit, OPERATOR); found {
-			diceSgmt.TrailingOperator = operator
+			if operator == "+" || operator == "-" {
+				diceSgmt.TrailingOperator = operator
+			} else {
+				return nil, fmt.Errorf("Only '+' and '-' may be used between dice expressions. Found: %q", lit)
+			}
 		} else {
-			diceSgmt.ModifierOperator = ""
+			diceSgmt.TrailingOperator = ""
 		}
 
 		//diceSgmt.DiceRoll = append(diceSgmt.DiceRoll, *diceRoll)

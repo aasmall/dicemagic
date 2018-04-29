@@ -4,26 +4,21 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"os"
+
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/cloudkms/v1"
 	"google.golang.org/appengine/log"
-	"os"
 )
 
-func slackOauthToken(ctx context.Context) string {
-	return decrypt(os.Getenv("SLACK_KEY"), ctx)
-}
-func slackClientSecret(ctx context.Context) string {
-	return decrypt(os.Getenv("SLACK_CLIENT_SECRET"), ctx)
-}
 func slackBotAccessToken(ctx context.Context, integration *Integration) string {
 	encryptedBotAccessToken := integration.OAuthApprovalResponse.Bot.BotAccessToken
-	return decrypt(encryptedBotAccessToken, ctx)
+	return decrypt(ctx, encryptedBotAccessToken)
 }
 func slackVerificationToken(ctx context.Context) string {
-	return decrypt(os.Getenv("SLACK_CLIENT_VERIFICATION_TOKEN"), ctx)
+	return decrypt(ctx, os.Getenv("SLACK_CLIENT_VERIFICATION_TOKEN"))
 }
-func decrypt(ciphertext string, ctx context.Context) string {
+func decrypt(ctx context.Context, ciphertext string) string {
 	projectID := os.Getenv("PROJECT_ID")
 	keyRing := os.Getenv("KMSKEYRING")
 	key := os.Getenv("KMSKEY")
@@ -50,7 +45,7 @@ func decrypt(ciphertext string, ctx context.Context) string {
 	decodedString, _ := base64.StdEncoding.DecodeString(resp.Plaintext)
 	return string(decodedString)
 }
-func encrypt(plaintext string, ctx context.Context) string {
+func encrypt(ctx context.Context, plaintext string) string {
 	projectID := os.Getenv("PROJECT_ID")
 	keyRing := os.Getenv("KMSKEYRING")
 	key := os.Getenv("KMSKEY")

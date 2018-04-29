@@ -1,9 +1,10 @@
 package main
 
 import (
-	"cloud.google.com/go/datastore"
 	"context"
 	"fmt"
+
+	"cloud.google.com/go/datastore"
 )
 
 var _ DiceMagicDatabase = &datastoreDB{}
@@ -65,8 +66,8 @@ func (db *datastoreDB) GetIntegration(ctx context.Context, id int64) (*Integrati
 
 func (db *datastoreDB) AddIntegration(ctx context.Context, b *Integration) (id int64, err error) {
 	k := datastore.IncompleteKey("Integration", nil)
-	b.OAuthApprovalResponse.AccessToken = encrypt(b.OAuthApprovalResponse.AccessToken, ctx)
-	b.OAuthApprovalResponse.Bot.BotAccessToken = encrypt(b.OAuthApprovalResponse.Bot.BotAccessToken, ctx)
+	b.OAuthApprovalResponse.AccessToken = encrypt(ctx, b.OAuthApprovalResponse.AccessToken)
+	b.OAuthApprovalResponse.Bot.BotAccessToken = encrypt(ctx, b.OAuthApprovalResponse.Bot.BotAccessToken)
 
 	//
 	//Enforce 1 Integration per team

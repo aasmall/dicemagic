@@ -2,12 +2,14 @@ package main
 
 import (
 	"fmt"
-	"google.golang.org/appengine"
-	"google.golang.org/appengine/log"
 	"html/template"
 	"net/http"
+
+	"google.golang.org/appengine"
+	"google.golang.org/appengine/log"
 )
 
+// Page Represents a simple HTML Page
 type Page struct {
 	Title string
 	Body  []byte

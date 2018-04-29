@@ -3,13 +3,14 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/davecgh/go-spew/spew"
-	"google.golang.org/appengine"
-	"google.golang.org/appengine/log"
 	"io/ioutil"
 	"net/http"
 	"net/http/httputil"
 	"strings"
+
+	"github.com/davecgh/go-spew/spew"
+	"google.golang.org/appengine"
+	"google.golang.org/appengine/log"
 )
 
 func dialogueWebhookHandler(w http.ResponseWriter, r *http.Request) {
@@ -32,6 +33,7 @@ func dialogueWebhookHandler(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	var dialogueFlowResponse = new(DialogueFlowResponse)
 
+	//If not the expected intent, bail.
 	if !strings.Contains(dialogueFlowRequest.QueryResult.Intent.Name, "b41d0bdc-45f0-4099-ac34-40baf8dbb9ec") {
 		return
 	}
@@ -40,7 +42,6 @@ func dialogueWebhookHandler(w http.ResponseWriter, r *http.Request) {
 	dialogueFlowResponse.FulfillmentText = queryText
 	log.Debugf(ctx, "QueryText: %#v", queryText)
 
-	//diceExpression := dialogueFlowRequest.QueryResult.Parameters["DiceExpression"][0]
 	log.Debugf(ctx, "dialogueFlowRequest.QueryResult.Parameters: %#v",
 		dialogueFlowRequest.QueryResult.Parameters)
 
@@ -48,45 +49,47 @@ func dialogueWebhookHandler(w http.ResponseWriter, r *http.Request) {
 		dialogueFlowRequest.QueryResult.Parameters["DiceExpression"])
 
 	diceExpression := dialogueFlowRequest.QueryResult.Parameters["DiceExpression"].([]interface{})[0].(string)
-	log.Debugf(ctx, "diceExpression: %#v",
-		diceExpression)
 
 	log.Debugf(ctx, "Parameters %+v\n\n", dialogueFlowRequest.QueryResult.Parameters)
 
-	if strings.Count(diceExpression, ")") < strings.Count(diceExpression, "(") {
-		//TODO: move to recursive function
-		diceExpression += ")"
+	//add any missing close parens at the end
+	diceExpression = addMissingCloseParens(diceExpression)
+	// add ROLL identifier for parser
+	if !strings.Contains(strings.ToUpper(diceExpression), "ROLL") {
+		diceExpression = fmt.Sprintf("ROLL %s", diceExpression)
 	}
+	log.Debugf(ctx, "diceExpression: %#v",
+		diceExpression)
 
 	var text string
-	if strings.ContainsAny(diceExpression, "()") {
-		naturalLanguageAttack := diceExpression
-		var attack = parseLanguageintoAttack(ctx, naturalLanguageAttack)
-		m := attack.totalDamage()
-		var damageString string
-		log.Debugf(ctx, fmt.Sprintf("Map:%#v", m))
-		var total int64
-		for k := range m {
-			damageString += fmt.Sprintf("%d %s damage\n", m[k], k)
-			total += m[k]
-		}
-
-		log.Debugf(ctx, fmt.Sprintf("damagestring:%s", damageString))
-
-		text = fmt.Sprintf("%s delt:\n%sFor a total of %d", "you", damageString, total)
-
+	stmt, err := NewParser(strings.NewReader(diceExpression)).Parse()
+	_, err = stmt.TotalDamage()
+	log.Debugf(ctx, fmt.Sprintf("damage map: %+v", stmt))
+	if err != nil {
+		text = err.Error()
 	} else {
-		resultOfDice := evaluate(parse(diceExpression))
-		text = fmt.Sprintf("%s rolled %d", "you", resultOfDice)
+		if stmt.HasDamageTypes() {
+			text, err = stmt.TotalDamageString()
+			text = fmt.Sprintf("You delt: \n%s", text)
+		} else {
+			text, err = stmt.TotalSimpleRollString()
+		}
+		if err != nil {
+			text = err.Error()
+		}
 	}
-
 	dialogueFlowResponse.FulfillmentText = text
 	dialogueFlowResponse.Payload.Slack.Text = text
 	log.Debugf(ctx, spew.Sprintf("My Response:\n%v", dialogueFlowResponse))
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(dialogueFlowResponse)
-	//
-	//parse TeamID from unstructured request
 
+}
+func addMissingCloseParens(text string) string {
+	if strings.Count(text, ")") < strings.Count(text, "(") {
+		text += ")"
+		return addMissingCloseParens(text)
+	}
+	return text
 }
