@@ -300,17 +300,17 @@ func (p *Parser) Parse() (*RollStatement, error) {
 			damageType, err := populateRequired(tok, lit, IDENT)
 			if err != nil {
 				return nil, fmt.Errorf("found %q, expected DamageType", lit)
-			} else {
-				diceSgmt.DamageType = damageType
-				tok, lit = p.scanIgnoreWhitespace()
 			}
+			diceSgmt.DamageType = damageType
+			tok, lit = p.scanIgnoreWhitespace()
+
 			//requrire close paren
 			_, err = populateRequired(tok, lit, CPAREN)
 			if err != nil {
 				return nil, fmt.Errorf("found %q, expected CPAREN", lit)
-			} else {
-				tok, lit = p.scanIgnoreWhitespace()
 			}
+			tok, lit = p.scanIgnoreWhitespace()
+
 			//I didn't find an open paren, instead I found a D
 			//I need to fix Modifier Operator to be the trailing operator
 			//and use the modifier as the first numeric result
@@ -349,14 +349,13 @@ func (p *Parser) Parse() (*RollStatement, error) {
 func populateOptional(tok Token, lit string, tokExpect Token) (string, bool) {
 	if tok == tokExpect {
 		return lit, true
-	} else {
-		return "", false
 	}
+	return "", false
+
 }
 func populateRequired(tok Token, lit string, tokExpect Token) (string, error) {
 	if tok == tokExpect {
 		return lit, nil
-	} else {
-		return "", fmt.Errorf("found %q, expected %v", lit, tokExpect)
 	}
+	return "", fmt.Errorf("found %q, expected %v", lit, tokExpect)
 }

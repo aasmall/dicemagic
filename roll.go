@@ -1,12 +1,8 @@
 package main
 
 import (
-	"crypto/rand"
-	"fmt"
-	"math/big"
 	"net/http"
 	"regexp"
-	"strconv"
 	"strings"
 
 	"google.golang.org/appengine"
@@ -16,46 +12,21 @@ var diceRegexp = regexp.MustCompile(`(?i)^(\d+)d(\d+)$`)
 
 func main() {
 	http.HandleFunc("/", rootHandle)
-	http.HandleFunc("/roll/", handle)
 	http.HandleFunc("/slack/roll/", slackRoll)
 	http.HandleFunc("/dflow/", dialogueWebhookHandler)
 	http.HandleFunc("/parse/", parseHandler)
 	appengine.Main()
 }
-func handle(w http.ResponseWriter, r *http.Request) {
-	expression := r.URL.Path[1:]
-	result := evaluate(parse(expression))
-	fmt.Fprintf(w, "%d\n", result)
-}
 
-func GenerateRandomInt(min int, max int) int64 {
-	size := max - min + 1
-	nBig, err := rand.Int(rand.Reader, big.NewInt(int64(size)))
-	if err != nil {
-		panic(err)
-	}
-	n := nBig.Int64()
-	return n + int64(min)
-}
-
-func roll(numberOfDice int, sides int) int64 {
-	result := int64(0)
-	for i := 0; i < numberOfDice; i++ {
-		x := GenerateRandomInt(1, sides)
-		result += x
-	}
-	return result
-}
-
-type ExpressionNode struct {
+type expressionNode struct {
 	expression string
-	left       *ExpressionNode
-	right      *ExpressionNode
+	left       *expressionNode
+	right      *expressionNode
 }
 
 // Create a tree of binary operations to execute
-func parse(expression string) ExpressionNode {
-	node := ExpressionNode{}
+func parse(expression string) expressionNode {
+	node := expressionNode{}
 	sides := make([]string, 0)
 	if strings.Contains(expression, "+") {
 		node.expression = "+"
@@ -81,7 +52,8 @@ func parse(expression string) ExpressionNode {
 }
 
 // Evaluate a tree of binary operations
-func evaluate(node ExpressionNode) int64 {
+/*
+func evaluate(node expressionNode) int64 {
 	if node.expression == "+" {
 		return evaluate(*node.left) + evaluate(*node.right)
 	}
@@ -97,10 +69,11 @@ func evaluate(node ExpressionNode) int64 {
 	if diceRegexp.MatchString(node.expression) {
 		numberOfDice, _ := strconv.ParseInt(diceRegexp.FindStringSubmatch(node.expression)[1], 10, 0)
 		sides, _ := strconv.ParseInt(diceRegexp.FindStringSubmatch(node.expression)[2], 10, 0)
-		rollResult := roll(int(numberOfDice), int(sides))
+		rollResult, _ := roll(int(numberOfDice), int(sides))
 		return rollResult
 	} else {
 		number, _ := strconv.ParseInt(node.expression, 10, 0)
 		return number
 	}
 }
+*/

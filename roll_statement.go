@@ -33,7 +33,7 @@ func (d *DiceSegment) roll() error {
 		err := fmt.Errorf("I can't hold that many dice")
 		return err
 	} else if d.DiceRoll.Sides > 1000 {
-		err := fmt.Errorf("a die with that many sides is basically round")
+		err := fmt.Errorf("A die with that many sides is basically round")
 		return err
 	} else {
 		result := int64(0)
@@ -104,6 +104,8 @@ func parseString(ctx context.Context, text string) (string, error) {
 	return fmt.Sprintf("%+v ", TotalDamageString), err
 }
 
+//HasDamageTypes returns true if any DiceSegment has a damage type
+//Useful for deciding how to parse into a string.
 func (a *RollStatement) HasDamageTypes() bool {
 	for _, e := range a.DiceSegments {
 		if e.DamageType != "" {
@@ -113,7 +115,7 @@ func (a *RollStatement) HasDamageTypes() bool {
 	return false
 }
 
-//
+//TotalDamage rolls all DiceSegments, populates the DiceRollResult and, rolls all the segments and maps damage into types
 func (a *RollStatement) TotalDamage() (map[string]int64, error) {
 	m := make(map[string]int64)
 	err := a.rollSegments()
