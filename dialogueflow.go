@@ -1,18 +1,10 @@
 package main
 
 import (
-	"encoding/json"
-	"fmt"
-	"io/ioutil"
-	"net/http"
-	"net/http/httputil"
 	"strings"
-
-	"github.com/davecgh/go-spew/spew"
-	"google.golang.org/appengine"
-	"google.golang.org/appengine/log"
 )
 
+/*
 func dialogueWebhookHandler(w http.ResponseWriter, r *http.Request) {
 	//response := "This is a sample response from your webhook!"
 	ctx := appengine.NewContext(r)
@@ -63,7 +55,7 @@ func dialogueWebhookHandler(w http.ResponseWriter, r *http.Request) {
 
 	var text string
 	stmt, err := NewParser(strings.NewReader(diceExpression)).Parse()
-	_, err = stmt.TotalDamage()
+_, err = stmt.TotalDamage()
 	log.Debugf(ctx, fmt.Sprintf("damage map: %+v", stmt))
 	if err != nil {
 		text = err.Error()
@@ -86,6 +78,7 @@ func dialogueWebhookHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(dialogueFlowResponse)
 
 }
+*/
 func addMissingCloseParens(text string) string {
 	if strings.Count(text, ")") < strings.Count(text, "(") {
 		text += ")"

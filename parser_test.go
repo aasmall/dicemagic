@@ -18,14 +18,6 @@ func Test_populateRequired(t *testing.T) {
 		want    string
 		wantErr bool
 	}{
-		{name: "Find D",
-			args:    args{D, "d", D},
-			want:    "d",
-			wantErr: false},
-		{name: "Find D Negative",
-			args:    args{NUMBER, "6", D},
-			want:    "",
-			wantErr: true},
 		{name: "Find NUMBER",
 			args:    args{NUMBER, "6", NUMBER},
 			want:    "6",
@@ -77,104 +69,18 @@ func TestParser_Parse(t *testing.T) {
 	tests := []struct {
 		name    string
 		p       *Parser
-		want    *RollStatement
+		want    *RollExpression
 		wantErr bool
 	}{
-		{name: "ROLL 1d12",
-			p: NewParser(strings.NewReader("ROLL 1d12")),
-			want: &RollStatement{[]DiceSegment{DiceSegment{
-				DiceRoll: struct {
-					NumberOfDice int64
-					Sides        int64
-				}{NumberOfDice: 1, Sides: 12},
-				DiceRollResult:   0,
-				ModifierOperator: "+",
-				Modifier:         0,
-				DamageType:       "",
-				TrailingOperator: ""}}},
-			wantErr: false},
-		{name: "Roll with Modifier",
-			p: NewParser(strings.NewReader("ROLL 1D12+7")),
-			want: &RollStatement{[]DiceSegment{DiceSegment{
-				DiceRoll: struct {
-					NumberOfDice int64
-					Sides        int64
-				}{NumberOfDice: 1, Sides: 12},
-				DiceRollResult:   0,
-				ModifierOperator: "+",
-				Modifier:         7,
-				DamageType:       "",
-				TrailingOperator: ""}}},
-			wantErr: false},
-		{name: "Roll with DamageType",
-			p: NewParser(strings.NewReader("ROLL 2D4+7(mundane)")),
-			want: &RollStatement{[]DiceSegment{DiceSegment{
-				DiceRoll: struct {
-					NumberOfDice int64
-					Sides        int64
-				}{NumberOfDice: 2, Sides: 4},
-				DiceRollResult:   0,
-				ModifierOperator: "+",
-				Modifier:         7,
-				DamageType:       "mundane",
-				TrailingOperator: ""}}},
-			wantErr: false},
-		{name: "Roll with Division",
-			p: NewParser(strings.NewReader("ROLL 2D4/2(mundane)")),
-			want: &RollStatement{[]DiceSegment{DiceSegment{
-				DiceRoll: struct {
-					NumberOfDice int64
-					Sides        int64
-				}{NumberOfDice: 2, Sides: 4},
-				DiceRollResult:   0,
-				ModifierOperator: "/",
-				Modifier:         2,
-				DamageType:       "mundane",
-				TrailingOperator: ""}}},
-			wantErr: false},
-		{name: "Roll with 2 Segments",
-			p: NewParser(strings.NewReader("ROLL 2D4+7(mundane)+1d8+1(fire)")),
-			want: &RollStatement{[]DiceSegment{DiceSegment{
-				DiceRoll: struct {
-					NumberOfDice int64
-					Sides        int64
-				}{NumberOfDice: 2, Sides: 4},
-				DiceRollResult:   0,
-				ModifierOperator: "+",
-				Modifier:         7,
-				DamageType:       "mundane",
-				TrailingOperator: "+"}, {
-				DiceRoll: struct {
-					NumberOfDice int64
-					Sides        int64
-				}{NumberOfDice: 1, Sides: 8},
-				DiceRollResult:   0,
-				ModifierOperator: "+",
-				Modifier:         1,
-				DamageType:       "fire",
-				TrailingOperator: ""}}},
-			wantErr: false},
-		{name: "Roll with 2 Segments and subtraction",
-			p: NewParser(strings.NewReader("ROLL 2D4+7(mundane)-1d8-1(fire)")),
-			want: &RollStatement{[]DiceSegment{DiceSegment{
-				DiceRoll: struct {
-					NumberOfDice int64
-					Sides        int64
-				}{NumberOfDice: 2, Sides: 4},
-				DiceRollResult:   0,
-				ModifierOperator: "+",
-				Modifier:         7,
-				DamageType:       "mundane",
-				TrailingOperator: "-"}, {
-				DiceRoll: struct {
-					NumberOfDice int64
-					Sides        int64
-				}{NumberOfDice: 1, Sides: 8},
-				DiceRollResult:   0,
-				ModifierOperator: "-",
-				Modifier:         1,
-				DamageType:       "fire",
-				TrailingOperator: ""}}},
+		{name: "ROLL (1d12+7)/2[mundane]+1d4[fire]",
+			p: NewParser(strings.NewReader("ROLL (1d12+7)/2[mundane]+1d4[fire]")),
+			want: &RollExpression{[]Segment{
+				Segment{Number: 1, Operator: "+", SegmentType: "Mundane", EvaluationPriority: -2},
+				Segment{Number: 12, Operator: "D", SegmentType: "Mundane", EvaluationPriority: -3},
+				Segment{Number: 7, Operator: "+", SegmentType: "Mundane", EvaluationPriority: -2},
+				Segment{Number: 2, Operator: "/", SegmentType: "Mundane", EvaluationPriority: -1},
+				Segment{Number: 1, Operator: "+", SegmentType: "Fire", EvaluationPriority: 0},
+				Segment{Number: 4, Operator: "D", SegmentType: "Fire", EvaluationPriority: -4}}},
 			wantErr: false}}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

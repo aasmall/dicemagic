@@ -1,86 +1,161 @@
 package main
 
 import (
-	"context"
 	"crypto/rand"
 	"fmt"
 	"math/big"
 	"strings"
-
-	"google.golang.org/appengine/log"
 )
 
 //RollStatement is a collection of DiceSegments
-type RollStatement struct {
-	DiceSegments []DiceSegment
+
+type RollExpression struct {
+	Segments []Segment
 }
 
-//DiceSegment represents an individual dice roll and associated attributes
-type DiceSegment struct {
-	DiceRoll struct {
-		NumberOfDice int64
-		Sides        int64
+type Segment struct {
+	Operator           string
+	Number             int64
+	SegmentType        string
+	EvaluationPriority int
+}
+
+func GetHighestPriority(r []Segment) int {
+	highestPriority := 0
+	for _, e := range r {
+		if e.EvaluationPriority < highestPriority {
+			highestPriority = e.EvaluationPriority
+		}
+
 	}
-	DiceRollResult   int64
-	ModifierOperator string
-	Modifier         int64
-	DamageType       string
-	TrailingOperator string
+	return highestPriority
 }
+func (r *RollExpression) getTotalsByType() (map[string]int64, error) {
+	//var lastSegment Segment
+	m := make(map[string]int64)
 
-func (d *DiceSegment) roll() error {
-	if d.DiceRoll.NumberOfDice > 1000 {
+	//break segments into their Damage Types
+	segmentsPerSegmentType := make(map[string][]Segment)
+	for _, e := range r.Segments {
+		segmentsPerSegmentType[e.SegmentType] = append(segmentsPerSegmentType[e.SegmentType], e)
+	}
+
+	//for each damage type
+	for k, remainingSegments := range segmentsPerSegmentType {
+		// Establish highest priority (represented as lowest number)
+		highestPriority := GetHighestPriority(remainingSegments)
+		var lastSegment Segment
+
+		//loop through priorities
+		for p := highestPriority; p < 1; p++ {
+			for i := 0; i < len(remainingSegments); i++ {
+				if !strings.ContainsAny(remainingSegments[i].Operator, "D+-*/") {
+					return m, fmt.Errorf("%s is not a valid operator", remainingSegments[i].Operator)
+				}
+				if remainingSegments[i].EvaluationPriority == p && len(remainingSegments) > 1 && i > 0 {
+					replacementSegment, err := doMath(lastSegment, remainingSegments[i])
+					if err != nil {
+						return m, err
+					}
+					remainingSegments = insertAtLocation(deleteAtLocation(remainingSegments, i-1, 2), replacementSegment, i-1)
+					lastSegment = replacementSegment
+					i--
+				} else {
+					lastSegment = remainingSegments[i]
+				}
+			}
+		}
+		//I have fully collapsed this loop. Add to final result.
+		m[k] += lastSegment.Number
+	}
+	return m, nil
+}
+func roll(numberOfDice int64, sides int64) (int64, error) {
+	if numberOfDice > 1000 {
 		err := fmt.Errorf("I can't hold that many dice")
-		return err
-	} else if d.DiceRoll.Sides > 1000 {
+		return 0, err
+	} else if sides > 1000 {
 		err := fmt.Errorf("A die with that many sides is basically round")
-		return err
+		return 0, err
 	} else {
 		result := int64(0)
-		for i := int64(0); i < d.DiceRoll.NumberOfDice; i++ {
-			x, err := generateRandomInt(1, d.DiceRoll.Sides)
+		for i := int64(0); i < numberOfDice; i++ {
+			x, err := generateRandomInt(1, sides)
 			if err != nil {
-				return err
+				return 0, err
 			}
 			result += x
 		}
-
-		//manage Modifiers
-		if d.Modifier > 1<<31-1 {
-			err := fmt.Errorf("I roll dice, I'm not a calculator")
-			return err
-		}
-		switch d.ModifierOperator {
-		case "+":
-			result = result + d.Modifier
-		case "-":
-			result = result - d.Modifier
-		case "*":
-			result = result * d.Modifier
-		case "/":
-			if d.Modifier != 0 {
-				result = result / d.Modifier
-			} else {
-				return fmt.Errorf("Don't make me break the universe. (div/0 error)")
-			}
-		}
-
-		d.DiceRollResult = result
-
+		return result, nil
 	}
-	return nil
 }
 
-//rollSegments calculates rool results for all DiceSegments
-//in a RollStatement
-func (a *RollStatement) rollSegments() error {
-	for i := range a.DiceSegments {
-		err := a.DiceSegments[i].roll()
-		if err != nil {
-			return err
+/*
+func parseModifiers(diceRoll int64, modifiers []modifier) (int64, error) {
+	diceRollModifiers := []modifier{modifier{Operator: "+", Number: diceRoll}}
+	remainingModifier := append(diceRollModifiers, modifiers...)
+	var lastMod modifier
+	for i := 0; i < len(remainingModifier); i++ {
+		if !strings.ContainsAny(remainingModifier[i].Operator, "+*-/") {
+			return 0, fmt.Errorf("%s is not a valid operator", remainingModifier[i].Operator)
+		}
+		if (remainingModifier[i].Operator == "*" || remainingModifier[i].Operator == "/") && len(remainingModifier) > 1 && i > 0 {
+			replacementModifier, err := doMath(lastMod, remainingModifier[i])
+			if err != nil {
+				return 0, err
+			}
+			remainingModifier = insertAtLocation(deleteAtLocation(remainingModifier, i-1, 2), replacementModifier, i-1)
+			lastMod = replacementModifier
+			i--
+		} else {
+			lastMod = remainingModifier[i]
 		}
 	}
-	return nil
+	for i := 0; i < len(remainingModifier); i++ {
+		if (remainingModifier[i].Operator == "+" || remainingModifier[i].Operator == "-") && len(remainingModifier) > 1 && i > 0 {
+			replacementModifier, _ := doMath(lastMod, remainingModifier[i])
+			remainingModifier = insertAtLocation(deleteAtLocation(remainingModifier, i-1, 2), replacementModifier, i-1)
+			lastMod = replacementModifier
+			i--
+		} else {
+			lastMod = remainingModifier[i]
+		}
+	}
+	return remainingModifier[0].Number, nil
+}*/
+func deleteAtLocation(segment []Segment, location int, numberToDelete int) []Segment {
+	return append(segment[:location], segment[location+numberToDelete:]...)
+}
+func insertAtLocation(segment []Segment, segmentToInsert Segment, location int) []Segment {
+	segment = append(segment, segmentToInsert)
+	copy(segment[location+1:], segment[location:])
+	segment[location] = segmentToInsert
+	return segment
+}
+func doMath(leftMod Segment, rightmod Segment) (Segment, error) {
+	m := Segment{}
+	switch rightmod.Operator {
+	case "*":
+		m.Number = leftMod.Number * rightmod.Number
+	case "/":
+		if rightmod.Number == 0 {
+			return m, fmt.Errorf("Don't make me break the universe.")
+		}
+		m.Number = leftMod.Number / rightmod.Number
+	case "+":
+		m.Number = leftMod.Number + rightmod.Number
+	case "-":
+		m.Number = leftMod.Number - rightmod.Number
+	case "D":
+		num, err := roll(leftMod.Number, rightmod.Number)
+		m.Number = num
+		if err != nil {
+			return m, err
+		}
+	}
+	m.Operator = leftMod.Operator
+	m.EvaluationPriority = leftMod.EvaluationPriority
+	return m, nil
 }
 
 func generateRandomInt(min int64, max int64) (int64, error) {
@@ -92,101 +167,4 @@ func generateRandomInt(min int64, max int64) (int64, error) {
 	}
 	n := nBig.Int64()
 	return n + int64(min), nil
-}
-
-func parseString(ctx context.Context, text string) (string, error) {
-	stmt, err := NewParser(strings.NewReader(text)).Parse()
-	if err != nil {
-		return "", err
-	}
-	log.Debugf(ctx, "stmt: %#v", stmt)
-	TotalDamageString, err := stmt.TotalDamage()
-	return fmt.Sprintf("%+v ", TotalDamageString), err
-}
-
-//HasDamageTypes returns true if any DiceSegment has a damage type
-//Useful for deciding how to parse into a string.
-func (a *RollStatement) HasDamageTypes() bool {
-	for _, e := range a.DiceSegments {
-		if e.DamageType != "" {
-			return true
-		}
-	}
-	return false
-}
-
-//TotalDamage rolls all DiceSegments, populates the DiceRollResult and, rolls all the segments and maps damage into types
-func (a *RollStatement) TotalDamage() (map[string]int64, error) {
-	m := make(map[string]int64)
-	err := a.rollSegments()
-	if err != nil {
-		return m, err
-	}
-	trailingOperator := ""
-	for i, e := range a.DiceSegments {
-		switch trailingOperator {
-		case "":
-			m[strings.Title(e.DamageType)] += e.DiceRollResult
-		case "+":
-			if e.DamageType == "" {
-				m[strings.Title(a.DiceSegments[i-1].DamageType)] += e.DiceRollResult
-				a.DiceSegments[i].DamageType = a.DiceSegments[i-1].DamageType
-			} else {
-				m[strings.Title(e.DamageType)] += e.DiceRollResult
-			}
-		case "-":
-			if e.DamageType == "" {
-				m[strings.Title(a.DiceSegments[i-1].DamageType)] -= e.DiceRollResult
-				a.DiceSegments[i].DamageType = a.DiceSegments[i-1].DamageType
-			} else {
-				m[strings.Title(e.DamageType)] += e.DiceRollResult
-			}
-		}
-		trailingOperator = e.TrailingOperator
-	}
-	return m, nil
-}
-func (a *RollStatement) TotalDamageString() (string, error) {
-	m, err := a.TotalDamage()
-	if err != nil {
-		return "", err
-	}
-	var damageString string
-	var total int64
-	for k := range m {
-		if k == "" {
-			damageString += fmt.Sprintf("%d damage\n", m[k])
-		} else {
-			damageString += fmt.Sprintf("%d %s damage\n", m[k], k)
-		}
-		total += m[k]
-	}
-	damageString += fmt.Sprintf(" for a total of %d ", total)
-	return damageString, nil
-}
-func (a *RollStatement) TotalSimpleRollString() (string, error) {
-	m, err := a.TotalDamage()
-	if err != nil {
-		return "", err
-	}
-	var damageString string
-	var total int64
-	if len(m) == 1 {
-		for k := range m {
-			damageString = fmt.Sprintf("%d", m[k])
-		}
-	} else {
-		i := 0
-		for k := range m {
-			if i == 0 {
-				damageString += fmt.Sprintf("%d", m[k])
-			} else {
-				damageString += fmt.Sprintf(" and %d", m[k])
-			}
-			total += m[k]
-			i++
-		}
-		damageString += fmt.Sprintf(" for a total of %d ", total)
-	}
-	return damageString, nil
 }

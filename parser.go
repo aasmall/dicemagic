@@ -20,8 +20,9 @@ const (
 	ROLL     // "roll" or "Roll"
 	OPAREN   // (
 	CPAREN   // )
+	OBRKT    // [
+	CBRKT    // ]
 	OPERATOR // + - * /
-	D        // d or D
 	NUMBER   // Sides, Number of Dice
 	IDENT    //Damage Types
 	EOF
@@ -81,7 +82,7 @@ func (s *Scanner) Scan() (tok Token, lit string) {
 		return s.scanWhitespace()
 	} else if isLetter(ch) {
 		if ch == 'd' || ch == 'D' {
-			return D, string(ch)
+			return OPERATOR, string(ch)
 		}
 		s.unread()
 		return s.scanIdent()
@@ -98,6 +99,10 @@ func (s *Scanner) Scan() (tok Token, lit string) {
 		return OPAREN, string(ch)
 	case ')':
 		return CPAREN, string(ch)
+	case '[':
+		return OBRKT, string(ch)
+	case ']':
+		return CBRKT, string(ch)
 	case '+':
 		return OPERATOR, string(ch)
 	case '-':
@@ -228,6 +233,7 @@ func (p *Parser) scanIgnoreWhitespace() (tok Token, lit string) {
 	return
 }
 
+/*
 func (p *Parser) Parse() (*RollStatement, error) {
 	stmt := new(RollStatement)
 	tok, lit := p.scanIgnoreWhitespace()
@@ -251,6 +257,12 @@ func (p *Parser) Parse() (*RollStatement, error) {
 		}
 		if tok == EOF {
 			break
+		}
+		//optional: trailing OPERATOR
+		if operator, found := populateOptional(tok, lit, OPERATOR); found {
+			diceSgmt.leadingOperator = operator
+		} else {
+			diceSgmt.leadingOperator = "+"
 		}
 		//
 		//optional: n
@@ -280,26 +292,35 @@ func (p *Parser) Parse() (*RollStatement, error) {
 		} else {
 			diceSgmt.DiceRoll.Sides = 0
 		}
-		//optional: OPERATOR
-		if operator, found := populateOptional(tok, lit, OPERATOR); found {
-			diceSgmt.ModifierOperator = operator
-			tok, lit = p.scanIgnoreWhitespace()
-		} else {
-			diceSgmt.ModifierOperator = "+"
-		}
-		//optional: Modifier
-		if modifier, found := populateOptional(tok, lit, NUMBER); found {
-			diceSgmt.Modifier, _ = strconv.ParseInt(modifier, 10, 0)
-			tok, lit = p.scanIgnoreWhitespace()
-		} else {
-			diceSgmt.Modifier = 0
+		for {
+			//optional: OPERATOR
+			var rememberOperator string
+			if operator, found := populateOptional(tok, lit, OPERATOR); found {
+				rememberOperator = operator
+				tok, lit = p.scanIgnoreWhitespace()
+			} else {
+				break
+			}
+			//optional: Modifier
+			if modifier, found := populateOptional(tok, lit, NUMBER); found {
+				foundModifier, _ := strconv.ParseInt(modifier, 10, 0)
+				diceSgmt.Modifiers = append(diceSgmt.Modifiers, struct {
+					Operator string
+					Number   int64
+				}{
+					Operator: rememberOperator,
+					Number:   foundModifier})
+				tok, lit = p.scanIgnoreWhitespace()
+			} else {
+				break
+			}
 		}
 		//optional: OPAREN
 		if _, found := populateOptional(tok, lit, OPAREN); found {
 			tok, lit = p.scanIgnoreWhitespace()
 			damageType, err := populateRequired(tok, lit, IDENT)
 			if err != nil {
-				return nil, fmt.Errorf("found %q, expected DamageType", lit)
+				return nil, fmt.Errorf("found %q, expected roll type", lit)
 			}
 			diceSgmt.DamageType = damageType
 			tok, lit = p.scanIgnoreWhitespace()
@@ -311,27 +332,18 @@ func (p *Parser) Parse() (*RollStatement, error) {
 			}
 			tok, lit = p.scanIgnoreWhitespace()
 
-			//I didn't find an open paren, instead I found a D
+		} else if _, found := populateOptional(tok, lit, OPERATOR); found {
+			//I didn't find an open paren, instead I found an operator
 			//I need to fix Modifier Operator to be the trailing operator
 			//and use the modifier as the first numeric result
-		} else if _, found := populateOptional(tok, lit, D); found {
 			rollback = true
-			rollbackModifier = diceSgmt.Modifier
-			diceSgmt.TrailingOperator = diceSgmt.ModifierOperator
-			diceSgmt.Modifier = 0
-			diceSgmt.ModifierOperator = "+"
+			lengthOfModifierSlices := len(diceSgmt.Modifiers)
+			rollbackModifier = diceSgmt.Modifiers[lengthOfModifierSlices].Number
+			diceSgmt.leadingOperator = diceSgmt.Modifiers[lengthOfModifierSlices].Operator
+			diceSgmt.Modifiers[lengthOfModifierSlices].Number = 0
+			diceSgmt.Modifiers[lengthOfModifierSlices].Operator = "+"
 			stmt.DiceSegments = append(stmt.DiceSegments, *diceSgmt)
 			continue
-		}
-		//optional: trailing OPERATOR
-		if operator, found := populateOptional(tok, lit, OPERATOR); found {
-			if operator == "+" || operator == "-" {
-				diceSgmt.TrailingOperator = operator
-			} else {
-				return nil, fmt.Errorf("Only '+' and '-' may be used between dice expressions. Found: %q", lit)
-			}
-		} else {
-			diceSgmt.TrailingOperator = ""
 		}
 
 		//diceSgmt.DiceRoll = append(diceSgmt.DiceRoll, *diceRoll)
@@ -344,6 +356,108 @@ func (p *Parser) Parse() (*RollStatement, error) {
 		//paren follwed by a damage type followed by a close paren or EOF
 	}
 	return stmt, nil
+}*/
+func (p *Parser) MustParse() *RollExpression {
+	r, _ := p.Parse()
+	return r
+}
+func (p *Parser) Parse() (*RollExpression, error) {
+	expression := new(RollExpression)
+	tok, lit := p.scanIgnoreWhitespace()
+	_, err := populateRequired(tok, lit, ROLL)
+	if err != nil {
+		return nil, fmt.Errorf("found %q, expected ROLL", lit)
+	}
+
+	//flow control
+	//rollback := false
+	//rollbackModifier := int64(0)
+	tok, lit = ILLEGAL, ""
+	evalOrder := 0
+	//dat parse loops
+	for {
+		//create this loops objects
+		segment := new(Segment)
+		tok, lit = p.scanIgnoreWhitespace()
+		if tok == EOF {
+			break
+		}
+		segment.EvaluationPriority = evalOrder
+		// find OParen, decrement eval order and restart loop
+		if _, found := populateOptional(tok, lit, OPAREN); found {
+			evalOrder--
+			continue
+		}
+		// find CParen, increment eval order and restart loop
+		if _, found := populateOptional(tok, lit, CPAREN); found {
+			evalOrder++
+			continue
+		}
+		if _, found := populateOptional(tok, lit, OBRKT); found {
+			//found an open bracket. Read for Segment Type (force title case)
+			tok, lit = p.scanIgnoreWhitespace()
+			segmentType, err := populateRequired(tok, strings.Title(lit), IDENT)
+			if err != nil {
+				return expression, err
+			}
+			//found segment type, Apply to all previous non-typed segments then require close bracket
+			for i, e := range expression.Segments {
+				if e.SegmentType == "" {
+					expression.Segments[i].SegmentType = segmentType
+				}
+			}
+			tok, lit = p.scanIgnoreWhitespace()
+			_, err = populateRequired(tok, lit, CBRKT)
+			if err != nil {
+				return expression, err
+			}
+			//found close bracket, contune.
+			continue
+
+		}
+		//optional: OPERATOR
+		if operator, found := populateOptional(tok, lit, OPERATOR); found {
+			segment.Operator = strings.ToUpper(operator)
+			tok, lit = p.scanIgnoreWhitespace()
+		} else {
+			segment.Operator = "+"
+		}
+		//optional: Number
+		if number, found := populateOptional(tok, lit, NUMBER); found {
+			foundNumber, _ := strconv.ParseInt(number, 10, 0)
+			segment.Number = foundNumber
+		}
+		expression.Segments = append(expression.Segments, *segment)
+	}
+	for i, e := range expression.Segments {
+		if e.Operator == "*" || e.Operator == "/" {
+			expression.adjustIfLowerPriority(expression.Segments[i].EvaluationPriority, -1)
+			expression.Segments[i].EvaluationPriority += -1
+		}
+	}
+
+	//force dice rolls to highest priority
+	for i, e := range expression.Segments {
+		if e.Operator == "D" {
+			expression.Segments[i].EvaluationPriority = GetHighestPriority(expression.Segments) - 1
+		}
+	}
+	return expression, nil
+}
+
+func (e *RollExpression) adjustIfLowerPriority(ifLowerThan int, adjustBy int) {
+	for i, s := range e.Segments {
+		if s.EvaluationPriority < ifLowerThan {
+			e.Segments[i].EvaluationPriority += adjustBy
+		}
+	}
+}
+func (e *RollExpression) adjustIfHigherPriority(ifHigherThan int, adjustBy int) {
+	for i, s := range e.Segments {
+		if s.EvaluationPriority > ifHigherThan {
+			e.Segments[i].EvaluationPriority += adjustBy
+		}
+	}
 }
 
 func populateOptional(tok Token, lit string, tokExpect Token) (string, bool) {
