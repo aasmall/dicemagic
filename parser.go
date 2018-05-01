@@ -28,6 +28,8 @@ const (
 	EOF
 )
 
+//go:generate stringer -type=Token
+
 var eof = rune(0)
 
 type ParseRequest struct {

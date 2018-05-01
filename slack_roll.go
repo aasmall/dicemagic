@@ -68,9 +68,11 @@ func slackRoll(w http.ResponseWriter, r *http.Request) {
 	slackRollResponse := new(SlashRollJSONResponse)
 	attachment := Attachment{
 		Fallback:   createAttachmentsDamageString(damageMap),
-		AuthorName: fmt.Sprintf("Rolling... %s", r.FormValue("text")),
-		Color:      r.FormValue("user_id")}
+		AuthorName: fmt.Sprintf("/roll %s", r.FormValue("text")),
+		Color:      stringToColor(r.FormValue("user_id"))}
+	totalRoll := int64(0)
 	for k, v := range damageMap {
+		totalRoll += v
 		fieldTitle := k
 		if k == "" {
 			fieldTitle = "_Unspecified_"
@@ -79,6 +81,9 @@ func slackRoll(w http.ResponseWriter, r *http.Request) {
 		attachment.Fields = append(attachment.Fields, field)
 		log.Debugf(ctx, fmt.Sprintf("Attachment: %+v", attachment))
 	}
+
+	field := Field{Title: fmt.Sprintf("For a total of: %d", totalRoll), Short: false}
+	attachment.Fields = append(attachment.Fields, field)
 
 	slackRollResponse.Attachments = append(slackRollResponse.Attachments, attachment)
 

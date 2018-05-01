@@ -1,8 +1,6 @@
 package main
 
-import (
-	"strings"
-)
+import "strings"
 
 /*
 func dialogueWebhookHandler(w http.ResponseWriter, r *http.Request) {
