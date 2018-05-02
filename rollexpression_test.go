@@ -83,24 +83,31 @@ func TestRollExpression_getTotalsByType(t *testing.T) {
 	tests := []struct {
 		name    string
 		r       *RollExpression
-		want    map[string]int64
+		want    []RollTotal
 		wantErr bool
 	}{
 		{name: "fobar",
-			r:       NewParser(strings.NewReader("ROLL (21d1+7)/2[mundane]+4d1[fire]")).MustParse(),
-			want:    map[string]int64{"Mundane": 14, "Fire": 4},
+			r: NewParser(strings.NewReader("ROLL (21d1+7)/2[mundane]+4d1[fire]")).MustParse(),
+			want: []RollTotal{
+				{rollType: "Fire", rollResult: 4},
+				{rollType: "Mundane", rollResult: 14}},
 			wantErr: false},
 		{name: "fobar",
-			r:       NewParser(strings.NewReader("ROLL (8d1+10)*2+5[mundane]+6d1/2[fire]")).MustParse(),
-			want:    map[string]int64{"Mundane": 41, "Fire": 3},
+			r: NewParser(strings.NewReader("ROLL (8d1+10)*2+5[mundane]+6d1/2[fire]")).MustParse(),
+			want: []RollTotal{
+				{rollType: "Fire", rollResult: 3},
+				{rollType: "Mundane", rollResult: 41}},
 			wantErr: false},
 		{name: "No Types",
-			r:       NewParser(strings.NewReader("ROLL (8d1+10)*2+5")).MustParse(),
-			want:    map[string]int64{"": 41},
+			r: NewParser(strings.NewReader("ROLL (8d1+10)*2+5")).MustParse(),
+			want: []RollTotal{
+				{rollType: "", rollResult: 41}},
 			wantErr: false},
 		{name: "mixmatched types",
-			r:       NewParser(strings.NewReader("ROLL (8d1+10)*2+5[mundane]+6d1/2*5-10")).MustParse(),
-			want:    map[string]int64{"Mundane": 41, "": 5},
+			r: NewParser(strings.NewReader("ROLL (8d1+10)*2+5[mundane]+6d1/2*5-10")).MustParse(),
+			want: []RollTotal{
+				{rollType: "", rollResult: 5},
+				{rollType: "Mundane", rollResult: 41}},
 			wantErr: false}}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -111,6 +118,24 @@ func TestRollExpression_getTotalsByType(t *testing.T) {
 			}
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("RollExpression.getTotalsByType() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestRollExpression_String(t *testing.T) {
+	tests := []struct {
+		name string
+		r    *RollExpression
+		want string
+	}{
+		{name: "ReString",
+			r:    NewParser(strings.NewReader("ROLL (21d1+7)/2[mundane]+4d1[fire]")).MustParse(),
+			want: "Roll (21D1+7)/2[Mundane]+4D1[Fire]"}}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.r.String(); got != tt.want {
+				t.Errorf("RollExpression.String() = %v, want %v", got, tt.want)
 			}
 		})
 	}

@@ -4,21 +4,28 @@ import (
 	"crypto/rand"
 	"fmt"
 	"math/big"
+	"sort"
 	"strings"
 )
 
-//RollStatement is a collection of DiceSegments
-
+//RollExpression is a collection of Segments
 type RollExpression struct {
 	initialText string
 	Segments    []Segment
 }
 
+//Segments is half of a mathmatical expression along it's its evaluation priority
 type Segment struct {
 	Operator           string
 	Number             int64
 	SegmentType        string
 	EvaluationPriority int
+}
+
+//RollTotal represents collapsed Segments that have been evaluated
+type RollTotal struct {
+	rollType   string
+	rollResult int64
 }
 
 func GetHighestPriority(r []Segment) int {
@@ -31,10 +38,15 @@ func GetHighestPriority(r []Segment) int {
 	}
 	return highestPriority
 }
-func (r *RollExpression) getTotalsByType() (map[string]int64, error) {
+
+func (r *RollExpression) String() string {
+	return r.initialText
+}
+
+func (r *RollExpression) getTotalsByType() ([]RollTotal, error) {
 	//var lastSegment Segment
 	m := make(map[string]int64)
-
+	rollTotals := []RollTotal{}
 	//break segments into their Damage Types
 	segmentsPerSegmentType := make(map[string][]Segment)
 	for _, e := range r.Segments {
@@ -51,12 +63,12 @@ func (r *RollExpression) getTotalsByType() (map[string]int64, error) {
 		for p := highestPriority; p < 1; p++ {
 			for i := 0; i < len(remainingSegments); i++ {
 				if !strings.ContainsAny(remainingSegments[i].Operator, "D+-*/") {
-					return m, fmt.Errorf("%s is not a valid operator", remainingSegments[i].Operator)
+					return rollTotals, fmt.Errorf("%s is not a valid operator", remainingSegments[i].Operator)
 				}
 				if remainingSegments[i].EvaluationPriority == p && len(remainingSegments) > 1 && i > 0 {
 					replacementSegment, err := doMath(lastSegment, remainingSegments[i])
 					if err != nil {
-						return m, err
+						return rollTotals, err
 					}
 					remainingSegments = insertAtLocation(deleteAtLocation(remainingSegments, i-1, 2), replacementSegment, i-1)
 					lastSegment = replacementSegment
@@ -69,7 +81,17 @@ func (r *RollExpression) getTotalsByType() (map[string]int64, error) {
 		//I have fully collapsed this loop. Add to final result.
 		m[k] += lastSegment.Number
 	}
-	return m, nil
+
+	//sort it
+	var keys []string
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		rollTotals = append(rollTotals, RollTotal{rollType: k, rollResult: m[k]})
+	}
+	return rollTotals, nil
 }
 func roll(numberOfDice int64, sides int64) (int64, error) {
 	if numberOfDice > 1000 {

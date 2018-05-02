@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -12,14 +11,10 @@ import (
 	yaml "gopkg.in/yaml.v2"
 )
 
-var ctx context.Context
-
 func TestMain(m *testing.M) {
 	var appYaml AppYaml
 	appYaml.SetEnvironmentVariables()
-	localctx, done, _ := aetest.NewContext()
-	ctx = localctx
-	defer done()
+
 	os.Exit(m.Run())
 }
 
@@ -47,18 +42,20 @@ func (c *AppYaml) SetEnvironmentVariables() *AppYaml {
 }
 
 func TestEncryptDecrypt(t *testing.T) {
+	ctx, done, err := aetest.NewContext()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer done()
 	testString := "EncryptThis"
-	fmt.Printf("testString: %v\n", testString)
 	ciphertext, err := encrypt(ctx, testString)
 	if err != nil {
 		t.Fatal(err)
 	}
-	fmt.Printf("ciphertext: %v\n", ciphertext)
 	plaintext, err := decrypt(ctx, ciphertext)
 	if err != nil {
 		t.Fatal(err)
 	}
-	fmt.Printf("plaintext: %v\n", plaintext)
 	if !(plaintext == testString) {
 		t.Fatalf("plaintext does not match testString: %+v", plaintext)
 	}

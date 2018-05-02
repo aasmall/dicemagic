@@ -242,11 +242,12 @@ func (p *Parser) MustParse() *RollExpression {
 func (p *Parser) Parse() (*RollExpression, error) {
 	expression := new(RollExpression)
 	tok, lit := p.scanIgnoreWhitespace()
+	var buffer bytes.Buffer
 	_, err := populateRequired(tok, lit, ROLL)
 	if err != nil {
 		return nil, fmt.Errorf("found %q, expected ROLL", lit)
 	}
-
+	buffer.WriteString("Roll ")
 	//flow control
 	//rollback := false
 	//rollbackModifier := int64(0)
@@ -264,21 +265,37 @@ func (p *Parser) Parse() (*RollExpression, error) {
 		// find OParen, decrement eval order and restart loop
 		if _, found := populateOptional(tok, lit, OPAREN); found {
 			evalOrder--
+			buffer.WriteString("(")
 			continue
 		}
 		// find CParen, increment eval order and restart loop
 		if _, found := populateOptional(tok, lit, CPAREN); found {
 			evalOrder++
+			buffer.WriteString(")")
+			continue
+		}
+		//what if I don't require brackets at all?
+		if segmentType, found := populateOptional(tok, strings.Title(lit), IDENT); found {
+			for i, e := range expression.Segments {
+				if e.SegmentType == "" {
+					expression.Segments[i].SegmentType = segmentType
+				}
+			}
+			buffer.WriteString("[")
+			buffer.WriteString(segmentType)
+			buffer.WriteString("]")
 			continue
 		}
 		if _, found := populateOptional(tok, lit, OBRKT); found {
 			//found an open bracket. Read for Segment Type (force title case)
+			buffer.WriteString("[")
 			tok, lit = p.scanIgnoreWhitespace()
 			segmentType, err := populateRequired(tok, strings.Title(lit), IDENT)
 			if err != nil {
 				return expression, err
 			}
 			//found segment type, Apply to all previous non-typed segments then require close bracket
+			buffer.WriteString(segmentType)
 			for i, e := range expression.Segments {
 				if e.SegmentType == "" {
 					expression.Segments[i].SegmentType = segmentType
@@ -290,12 +307,14 @@ func (p *Parser) Parse() (*RollExpression, error) {
 				return expression, err
 			}
 			//found close bracket, contune.
+			buffer.WriteString("]")
 			continue
 
 		}
 		//optional: OPERATOR
 		if operator, found := populateOptional(tok, lit, OPERATOR); found {
 			segment.Operator = strings.ToUpper(operator)
+			buffer.WriteString(segment.Operator)
 			tok, lit = p.scanIgnoreWhitespace()
 		} else {
 			segment.Operator = "+"
@@ -303,6 +322,7 @@ func (p *Parser) Parse() (*RollExpression, error) {
 		//optional: Number
 		if number, found := populateOptional(tok, lit, NUMBER); found {
 			foundNumber, _ := strconv.ParseInt(number, 10, 0)
+			buffer.WriteString(number)
 			segment.Number = foundNumber
 		}
 		expression.Segments = append(expression.Segments, *segment)
@@ -320,6 +340,7 @@ func (p *Parser) Parse() (*RollExpression, error) {
 			expression.Segments[i].EvaluationPriority = GetHighestPriority(expression.Segments) - 1
 		}
 	}
+	expression.initialText = buffer.String()
 	return expression, nil
 }
 

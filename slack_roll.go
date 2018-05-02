@@ -32,13 +32,13 @@ type Field struct {
 	Short bool   `json:"short"`
 }
 
-func createAttachmentsDamageString(collapsedRoll map[string]int64) string {
+func createAttachmentsDamageString(rollTotals []RollTotal) string {
 	var buffer bytes.Buffer
-	for k, v := range collapsedRoll {
-		if k == "" {
-			buffer.WriteString(fmt.Sprintf("%d of type _unspecified_", v))
+	for _, e := range rollTotals {
+		if e.rollType == "" {
+			buffer.WriteString(fmt.Sprintf("%d of type _unspecified_", e.rollResult))
 		} else {
-			buffer.WriteString(fmt.Sprintf("%d of type %s", v, k))
+			buffer.WriteString(fmt.Sprintf("%d of type %s", e.rollResult, e.rollType))
 		}
 	}
 	return buffer.String()
@@ -58,48 +58,45 @@ func slackRoll(w http.ResponseWriter, r *http.Request) {
 		printErrorToSlack(ctx, err, w, r)
 		return
 	}
-	expression.initialText = content
-	var slackRollResponse SlashRollJSONResponse
-	slackRollResponse, err = expression.ToSlackRollResponse()
+	slackRollResponse := SlashRollJSONResponse{}
+	attachment, err := expression.ToSlackAttachment()
 	if err != nil {
 		printErrorToSlack(ctx, err, w, r)
 		return
 	}
+	slackRollResponse.Attachments = append(slackRollResponse.Attachments, attachment)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(slackRollResponse)
 }
 
-func (expression *RollExpression) ToSlackRollResponse() (SlashRollJSONResponse, error) {
+func (expression *RollExpression) ToSlackAttachment() (Attachment, error) {
 
-	slackRollResponse := SlashRollJSONResponse{}
-
-	damageMap, err := expression.getTotalsByType()
-
+	rollTotals, err := expression.getTotalsByType()
+	attachment := Attachment{}
 	if err != nil {
-		return slackRollResponse, err
+		return attachment, err
 	}
-	attachment := Attachment{
-		Fallback:   createAttachmentsDamageString(damageMap),
-		AuthorName: fmt.Sprintf("/%s", expression.initialText),
+	attachment = Attachment{
+		Fallback:   createAttachmentsDamageString(rollTotals),
+		AuthorName: expression.String(),
 		Color:      stringToColor(expression.initialText)}
 	totalRoll := int64(0)
-	for k, v := range damageMap {
-		totalRoll += v
-		fieldTitle := k
-		if k == "" {
+
+	for _, e := range rollTotals {
+		totalRoll += e.rollResult
+		fieldTitle := e.rollType
+		if e.rollType == "" {
 			fieldTitle = "_Unspecified_"
 		}
-		field := Field{Title: fieldTitle, Value: fmt.Sprintf("%d", v), Short: true}
+		field := Field{Title: fieldTitle, Value: fmt.Sprintf("%d", e.rollResult), Short: true}
 		attachment.Fields = append(attachment.Fields, field)
 	}
 
 	field := Field{Title: fmt.Sprintf("For a total of: %d", totalRoll), Short: false}
 	attachment.Fields = append(attachment.Fields, field)
 
-	slackRollResponse.Attachments = append(slackRollResponse.Attachments, attachment)
-
-	return slackRollResponse, nil
+	return attachment, nil
 }
 
 func printErrorToSlack(ctx context.Context, err error, w http.ResponseWriter, r *http.Request) {

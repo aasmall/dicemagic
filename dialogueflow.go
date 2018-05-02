@@ -155,23 +155,29 @@ func dialogueWebhookHandler(w http.ResponseWriter, r *http.Request) {
 	log.Debugf(ctx, "dialogueFlowRequest.QueryResult.ParametersDice: %#v",
 		dialogueFlowRequest.QueryResult.Parameters["DiceExpression"])
 
-	diceExpressionString := addMissingCloseParens(dialogueFlowRequest.QueryResult.Parameters["DiceExpression"].([]interface{})[0].(string))
+	slackRollResponse := SlashRollJSONResponse{}
+	diceExpressionCount := len(dialogueFlowRequest.QueryResult.Parameters["DiceExpression"].([]interface{}))
+	for i := 0; i < diceExpressionCount; i++ {
+		diceExpressionString := addMissingCloseParens(dialogueFlowRequest.QueryResult.Parameters["DiceExpression"].([]interface{})[i].(string))
 
-	// add ROLL identifier for parser
-	if !strings.Contains(strings.ToUpper(diceExpressionString), "ROLL") {
-		diceExpressionString = fmt.Sprintf("roll %s", diceExpressionString)
+		// add ROLL identifier for parser
+		if !strings.Contains(strings.ToUpper(diceExpressionString), "ROLL") {
+			diceExpressionString = fmt.Sprintf("roll %s", diceExpressionString)
+		}
+		log.Debugf(ctx, "diceExpression: %#v", diceExpressionString)
+
+		expression, err := NewParser(strings.NewReader(diceExpressionString)).Parse()
+		if err != nil {
+			log.Criticalf(ctx, "%v", err)
+			return
+		}
+
+		attachment, err := expression.ToSlackAttachment()
+		slackRollResponse.Attachments = append(slackRollResponse.Attachments, attachment)
 	}
-	log.Debugf(ctx, "diceExpression: %#v", diceExpressionString)
-
-	expression, err := NewParser(strings.NewReader(diceExpressionString)).Parse()
-	expression.initialText = diceExpressionString
-	if err != nil {
-		log.Criticalf(ctx, "%v", err)
-		return
-	}
-
 	dialogueFlowResponse.FulfillmentText = ""
-	dialogueFlowResponse.Payload.Slack, err = expression.ToSlackRollResponse()
+
+	dialogueFlowResponse.Payload.Slack = slackRollResponse
 	if err != nil {
 		log.Criticalf(ctx, "%v", err)
 		return
