@@ -4,12 +4,16 @@ Slack Bot for Rolling Complex Dice
 
 ## Set up dev environment
 
+requires:
+ - [Google Cloud SDK](https://cloud.google.com/sdk/downloads)
+ - [Go](https://golang.org/doc/install)
+ - [AppEngine default service account key.json](https://console.cloud.google.com/iam-admin/serviceaccounts/project)
+ - Python 
+    $ sudo apt-get install python
+
 ```bash
 #You'll need a private key to access the AppEngine Service Account. You probably don't have this
 export GOOGLE_APPLICATION_CREDENTIALS="/mnt/c/Users/aaron/aasmall/MagicDice/sa.json"
-
-#Set your GOPATH to your workspace
-export GOPATH=$"/mnt/c/Users/aaron/aasmall/go/"
 
 go get
 dev_appserver.py app.yaml

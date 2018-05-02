@@ -66,8 +66,8 @@ func (db *datastoreDB) GetIntegration(ctx context.Context, id int64) (*Integrati
 
 func (db *datastoreDB) AddIntegration(ctx context.Context, b *Integration) (id int64, err error) {
 	k := datastore.IncompleteKey("Integration", nil)
-	b.OAuthApprovalResponse.AccessToken = encrypt(ctx, b.OAuthApprovalResponse.AccessToken)
-	b.OAuthApprovalResponse.Bot.BotAccessToken = encrypt(ctx, b.OAuthApprovalResponse.Bot.BotAccessToken)
+	b.OAuthApprovalResponse.AccessToken, _ = encrypt(ctx, b.OAuthApprovalResponse.AccessToken)
+	b.OAuthApprovalResponse.Bot.BotAccessToken, _ = encrypt(ctx, b.OAuthApprovalResponse.Bot.BotAccessToken)
 
 	//
 	//Enforce 1 Integration per team

@@ -1,7 +1,6 @@
 package main
 
 import "strings"
-
 /*
 func dialogueWebhookHandler(w http.ResponseWriter, r *http.Request) {
 	//response := "This is a sample response from your webhook!"

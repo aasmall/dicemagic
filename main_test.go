@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"google.golang.org/appengine/aetest"
-	"gopkg.in/yaml.v2"
+	yaml "gopkg.in/yaml.v2"
 )
 
 var ctx context.Context
@@ -17,7 +17,8 @@ var ctx context.Context
 func TestMain(m *testing.M) {
 	var appYaml AppYaml
 	appYaml.SetEnvironmentVariables()
-	_, done, _ := aetest.NewContext()
+	localctx, done, _ := aetest.NewContext()
+	ctx = localctx
 	defer done()
 	os.Exit(m.Run())
 }
@@ -48,9 +49,15 @@ func (c *AppYaml) SetEnvironmentVariables() *AppYaml {
 func TestEncryptDecrypt(t *testing.T) {
 	testString := "EncryptThis"
 	fmt.Printf("testString: %v\n", testString)
-	ciphertext := encrypt(ctx, testString)
+	ciphertext, err := encrypt(ctx, testString)
+	if err != nil {
+		t.Fatal(err)
+	}
 	fmt.Printf("ciphertext: %v\n", ciphertext)
-	plaintext := decrypt(ctx, ciphertext)
+	plaintext, err := decrypt(ctx, ciphertext)
+	if err != nil {
+		t.Fatal(err)
+	}
 	fmt.Printf("plaintext: %v\n", plaintext)
 	if !(plaintext == testString) {
 		t.Fatalf("plaintext does not match testString: %+v", plaintext)

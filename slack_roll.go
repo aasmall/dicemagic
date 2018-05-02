@@ -107,5 +107,5 @@ func stringToColor(input string) string {
 	r := rand.Intn(0xff)
 	g := rand.Intn(0xff)
 	b := rand.Intn(0xff)
-	return fmt.Sprintf("#%X%X%X", b, g, r)
+	return fmt.Sprintf("#%X%X%X", r, g, b)
 }

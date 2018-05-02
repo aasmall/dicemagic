@@ -8,17 +8,13 @@ import (
 
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/cloudkms/v1"
-	"google.golang.org/appengine/log"
 )
 
-func slackBotAccessToken(ctx context.Context, integration *Integration) string {
-	encryptedBotAccessToken := integration.OAuthApprovalResponse.Bot.BotAccessToken
-	return decrypt(ctx, encryptedBotAccessToken)
-}
 func slackVerificationToken(ctx context.Context) string {
-	return decrypt(ctx, os.Getenv("SLACK_CLIENT_VERIFICATION_TOKEN"))
+	val, _ := decrypt(ctx, os.Getenv("SLACK_CLIENT_VERIFICATION_TOKEN"))
+	return val
 }
-func decrypt(ctx context.Context, ciphertext string) string {
+func decrypt(ctx context.Context, ciphertext string) (string, error) {
 	projectID := os.Getenv("PROJECT_ID")
 	keyRing := os.Getenv("KMSKEYRING")
 	key := os.Getenv("KMSKEY")
@@ -26,13 +22,14 @@ func decrypt(ctx context.Context, ciphertext string) string {
 
 	client, err := google.DefaultClient(ctx, cloudkms.CloudPlatformScope)
 	if err != nil {
-		log.Criticalf(ctx, fmt.Sprintf("%+v", err))
+		return "", err
 	}
 
 	kmsService, err := cloudkms.New(client)
 	if err != nil {
-		log.Criticalf(ctx, fmt.Sprintf("%+v", err))
+		return "", err
 	}
+
 	parentName := fmt.Sprintf("projects/%s/locations/%s/keyRings/%s/cryptoKeys/%s",
 		projectID, locationID, keyRing, key)
 	req := &cloudkms.DecryptRequest{
@@ -40,12 +37,13 @@ func decrypt(ctx context.Context, ciphertext string) string {
 	}
 	resp, err := kmsService.Projects.Locations.KeyRings.CryptoKeys.Decrypt(parentName, req).Do()
 	if err != nil {
-		log.Criticalf(ctx, fmt.Sprintf("%+v", err))
+		return "", err
 	}
+
 	decodedString, _ := base64.StdEncoding.DecodeString(resp.Plaintext)
-	return string(decodedString)
+	return string(decodedString), nil
 }
-func encrypt(ctx context.Context, plaintext string) string {
+func encrypt(ctx context.Context, plaintext string) (string, error) {
 	projectID := os.Getenv("PROJECT_ID")
 	keyRing := os.Getenv("KMSKEYRING")
 	key := os.Getenv("KMSKEY")
@@ -53,13 +51,14 @@ func encrypt(ctx context.Context, plaintext string) string {
 
 	client, err := google.DefaultClient(ctx, cloudkms.CloudPlatformScope)
 	if err != nil {
-		log.Criticalf(ctx, fmt.Sprintf("%+v", err))
+		return "", err
 	}
 
 	kmsService, err := cloudkms.New(client)
 	if err != nil {
-		log.Criticalf(ctx, fmt.Sprintf("%+v", err))
+		return "", err
 	}
+
 	parentName := fmt.Sprintf("projects/%s/locations/%s/keyRings/%s/cryptoKeys/%s",
 		projectID, locationID, keyRing, key)
 	encodedPlaintext := base64.StdEncoding.EncodeToString([]byte(plaintext))
@@ -68,7 +67,8 @@ func encrypt(ctx context.Context, plaintext string) string {
 	}
 	resp, err := kmsService.Projects.Locations.KeyRings.CryptoKeys.Encrypt(parentName, req).Do()
 	if err != nil {
-		log.Criticalf(ctx, fmt.Sprintf("%+v", err))
+		return "", err
 	}
-	return string(resp.Ciphertext)
+
+	return string(resp.Ciphertext), nil
 }
