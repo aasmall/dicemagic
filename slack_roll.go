@@ -13,7 +13,6 @@ import (
 	"strings"
 
 	"google.golang.org/appengine"
-	"google.golang.org/appengine/log"
 )
 
 //SlashRollJSONResponse is the response format for slack slash commands
@@ -53,23 +52,37 @@ func slackRoll(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "This is not the droid you're looking for.")
 		return
 	}
-	content := fmt.Sprintf("ROLL %s", r.FormValue("text"))
+	content := fmt.Sprintf("roll %s", r.FormValue("text"))
 	expression, err := NewParser(strings.NewReader(content)).Parse()
 	if err != nil {
 		printErrorToSlack(ctx, err, w, r)
 		return
 	}
-	damageMap, err := expression.getTotalsByType()
+	expression.initialText = content
+	var slackRollResponse SlashRollJSONResponse
+	slackRollResponse, err = expression.ToSlackRollResponse()
 	if err != nil {
 		printErrorToSlack(ctx, err, w, r)
 		return
 	}
 
-	slackRollResponse := new(SlashRollJSONResponse)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(slackRollResponse)
+}
+
+func (expression *RollExpression) ToSlackRollResponse() (SlashRollJSONResponse, error) {
+
+	slackRollResponse := SlashRollJSONResponse{}
+
+	damageMap, err := expression.getTotalsByType()
+
+	if err != nil {
+		return slackRollResponse, err
+	}
 	attachment := Attachment{
 		Fallback:   createAttachmentsDamageString(damageMap),
-		AuthorName: fmt.Sprintf("/roll %s", r.FormValue("text")),
-		Color:      stringToColor(r.FormValue("user_id"))}
+		AuthorName: fmt.Sprintf("/%s", expression.initialText),
+		Color:      stringToColor(expression.initialText)}
 	totalRoll := int64(0)
 	for k, v := range damageMap {
 		totalRoll += v
@@ -79,7 +92,6 @@ func slackRoll(w http.ResponseWriter, r *http.Request) {
 		}
 		field := Field{Title: fieldTitle, Value: fmt.Sprintf("%d", v), Short: true}
 		attachment.Fields = append(attachment.Fields, field)
-		log.Debugf(ctx, fmt.Sprintf("Attachment: %+v", attachment))
 	}
 
 	field := Field{Title: fmt.Sprintf("For a total of: %d", totalRoll), Short: false}
@@ -87,9 +99,9 @@ func slackRoll(w http.ResponseWriter, r *http.Request) {
 
 	slackRollResponse.Attachments = append(slackRollResponse.Attachments, attachment)
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(slackRollResponse)
+	return slackRollResponse, nil
 }
+
 func printErrorToSlack(ctx context.Context, err error, w http.ResponseWriter, r *http.Request) {
 	slackRollResponse := new(SlashRollJSONResponse)
 	slackRollResponse.Text = err.Error()

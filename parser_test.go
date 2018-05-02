@@ -74,7 +74,7 @@ func TestParser_Parse(t *testing.T) {
 	}{
 		{name: "ROLL (1d12+7)/2[mundane]+1d4[fire]",
 			p: NewParser(strings.NewReader("ROLL (1d12+7)/2[mundane]+1d4[fire]")),
-			want: &RollExpression{[]Segment{
+			want: &RollExpression{"ROLL (1d12+7)/2[mundane]+1d4[fire]", []Segment{
 				Segment{Number: 1, Operator: "+", SegmentType: "Mundane", EvaluationPriority: -2},
 				Segment{Number: 12, Operator: "D", SegmentType: "Mundane", EvaluationPriority: -3},
 				Segment{Number: 7, Operator: "+", SegmentType: "Mundane", EvaluationPriority: -2},

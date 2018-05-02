@@ -13,7 +13,7 @@ var diceRegexp = regexp.MustCompile(`(?i)^(\d+)d(\d+)$`)
 func main() {
 	http.HandleFunc("/", rootHandle)
 	http.HandleFunc("/slack/roll/", slackRoll)
-	//http.HandleFunc("/dflow/", dialogueWebhookHandler)
+	http.HandleFunc("/dflow/", dialogueWebhookHandler)
 	appengine.Main()
 }
 

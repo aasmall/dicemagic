@@ -10,7 +10,8 @@ import (
 //RollStatement is a collection of DiceSegments
 
 type RollExpression struct {
-	Segments []Segment
+	initialText string
+	Segments    []Segment
 }
 
 type Segment struct {
@@ -90,39 +91,6 @@ func roll(numberOfDice int64, sides int64) (int64, error) {
 	}
 }
 
-/*
-func parseModifiers(diceRoll int64, modifiers []modifier) (int64, error) {
-	diceRollModifiers := []modifier{modifier{Operator: "+", Number: diceRoll}}
-	remainingModifier := append(diceRollModifiers, modifiers...)
-	var lastMod modifier
-	for i := 0; i < len(remainingModifier); i++ {
-		if !strings.ContainsAny(remainingModifier[i].Operator, "+*-/") {
-			return 0, fmt.Errorf("%s is not a valid operator", remainingModifier[i].Operator)
-		}
-		if (remainingModifier[i].Operator == "*" || remainingModifier[i].Operator == "/") && len(remainingModifier) > 1 && i > 0 {
-			replacementModifier, err := doMath(lastMod, remainingModifier[i])
-			if err != nil {
-				return 0, err
-			}
-			remainingModifier = insertAtLocation(deleteAtLocation(remainingModifier, i-1, 2), replacementModifier, i-1)
-			lastMod = replacementModifier
-			i--
-		} else {
-			lastMod = remainingModifier[i]
-		}
-	}
-	for i := 0; i < len(remainingModifier); i++ {
-		if (remainingModifier[i].Operator == "+" || remainingModifier[i].Operator == "-") && len(remainingModifier) > 1 && i > 0 {
-			replacementModifier, _ := doMath(lastMod, remainingModifier[i])
-			remainingModifier = insertAtLocation(deleteAtLocation(remainingModifier, i-1, 2), replacementModifier, i-1)
-			lastMod = replacementModifier
-			i--
-		} else {
-			lastMod = remainingModifier[i]
-		}
-	}
-	return remainingModifier[0].Number, nil
-}*/
 func deleteAtLocation(segment []Segment, location int, numberToDelete int) []Segment {
 	return append(segment[:location], segment[location+numberToDelete:]...)
 }

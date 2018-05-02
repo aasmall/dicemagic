@@ -8,8 +8,9 @@ requires:
  - [Google Cloud SDK](https://cloud.google.com/sdk/downloads)
  - [Go](https://golang.org/doc/install)
  - [AppEngine default service account key.json](https://console.cloud.google.com/iam-admin/serviceaccounts/project)
- - Python 
-    $ sudo apt-get install python
+ - Python 2.7 
+    
+  $ sudo apt-get install python
 
 ```bash
 #You'll need a private key to access the AppEngine Service Account. You probably don't have this
