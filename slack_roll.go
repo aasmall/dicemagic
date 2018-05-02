@@ -70,6 +70,22 @@ func slackRoll(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(slackRollResponse)
 }
 
+type RollDecision struct {
+	question string
+	result   int64
+	choices  []string
+}
+
+func (decision *RollDecision) ToSlackAttachment() (Attachment, error) {
+	attachment := Attachment{
+		Fallback:   fmt.Sprintf("I rolled 1d%d to help decide. Results are in: %s", len(decision.choices), decision.choices[decision.result]),
+		AuthorName: decision.question,
+		Color:      stringToColor(decision.choices[decision.result])}
+	field := Field{Title: decision.choices[decision.result], Short: true}
+	attachment.Fields = append(attachment.Fields, field)
+	return attachment, nil
+}
+
 func (expression *RollExpression) ToSlackAttachment() (Attachment, error) {
 
 	rollTotals, err := expression.getTotalsByType()
@@ -82,18 +98,32 @@ func (expression *RollExpression) ToSlackAttachment() (Attachment, error) {
 		AuthorName: expression.String(),
 		Color:      stringToColor(expression.initialText)}
 	totalRoll := int64(0)
-
+	allUnspecified := true
 	for _, e := range rollTotals {
-		totalRoll += e.rollResult
-		fieldTitle := e.rollType
-		if e.rollType == "" {
-			fieldTitle = "_Unspecified_"
+		if e.rollType != "" {
+			allUnspecified = false
 		}
-		field := Field{Title: fieldTitle, Value: fmt.Sprintf("%d", e.rollResult), Short: true}
-		attachment.Fields = append(attachment.Fields, field)
+	}
+	field := Field{}
+	if allUnspecified {
+		for _, e := range rollTotals {
+			totalRoll += e.rollResult
+		}
+		field = Field{Title: fmt.Sprintf("%d", totalRoll), Short: false}
+	} else {
+		for _, e := range rollTotals {
+			totalRoll += e.rollResult
+			fieldTitle := e.rollType
+			if e.rollType == "" {
+				fieldTitle = "_Unspecified_"
+			}
+			field := Field{Title: fieldTitle, Value: fmt.Sprintf("%d", e.rollResult), Short: true}
+			attachment.Fields = append(attachment.Fields, field)
+		}
+
+		field = Field{Title: fmt.Sprintf("For a total of: %d", totalRoll), Short: false}
 	}
 
-	field := Field{Title: fmt.Sprintf("For a total of: %d", totalRoll), Short: false}
 	attachment.Fields = append(attachment.Fields, field)
 
 	return attachment, nil

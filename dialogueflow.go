@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -120,40 +121,76 @@ type DialogueFlowResponse struct {
 func dialogueWebhookHandler(w http.ResponseWriter, r *http.Request) {
 	//response := "This is a sample response from your webhook!"
 	ctx := appengine.NewContext(r)
-
 	// Save a copy of this request for debugging.
 	//requestDump, err := httputil.DumpRequest(r, true)
 	//if err != nil {
-	//		log.Criticalf(ctx, "%v", err)
-	//		return
+	//	log.Criticalf(ctx, "%v", err)
+	//	return
 	//	}
 	//	log.Debugf(ctx, "Whole Request: %s", string(requestDump))
 
 	//read body into dialogueFlowRequest
 	var dialogueFlowRequest = new(DialogueFlowRequest)
-	dialogueFlowResponse := new(DialogueFlowResponse)
 	err := json.NewDecoder(r.Body).Decode(dialogueFlowRequest)
 	defer r.Body.Close()
 	if err != nil {
 		log.Criticalf(ctx, fmt.Sprintf("%+v", err))
 	}
-
-	//If not the expected intent, bail.
-	if !strings.Contains(dialogueFlowRequest.QueryResult.Intent.Name, "b41d0bdc-45f0-4099-ac34-40baf8dbb9ec") {
-		//TODO: proper error handling to client
-		return
-	}
-
-	queryText := dialogueFlowRequest.QueryResult.QueryText
-
 	//log a bunch of crap
 	log.Debugf(ctx, "Confidence %d\n", dialogueFlowRequest.QueryResult.IntentDetectionConfidence)
 	log.Debugf(ctx, "Parameters %+v\n", dialogueFlowRequest.QueryResult.Parameters)
-	log.Debugf(ctx, "QueryText: %#v", queryText)
+	log.Debugf(ctx, "QueryText: %#v", dialogueFlowRequest.QueryResult.QueryText)
 	log.Debugf(ctx, "dialogueFlowRequest.QueryResult.Parameters: %#v",
 		dialogueFlowRequest.QueryResult.Parameters)
 	log.Debugf(ctx, "dialogueFlowRequest.QueryResult.ParametersDice: %#v",
 		dialogueFlowRequest.QueryResult.Parameters["DiceExpression"])
+
+	//switch on Intent
+	if strings.Contains(dialogueFlowRequest.QueryResult.Intent.Name, "b41d0bdc-45f0-4099-ac34-40baf8dbb9ec") {
+		handleRollIntent(ctx, *dialogueFlowRequest, w, r)
+	} else if strings.Contains(dialogueFlowRequest.QueryResult.Intent.Name, "d8cc1857-c36c-4a5e-bef5-8c1b5953c87c") {
+		handleDecideIntent(ctx, *dialogueFlowRequest, w, r)
+	}
+
+}
+func handleDecideIntent(ctx context.Context, dialogueFlowRequest DialogueFlowRequest, w http.ResponseWriter, r *http.Request) {
+
+	dialogueFlowResponse := new(DialogueFlowResponse)
+	slackRollResponse := SlashRollJSONResponse{}
+
+	//create a RollDecision and fill it
+	rollDecision := RollDecision{}
+	rollDecision.question = dialogueFlowRequest.QueryResult.QueryText
+
+	dflowChoices := dialogueFlowRequest.QueryResult.Parameters["Choices"].([]interface{})
+
+	if len(dflowChoices) < 2 {
+		rollDecision.choices = append(rollDecision.choices, "Yes")
+		rollDecision.choices = append(rollDecision.choices, "No")
+	} else {
+		for _, v := range dflowChoices {
+			rollDecision.choices = append(rollDecision.choices, strings.Title(v.(string)))
+		}
+		log.Debugf(ctx, fmt.Sprintf("Choices(%d): %v", len(rollDecision.choices), rollDecision.choices))
+	}
+	result, _ := roll(int64(1), int64(len(rollDecision.choices)))
+	rollDecision.result = result - 1
+
+	log.Debugf(ctx, fmt.Sprintf("RollDecision:\n%+v", rollDecision))
+
+	//create a slack attachment from RollDecision
+	attachment, _ := rollDecision.ToSlackAttachment()
+	//attach it to Slack payload
+	slackRollResponse.Attachments = append(slackRollResponse.Attachments, attachment)
+	slackRollResponse.Text = "I'll roll some dice to help you make that decision."
+	dialogueFlowResponse.Payload.Slack = slackRollResponse
+	//log.Debugf(ctx, spew.Sprintf("My Response:\n%+v", dialogueFlowResponse))
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(dialogueFlowResponse)
+}
+func handleRollIntent(ctx context.Context, dialogueFlowRequest DialogueFlowRequest, w http.ResponseWriter, r *http.Request) {
+
+	dialogueFlowResponse := new(DialogueFlowResponse)
 
 	slackRollResponse := SlashRollJSONResponse{}
 	diceExpressionCount := len(dialogueFlowRequest.QueryResult.Parameters["DiceExpression"].([]interface{}))
@@ -173,15 +210,14 @@ func dialogueWebhookHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		attachment, err := expression.ToSlackAttachment()
+		if err != nil {
+			log.Criticalf(ctx, "%v", err)
+			return
+		}
 		slackRollResponse.Attachments = append(slackRollResponse.Attachments, attachment)
 	}
 	dialogueFlowResponse.FulfillmentText = ""
-
 	dialogueFlowResponse.Payload.Slack = slackRollResponse
-	if err != nil {
-		log.Criticalf(ctx, "%v", err)
-		return
-	}
 	log.Debugf(ctx, spew.Sprintf("My Response:\n%+v", dialogueFlowResponse.Payload.Slack))
 
 	w.Header().Set("Content-Type", "application/json")
