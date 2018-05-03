@@ -100,7 +100,10 @@ func roll(numberOfDice int64, sides int64) (int64, error) {
 	} else if sides > 1000 {
 		err := fmt.Errorf("A die with that many sides is basically round")
 		return 0, err
-	} else {
+	} else if sides < 1 {
+		err := fmt.Errorf("/me ponders the meaning of a zero sided die")
+		return 0, err
+	}else {
 		result := int64(0)
 		for i := int64(0); i < numberOfDice; i++ {
 			x, err := generateRandomInt(1, sides)
