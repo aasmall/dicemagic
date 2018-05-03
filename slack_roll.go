@@ -99,10 +99,12 @@ func (expression *RollExpression) ToSlackAttachment() (Attachment, error) {
 		Color:      stringToColor(expression.initialText)}
 	totalRoll := int64(0)
 	allUnspecified := true
+	rollCount := 0
 	for _, e := range rollTotals {
 		if e.rollType != "" {
 			allUnspecified = false
 		}
+		rollCount++
 	}
 	field := Field{}
 	if allUnspecified {
@@ -110,6 +112,7 @@ func (expression *RollExpression) ToSlackAttachment() (Attachment, error) {
 			totalRoll += e.rollResult
 		}
 		field = Field{Title: fmt.Sprintf("%d", totalRoll), Short: false}
+		attachment.Fields = append(attachment.Fields, field)
 	} else {
 		for _, e := range rollTotals {
 			totalRoll += e.rollResult
@@ -120,11 +123,11 @@ func (expression *RollExpression) ToSlackAttachment() (Attachment, error) {
 			field := Field{Title: fieldTitle, Value: fmt.Sprintf("%d", e.rollResult), Short: true}
 			attachment.Fields = append(attachment.Fields, field)
 		}
-
-		field = Field{Title: fmt.Sprintf("For a total of: %d", totalRoll), Short: false}
+		if rollCount > 1 {
+			field = Field{Title: fmt.Sprintf("For a total of: %d", totalRoll), Short: false}
+			attachment.Fields = append(attachment.Fields, field)
+		}
 	}
-
-	attachment.Fields = append(attachment.Fields, field)
 
 	return attachment, nil
 }
