@@ -205,13 +205,13 @@ func handleRollIntent(ctx context.Context, dialogueFlowRequest DialogueFlowReque
 
 		expression, err := NewParser(strings.NewReader(diceExpressionString)).Parse()
 		if err != nil {
-			log.Criticalf(ctx, "%v", err)
+			printErrorToDialogFlowSlack(ctx, err, w, r)
 			return
 		}
 
 		attachment, err := expression.ToSlackAttachment()
 		if err != nil {
-			log.Criticalf(ctx, "%v", err)
+			printErrorToDialogFlowSlack(ctx, err, w, r)
 			return
 		}
 		slackRollResponse.Attachments = append(slackRollResponse.Attachments, attachment)
@@ -220,6 +220,15 @@ func handleRollIntent(ctx context.Context, dialogueFlowRequest DialogueFlowReque
 	dialogueFlowResponse.Payload.Slack = slackRollResponse
 	log.Debugf(ctx, spew.Sprintf("My Response:\n%+v", dialogueFlowResponse.Payload.Slack))
 
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(dialogueFlowResponse)
+}
+
+func printErrorToDialogFlowSlack(ctx context.Context, err error, w http.ResponseWriter, r *http.Request) {
+	dialogueFlowResponse := new(DialogueFlowResponse)
+	slackRollResponse := SlashRollJSONResponse{}
+	slackRollResponse.Text = err.Error()
+	dialogueFlowResponse.Payload.Slack = slackRollResponse
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(dialogueFlowResponse)
 }
