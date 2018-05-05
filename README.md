@@ -2,31 +2,46 @@
 
 Slack Bot for Rolling Complex Dice
 
+[![Build Status](https://semaphoreci.com/api/v1/aasmall/magicdice/branches/master/badge.svg)](https://semaphoreci.com/aasmall/magicdice)
+
 ## Set up dev environment
 
 requires:
  - [Google Cloud SDK](https://cloud.google.com/sdk/downloads)
  - [Go](https://golang.org/doc/install)
  - [AppEngine default service account key.json](https://console.cloud.google.com/iam-admin/serviceaccounts/project)
- - Python 2.7 
-    
-  $ sudo apt-get install python
+ - Python 2.7  `sudo apt-get install python`
+ - MagicDice in `$GOPATH/src/github.com/aasmall/`
+ - GOOGLE_APPLICATION_CREDENTIALS environment variable set
 
 ```bash
-#You'll need a private key to access the AppEngine Service Account. You probably don't have this
-export GOOGLE_APPLICATION_CREDENTIALS="/mnt/c/Users/aaron/aasmall/MagicDice/sa.json"
-
-go get
-dev_appserver.py app.yaml
+export GOOGLE_APPLICATION_CREDENTIALS="[PATH TO SERVICE ACCOUNT JSON]"
 ```
 
-## How to encrypt new secrets
+### Example Folder Structure
 
 ```bash
-echo -n "Some text to be encrypted" | base64
-
-curl -s -X POST "https://cloudkms.googleapis.com/v1/projects/dice-magic/locations/global/keyRings/DiceMagic/cryptoKeys/SlackBotKeyKEK/cryptoKeyVersions/1:encrypt" \
-  -d "{\"plaintext\":\"[base_64_encoded_secret_goes_here]"}" \
-  -H "Authorization:Bearer $(gcloud auth print-access-token)" \
-  -H "Content-Type:application/json"
+$GOPATH
+├── bin
+├── pkg
+└── src
+    └── github.com
+        └── aasmall
+            └── MagicDice
 ```
+
+### Example Build Script
+
+```bash
+wget -O ~/sdk-tar.gz \
+https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-sdk-200.0.0-linux-x86_64.tar.gz
+tar -xzf ~/sdk-tar.gz -C ~/
+~/google-cloud-sdk/install.sh --quiet
+. ~/google-cloud-sdk/path.bash.inc
+gcloud components update --quiet
+gcloud components install app-engine-go --quiet
+cd $GOPATH/src/github.com/aasmall/MagicDice
+go get -d -v -t ./... && go build -v ./...
+
+```
+
