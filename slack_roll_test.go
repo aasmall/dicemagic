@@ -29,14 +29,12 @@ func TestRollDecision_ToSlackAttachment(t *testing.T) {
 	tests := []struct {
 		name     string
 		decision *RollDecision
-		want     Attachment
 		wantErr  bool
 	}{{name: "Ravenloft",
 		decision: &RollDecision{
 			question: "Should we go to Ravenloft or stay here?",
 			choices:  []string{"go to raventloft", "stay here"},
 			result:   0},
-		want:    Attachment{},
 		wantErr: false}}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -45,8 +43,9 @@ func TestRollDecision_ToSlackAttachment(t *testing.T) {
 				t.Errorf("RollDecision.ToSlackAttachment() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("RollDecision.ToSlackAttachment() = %v, want %v", got, tt.want)
+			if got.Fields[0].Title != "go to raventloft" && got.Fields[0].Title != "stay here" {
+				t.Errorf("RollDecision.ToSlackAttachment() = %v, want go to raventloft || stay here", got)
+				return
 			}
 		})
 	}

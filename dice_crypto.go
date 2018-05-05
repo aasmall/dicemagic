@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"crypto/md5"
 	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"os"
 
@@ -71,4 +73,12 @@ func encrypt(ctx context.Context, plaintext string) (string, error) {
 	}
 
 	return string(resp.Ciphertext), nil
+}
+func hashStrings(inputs ...string) string {
+	h := md5.New()
+	for _, input := range inputs {
+		h.Write([]byte(input))
+	}
+	hexb := h.Sum(nil)
+	return hex.EncodeToString(hexb)
 }

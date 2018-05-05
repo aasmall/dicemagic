@@ -57,24 +57,3 @@ type Bot struct {
 	BotUserID      string `json:"bot_user_id"`
 	BotAccessToken string `json:"bot_access_token"`
 }
-type AppYaml struct {
-	Runtime             string              `yaml:"runtime"`
-	APIVersion          string              `yaml:"api_version"`
-	AppYamlHandlers     []AppYamlHandlers   `yaml:"handlers"`
-	AppYamlEnvVariables AppYamlEnvVariables `yaml:"env_variables"`
-}
-
-type AppYamlHandlers struct {
-	URL         string `yaml:"url"`
-	StaticFiles string `yaml:"static_files,omitempty"`
-	Upload      string `yaml:"upload,omitempty"`
-	Script      string `yaml:"script,omitempty"`
-}
-type AppYamlEnvVariables struct {
-	SLACKKEY               string `yaml:"SLACK_KEY"`
-	SLACKCLIENTSECRET      string `yaml:"SLACK_CLIENT_SECRET"`
-	PROJECTID              string `yaml:"PROJECT_ID"`
-	KMSKEYRING             string `yaml:"KMSKEYRING"`
-	KMSKEY                 string `yaml:"KMSKEY"`
-	SLACKBOTUSERACCESTOKEN string `yaml:"SLACK_BOT_USER_ACCES_TOKEN"`
-}

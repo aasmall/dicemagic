@@ -17,7 +17,7 @@ type Token int
 const (
 	ILLEGAL Token = iota
 	WS
-	ROLL     // "roll" or "Roll"
+	ROLL
 	OPAREN   // (
 	CPAREN   // )
 	OBRKT    // [
@@ -337,10 +337,10 @@ func (p *Parser) Parse() (*RollExpression, error) {
 	//force dice rolls to highest priority
 	for i, e := range expression.Segments {
 		if e.Operator == "D" {
-			expression.Segments[i].EvaluationPriority = GetHighestPriority(expression.Segments) - 1
+			expression.Segments[i].EvaluationPriority = getHighestPriority(expression.Segments) - 1
 		}
 	}
-	expression.initialText = buffer.String()
+	expression.InitialText = buffer.String()
 	return expression, nil
 }
 

@@ -3,22 +3,22 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
+	"time"
 
 	"cloud.google.com/go/datastore"
 )
 
+//compiletime check
 var _ DiceMagicDatabase = &datastoreDB{}
 
 type datastoreDB struct {
 	client *datastore.Client
 }
+
 type DiceMagicDatabase interface {
-	GetIntegration(ctx context.Context, id int64) (*Integration, error)
-	AddIntegration(ctx context.Context, b *Integration) (id int64, err error)
-	DeleteIntegration(ctx context.Context, id int64) error
-	UpdateIntegration(ctx context.Context, b *Integration) error
-	ListIntegrations(ctx context.Context) ([]*Integration, error)
-	ListIntegrationsByTeam(ctx context.Context, teamID string) ([]*Integration, error)
+	UpsertRoll(ctx context.Context, namespace string, rollHash string, roll *RollCommand) error
+	GetRoll(ctx context.Context, namespace string, rollHash string) (*RollCommand, error)
 	Close()
 }
 type Integration struct {
@@ -26,7 +26,13 @@ type Integration struct {
 	OAuthApprovalResponse
 }
 
-func configureDatastoreDB(ctx context.Context, projectID string) (DiceMagicDatabase, error) {
+type Persistedroll struct {
+	RollCommand `datastore:",noindex"`
+	lastUsed    time.Time
+}
+
+func configureDatastoreDB(ctx context.Context) (DiceMagicDatabase, error) {
+	projectID := os.Getenv("PROJECT_ID")
 	client, err := datastore.NewClient(ctx, projectID)
 	if err != nil {
 		return nil, err
@@ -42,16 +48,39 @@ func newDatastoreDB(ctx context.Context, client *datastore.Client) (DiceMagicDat
 		return nil, fmt.Errorf("datastoredb: could not connect: %v", err)
 	}
 	return &datastoreDB{
-		client: client,
-	}, nil
+		client: client}, nil
 }
 
 func (db *datastoreDB) Close() {
-	// No op.
+	db.client.Close()
+}
+
+func (db *datastoreDB) UpsertRoll(ctx context.Context, namespace string, rollHash string, roll *RollCommand) error {
+	k := db.datastoreRollKey(namespace, rollHash)
+	r := Persistedroll{RollCommand: *roll, lastUsed: time.Now()}
+	if _, err := db.client.Put(ctx, k, &r); err != nil {
+		return fmt.Errorf("datastoredb: could not update roll: %v", err)
+	}
+	return nil
+}
+
+func (db *datastoreDB) GetRoll(ctx context.Context, namespace string, rollHash string) (*RollCommand, error) {
+	k := db.datastoreRollKey(namespace, rollHash)
+	roll := Persistedroll{}
+	if err := db.client.Get(ctx, k, &roll); err != nil {
+		return nil, fmt.Errorf("datastoredb: could not get Roll: %v", err)
+	}
+	command := roll.RollCommand
+	return &command, nil
 }
 
 func (db *datastoreDB) datastoreKey(id int64) *datastore.Key {
 	return datastore.IDKey("Integration", id, nil)
+}
+func (db *datastoreDB) datastoreRollKey(namespace string, rollHash string) *datastore.Key {
+	key := datastore.NameKey("Roll", rollHash, nil)
+	key.Namespace = namespace
+	return key
 }
 
 func (db *datastoreDB) GetIntegration(ctx context.Context, id int64) (*Integration, error) {

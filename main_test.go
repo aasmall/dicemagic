@@ -4,12 +4,32 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"strings"
 	"testing"
 
-	"google.golang.org/appengine/aetest"
 	yaml "gopkg.in/yaml.v2"
 )
+
+type AppYaml struct {
+	Runtime             string              `yaml:"runtime"`
+	APIVersion          string              `yaml:"api_version"`
+	AppYamlHandlers     []AppYamlHandlers   `yaml:"handlers"`
+	AppYamlEnvVariables AppYamlEnvVariables `yaml:"env_variables"`
+}
+
+type AppYamlHandlers struct {
+	URL         string `yaml:"url"`
+	StaticFiles string `yaml:"static_files,omitempty"`
+	Upload      string `yaml:"upload,omitempty"`
+	Script      string `yaml:"script,omitempty"`
+}
+type AppYamlEnvVariables struct {
+	SLACKKEY               string `yaml:"SLACK_KEY"`
+	SLACKCLIENTSECRET      string `yaml:"SLACK_CLIENT_SECRET"`
+	PROJECTID              string `yaml:"PROJECT_ID"`
+	KMSKEYRING             string `yaml:"KMSKEYRING"`
+	KMSKEY                 string `yaml:"KMSKEY"`
+	SLACKBOTUSERACCESTOKEN string `yaml:"SLACK_BOT_USER_ACCES_TOKEN"`
+}
 
 func TestMain(m *testing.M) {
 	var appYaml AppYaml
@@ -19,7 +39,6 @@ func TestMain(m *testing.M) {
 }
 
 func (c *AppYaml) getAppYaml() *AppYaml {
-
 	yamlFile, err := ioutil.ReadFile("app.yaml")
 	if err != nil {
 		fmt.Printf("yamlFile.Get err   #%v \n\n", err)
@@ -39,30 +58,4 @@ func (c *AppYaml) SetEnvironmentVariables() *AppYaml {
 	os.Setenv("KMSKEYRING", c.AppYamlEnvVariables.KMSKEYRING)
 	os.Setenv("KMSKEY", c.AppYamlEnvVariables.KMSKEY)
 	return c
-}
-
-func TestEncryptDecrypt(t *testing.T) {
-	ctx, done, err := aetest.NewContext()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer done()
-	testString := "EncryptThis"
-	ciphertext, err := encrypt(ctx, testString)
-	if err != nil {
-		t.Fatal(err)
-	}
-	plaintext, err := decrypt(ctx, ciphertext)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !(plaintext == testString) {
-		t.Fatalf("plaintext does not match testString: %+v", plaintext)
-	}
-}
-
-func TestParser(t *testing.T) {
-	text := "ROLL 1d4+100(mundane)+1d4+1000(fire)"
-	stmt, _ := NewParser(strings.NewReader(text)).Parse()
-	fmt.Printf("stmt: %v\n", stmt)
 }

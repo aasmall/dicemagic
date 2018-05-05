@@ -96,7 +96,7 @@ func (expression *RollExpression) ToSlackAttachment() (Attachment, error) {
 	attachment = Attachment{
 		Fallback:   createAttachmentsDamageString(rollTotals),
 		AuthorName: expression.String(),
-		Color:      stringToColor(expression.initialText)}
+		Color:      stringToColor(expression.InitialText)}
 	totalRoll := int64(0)
 	allUnspecified := true
 	rollCount := 0

@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"context"
 	"crypto/rand"
 	"fmt"
 	"math/big"
@@ -8,18 +10,26 @@ import (
 	"strings"
 )
 
+//compiletime check
+var _ Command = &RollCommand{}
+
 //RollExpression is a collection of Segments
 type RollExpression struct {
-	initialText string
-	Segments    []Segment
+	InitialText string    `datastore:",noindex"`
+	Segments    []Segment `datastore:",noindex"`
 }
 
-//Segments is half of a mathmatical expression along it's its evaluation priority
+type RollCommand struct {
+	RollExpresions    []RollExpression
+	diceMagicDatabase DiceMagicDatabase
+}
+
+//Segment is half of a mathmatical expression along it's its evaluation priority
 type Segment struct {
-	Operator           string
-	Number             int64
-	SegmentType        string
-	EvaluationPriority int
+	Operator           string `datastore:",noindex"`
+	Number             int64  `datastore:",noindex"`
+	SegmentType        string `datastore:",noindex"`
+	EvaluationPriority int    `datastore:",noindex"`
 }
 
 //RollTotal represents collapsed Segments that have been evaluated
@@ -28,7 +38,7 @@ type RollTotal struct {
 	rollResult int64
 }
 
-func GetHighestPriority(r []Segment) int {
+func getHighestPriority(r []Segment) int {
 	highestPriority := 0
 	for _, e := range r {
 		if e.EvaluationPriority < highestPriority {
@@ -39,8 +49,68 @@ func GetHighestPriority(r []Segment) int {
 	return highestPriority
 }
 
-func (r *RollExpression) String() string {
-	return r.initialText
+func (r *RollExpression) String() string { return r.InitialText }
+func (r *RollCommand) String() string {
+	var buffer bytes.Buffer
+	for i, e := range r.RollExpresions {
+		if i == len(r.RollExpresions) {
+			buffer.WriteString(e.String())
+		} else {
+			buffer.WriteString(e.String())
+			buffer.WriteString("and ")
+		}
+	}
+	return buffer.String()
+}
+
+func (r *RollCommand) FromString(inputString ...string) error {
+	for _, s := range inputString {
+		expression, err := NewParser(strings.NewReader(s)).Parse()
+		if err != nil {
+			return err
+		}
+		r.RollExpresions = append(r.RollExpresions, *expression)
+	}
+	return nil
+}
+
+func PopulateRoll() {
+	r := new(RollCommand)
+	r.FromString("ROLL (21d1+7)/2[mundane]+4d1[fire]")
+	fmt.Printf("%s", r.RollExpresions[0].InitialText)
+}
+
+//Get retrieves a RollCommand from the DB and populates the struct
+func (r *RollCommand) Get(ctx context.Context, namespace string, key string) error {
+	if r.diceMagicDatabase == nil {
+		db, err := configureDatastoreDB(ctx)
+		if err != nil {
+			return err
+		}
+		r.diceMagicDatabase = db
+	}
+	command, err := r.diceMagicDatabase.GetRoll(ctx, namespace, key)
+	if err != nil {
+		return err
+	}
+	r.RollExpresions = command.RollExpresions
+	return nil
+}
+
+//Save persists a RollCommand to the DB
+func (r *RollCommand) Save(ctx context.Context, namespace string, key string) error {
+	if r.diceMagicDatabase == nil {
+		db, err := configureDatastoreDB(ctx)
+		if err != nil {
+			return err
+		}
+		r.diceMagicDatabase = db
+	}
+	err := r.diceMagicDatabase.UpsertRoll(ctx, namespace, key, r)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (r *RollExpression) getTotalsByType() ([]RollTotal, error) {
@@ -56,7 +126,7 @@ func (r *RollExpression) getTotalsByType() ([]RollTotal, error) {
 	//for each damage type
 	for k, remainingSegments := range segmentsPerSegmentType {
 		// Establish highest priority (represented as lowest number)
-		highestPriority := GetHighestPriority(remainingSegments)
+		highestPriority := getHighestPriority(remainingSegments)
 		var lastSegment Segment
 
 		//loop through priorities
@@ -103,7 +173,7 @@ func roll(numberOfDice int64, sides int64) (int64, error) {
 	} else if sides < 1 {
 		err := fmt.Errorf("/me ponders the meaning of a zero sided die")
 		return 0, err
-	}else {
+	} else {
 		result := int64(0)
 		for i := int64(0); i < numberOfDice; i++ {
 			x, err := generateRandomInt(1, sides)
