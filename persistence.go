@@ -3,10 +3,10 @@ package main
 import (
 	"context"
 	"fmt"
-	"os"
 	"time"
 
 	"cloud.google.com/go/datastore"
+	"google.golang.org/appengine"
 )
 
 //compiletime check
@@ -32,7 +32,7 @@ type Persistedroll struct {
 }
 
 func configureDatastoreDB(ctx context.Context) (DiceMagicDatabase, error) {
-	projectID := os.Getenv("PROJECT_ID")
+	projectID := appengine.AppID(ctx)
 	client, err := datastore.NewClient(ctx, projectID)
 	if err != nil {
 		return nil, err
