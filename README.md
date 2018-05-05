@@ -13,6 +13,7 @@ requires:
  - Python 2.7  `sudo apt-get install python`
  - MagicDice in `$GOPATH/src/github.com/aasmall/`
  - GOOGLE_APPLICATION_CREDENTIALS environment variable set
+ - [AppEngine API Enabled] (https://console.cloud.google.com/apis/library/appengine.googleapis.com/)
 
 ```bash
 export GOOGLE_APPLICATION_CREDENTIALS="[PATH TO SERVICE ACCOUNT JSON]"
