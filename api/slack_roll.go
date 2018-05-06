@@ -36,9 +36,9 @@ func createAttachmentsDamageString(rollTotals []RollTotal) string {
 	var buffer bytes.Buffer
 	for _, e := range rollTotals {
 		if e.rollType == "" {
-			buffer.WriteString(fmt.Sprintf("%d of type _unspecified_", e.rollResult))
+			buffer.WriteString(fmt.Sprintf("%d ", e.rollResult))
 		} else {
-			buffer.WriteString(fmt.Sprintf("%d of type %s", e.rollResult, e.rollType))
+			buffer.WriteString(fmt.Sprintf("%d of type %s ", e.rollResult, e.rollType))
 		}
 	}
 	return buffer.String()

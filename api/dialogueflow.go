@@ -119,17 +119,27 @@ func DialogueWebhookHandler(w http.ResponseWriter, r *http.Request) {
 		dialogueFlowRequest.QueryResult.Parameters["DiceExpression"])
 
 	//switch on Intent
-	if strings.Contains(dialogueFlowRequest.QueryResult.Intent.Name, "b41d0bdc-45f0-4099-ac34-40baf8dbb9ec") {
+	switch strings.ToLower(dialogueFlowRequest.QueryResult.Intent.DisplayName) {
+	case "roll":
 		handleRollIntent(ctx, *dialogueFlowRequest, w, r)
-	} else if strings.Contains(dialogueFlowRequest.QueryResult.Intent.Name, "d8cc1857-c36c-4a5e-bef5-8c1b5953c87c") {
+	case "decide":
 		handleDecideIntent(ctx, *dialogueFlowRequest, w, r)
-	} else if strings.Contains(dialogueFlowRequest.QueryResult.Intent.Name, "e279adb0-a664-4ef8-874e-9f677208284f") {
+	case "command":
 		handleCommandIntent(ctx, *dialogueFlowRequest, w, r)
-	} else if strings.Contains(dialogueFlowRequest.QueryResult.Intent.Name, "e9609f6a-a4ec-49a4-88a1-5c2265581c2f") {
+	case "remember":
 		handleRememberIntent(ctx, *dialogueFlowRequest, w, r)
+	default:
+		handleDefaultIntent(ctx, *dialogueFlowRequest, w, r)
 	}
-
 }
+
+func handleDefaultIntent(ctx context.Context, dialogueFlowRequest DialogueFlowRequest, w http.ResponseWriter, r *http.Request) {
+	dialogueFlowResponse := new(DialogueFlowResponse)
+	dialogueFlowResponse.FulfillmentText = fmt.Sprintf("Unrecognized Intent: %s", dialogueFlowRequest.QueryResult.Intent.DisplayName)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(dialogueFlowResponse)
+}
+
 func handleRememberIntent(ctx context.Context, dialogueFlowRequest DialogueFlowRequest, w http.ResponseWriter, r *http.Request) {
 	dialogueFlowResponse := new(DialogueFlowResponse)
 	slackRollResponse := SlashRollJSONResponse{}
@@ -254,7 +264,7 @@ func handleRollIntent(ctx context.Context, dialogueFlowRequest DialogueFlowReque
 	//Save for replay
 	namespace := dialogueFlowRequest.OriginalDetectIntentRequest.Payload.Data.TeamID
 	key := hashStrings("!!", dialogueFlowRequest.OriginalDetectIntentRequest.Payload.Data.Event.User)
-	command.Save(ctx, namespace, key)
+	go command.Save(ctx, namespace, key)
 	//
 	handleRollCommand(ctx, command, w, r)
 }
