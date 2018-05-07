@@ -1,4 +1,4 @@
-package api
+package internal
 
 import (
 	"reflect"
@@ -8,9 +8,9 @@ import (
 
 func Test_populateRequired(t *testing.T) {
 	type args struct {
-		tok       Token
+		tok       token
 		lit       string
-		tokExpect Token
+		tokExpect token
 	}
 	tests := []struct {
 		name    string
@@ -19,7 +19,7 @@ func Test_populateRequired(t *testing.T) {
 		wantErr bool
 	}{
 		{name: "Find NUMBER",
-			args:    args{NUMBER, "6", NUMBER},
+			args:    args{numberToken, "6", numberToken},
 			want:    "6",
 			wantErr: false}}
 	for _, tt := range tests {
@@ -38,9 +38,9 @@ func Test_populateRequired(t *testing.T) {
 
 func Test_populateOptional(t *testing.T) {
 	type args struct {
-		tok       Token
+		tok       token
 		lit       string
-		tokExpect Token
+		tokExpect token
 	}
 	tests := []struct {
 		name  string
@@ -49,7 +49,7 @@ func Test_populateOptional(t *testing.T) {
 		want1 bool
 	}{
 		{name: "Find NUMBER",
-			args:  args{NUMBER, "6", NUMBER},
+			args:  args{numberToken, "6", numberToken},
 			want:  "6",
 			want1: true}}
 	for _, tt := range tests {
@@ -73,23 +73,23 @@ func TestParser_Parse(t *testing.T) {
 		wantErr bool
 	}{
 		{name: "ROLL (1d12+7)/2[mundane]+1d4[fire]",
-			p: NewParser(strings.NewReader("ROLL (1d12+7)/2[mundane]+1d4[fire]")),
-			want: &RollExpression{"Roll (1D12+7)/2[Mundane]+1D4[Fire]", []Segment{
+			p: NewParser(strings.NewReader("ROLL (1d12+7)/2[mundane]+1D4[fire]")),
+			want: &RollExpression{"Roll (1d12+7)/2[Mundane]+1d4[Fire]", []Segment{
 				Segment{Number: 1, Operator: "+", SegmentType: "Mundane", EvaluationPriority: -2},
-				Segment{Number: 12, Operator: "D", SegmentType: "Mundane", EvaluationPriority: -3},
+				Segment{Number: 12, Operator: "d", SegmentType: "Mundane", EvaluationPriority: -3},
 				Segment{Number: 7, Operator: "+", SegmentType: "Mundane", EvaluationPriority: -2},
 				Segment{Number: 2, Operator: "/", SegmentType: "Mundane", EvaluationPriority: -1},
 				Segment{Number: 1, Operator: "+", SegmentType: "Fire", EvaluationPriority: 0},
-				Segment{Number: 4, Operator: "D", SegmentType: "Fire", EvaluationPriority: -4}}},
+				Segment{Number: 4, Operator: "d", SegmentType: "Fire", EvaluationPriority: -4}}},
 			wantErr: false}, {name: "ROLL (1d12+7)/2 mundane +1d4 fire",
 			p: NewParser(strings.NewReader("ROLL (1d12+7)/2mundane+1d4 fire")),
-			want: &RollExpression{"Roll (1D12+7)/2[Mundane]+1D4[Fire]", []Segment{
+			want: &RollExpression{"Roll (1d12+7)/2[Mundane]+1d4[Fire]", []Segment{
 				Segment{Number: 1, Operator: "+", SegmentType: "Mundane", EvaluationPriority: -2},
-				Segment{Number: 12, Operator: "D", SegmentType: "Mundane", EvaluationPriority: -3},
+				Segment{Number: 12, Operator: "d", SegmentType: "Mundane", EvaluationPriority: -3},
 				Segment{Number: 7, Operator: "+", SegmentType: "Mundane", EvaluationPriority: -2},
 				Segment{Number: 2, Operator: "/", SegmentType: "Mundane", EvaluationPriority: -1},
 				Segment{Number: 1, Operator: "+", SegmentType: "Fire", EvaluationPriority: 0},
-				Segment{Number: 4, Operator: "D", SegmentType: "Fire", EvaluationPriority: -4}}},
+				Segment{Number: 4, Operator: "d", SegmentType: "Fire", EvaluationPriority: -4}}},
 			wantErr: false}}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

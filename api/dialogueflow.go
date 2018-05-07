@@ -7,6 +7,10 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/aasmall/dicemagic/internal"
+	"github.com/aasmall/dicemagic/roll"
+	"go.opencensus.io/trace"
+
 	"google.golang.org/appengine"
 	"google.golang.org/appengine/log"
 )
@@ -94,6 +98,8 @@ type DialogueFlowResponse struct {
 func DialogueWebhookHandler(w http.ResponseWriter, r *http.Request) {
 	//response := "This is a sample response from your webhook!"
 	ctx := appengine.NewContext(r)
+	ctx, span := trace.StartSpan(ctx, "DialogueWebhookHandler")
+	defer span.End()
 	// Save a copy of this request for debugging.
 	//requestDump, err := httputil.DumpRequest(r, true)
 	//if err != nil {
@@ -144,7 +150,7 @@ func handleRememberIntent(ctx context.Context, dialogueFlowRequest DialogueFlowR
 	dialogueFlowResponse := new(DialogueFlowResponse)
 	slackRollResponse := SlashRollJSONResponse{}
 	diceExpressionCount := len(dialogueFlowRequest.QueryResult.Parameters["DiceExpression"].([]interface{}))
-	var command RollCommand
+	var command internal.RollCommand
 	var diceStrings []string
 	for i := 0; i < diceExpressionCount; i++ {
 		diceExpressionString := addMissingCloseParens(dialogueFlowRequest.QueryResult.Parameters["DiceExpression"].([]interface{})[i].(string))
@@ -154,50 +160,58 @@ func handleRememberIntent(ctx context.Context, dialogueFlowRequest DialogueFlowR
 		}
 		diceStrings = append(diceStrings, diceExpressionString)
 	}
+	//Parse strings into RollCommmand
 	command.FromString(diceStrings...)
+
+	//enqueue task to save last command
 	namespace := dialogueFlowRequest.OriginalDetectIntentRequest.Payload.Data.TeamID
 	commandName := "!" + dialogueFlowRequest.QueryResult.Parameters["Command"].(string)
-	key := hashStrings(commandName, dialogueFlowRequest.OriginalDetectIntentRequest.Payload.Data.Event.User)
-	err := command.Save(ctx, namespace, key)
-	log.Debugf(ctx, "command:%s user: %s key: %s", commandName, dialogueFlowRequest.OriginalDetectIntentRequest.Payload.Data.Event.User, key)
+	key := hashStrings(commandName, namespace, dialogueFlowRequest.OriginalDetectIntentRequest.Payload.Data.Event.User)
+	err := command.Save(ctx, key)
 	if err != nil {
 		printErrorToDialogFlowSlack(ctx, err, w, r)
 		return
 	}
+	log.Debugf(ctx, "command:%s user: %s key: %s", commandName, dialogueFlowRequest.OriginalDetectIntentRequest.Payload.Data.Event.User, key)
 	var attachment Attachment
 	attachment.AuthorName = fmt.Sprintf("Saved %s", commandName)
 	slackRollResponse.Attachments = append(slackRollResponse.Attachments, attachment)
 	dialogueFlowResponse.Payload.Slack = slackRollResponse
+
 	//Send Response
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(dialogueFlowResponse)
-
 }
-func handleCommandIntent(ctx context.Context, dialogueFlowRequest DialogueFlowRequest, w http.ResponseWriter, r *http.Request) {
-	command := dialogueFlowRequest.QueryResult.QueryText
-	var rollCommand RollCommand
-	namespace := dialogueFlowRequest.OriginalDetectIntentRequest.Payload.Data.TeamID
-	key := hashStrings(command, dialogueFlowRequest.OriginalDetectIntentRequest.Payload.Data.Event.User)
-	err := rollCommand.Get(ctx,
-		namespace,
-		key)
 
-	log.Debugf(ctx, "command:%s user: %s key: %s", command, dialogueFlowRequest.OriginalDetectIntentRequest.Payload.Data.Event.User, key)
+func handleCommandIntent(ctx context.Context, dialogueFlowRequest DialogueFlowRequest, w http.ResponseWriter, r *http.Request) {
+	commandString := dialogueFlowRequest.QueryResult.QueryText
+	var rollCommand internal.RollCommand
+	key := hashStrings(commandString,
+		dialogueFlowRequest.OriginalDetectIntentRequest.Payload.Data.TeamID,
+		dialogueFlowRequest.OriginalDetectIntentRequest.Payload.Data.Event.User)
+	err := rollCommand.Get(ctx, key)
+
+	log.Debugf(ctx, "command:%s user: %s key: %s", commandString, dialogueFlowRequest.OriginalDetectIntentRequest.Payload.Data.Event.User, key)
 	if err != nil {
 		printErrorToDialogFlowSlack(ctx, err, w, r)
 		return
 	}
+	key = hashStrings("!!",
+		dialogueFlowRequest.OriginalDetectIntentRequest.Payload.Data.TeamID,
+		dialogueFlowRequest.OriginalDetectIntentRequest.Payload.Data.Event.User)
+	err = rollCommand.Save(ctx, key)
+	if err != nil {
+		log.Errorf(ctx, "could not persist command: %s", err)
+	}
 	handleRollCommand(ctx, rollCommand, w, r)
-	key = hashStrings("!!", dialogueFlowRequest.OriginalDetectIntentRequest.Payload.Data.Event.User)
-	rollCommand.Save(ctx, namespace, key)
 
 }
-func handleRollCommand(ctx context.Context, command RollCommand, w http.ResponseWriter, r *http.Request) {
+func handleRollCommand(ctx context.Context, command internal.RollCommand, w http.ResponseWriter, r *http.Request) {
 	dialogueFlowResponse := new(DialogueFlowResponse)
 	slackRollResponse := SlashRollJSONResponse{}
 	diceExpressionCount := len(command.RollExpresions)
 	for i := 0; i < diceExpressionCount; i++ {
-		attachment, err := command.RollExpresions[i].ToSlackAttachment()
+		attachment, err := rollExpressionToSlackAttachment(&command.RollExpresions[i])
 		if err != nil {
 			printErrorToDialogFlowSlack(ctx, err, w, r)
 			return
@@ -218,27 +232,27 @@ func handleDecideIntent(ctx context.Context, dialogueFlowRequest DialogueFlowReq
 	slackRollResponse := SlashRollJSONResponse{}
 
 	//create a RollDecision and fill it
-	rollDecision := RollDecision{}
-	rollDecision.question = dialogueFlowRequest.QueryResult.QueryText
+	rollDecision := internal.RollDecision{}
+	rollDecision.Question = dialogueFlowRequest.QueryResult.QueryText
 
 	dflowChoices := dialogueFlowRequest.QueryResult.Parameters["Choices"].([]interface{})
 
 	if len(dflowChoices) < 2 {
-		rollDecision.choices = append(rollDecision.choices, "Yes")
-		rollDecision.choices = append(rollDecision.choices, "No")
+		rollDecision.Choices = append(rollDecision.Choices, "Yes")
+		rollDecision.Choices = append(rollDecision.Choices, "No")
 	} else {
 		for _, v := range dflowChoices {
-			rollDecision.choices = append(rollDecision.choices, strings.Title(v.(string)))
+			rollDecision.Choices = append(rollDecision.Choices, strings.Title(v.(string)))
 		}
-		log.Debugf(ctx, fmt.Sprintf("Choices(%d): %v", len(rollDecision.choices), rollDecision.choices))
+		log.Debugf(ctx, fmt.Sprintf("Choices(%d): %v", len(rollDecision.Choices), rollDecision.Choices))
 	}
-	result, _ := roll(int64(1), int64(len(rollDecision.choices)))
-	rollDecision.result = result - 1
+	result, _ := roll.Roll(int64(1), int64(len(rollDecision.Choices)))
+	rollDecision.Result = result - 1
 
 	log.Debugf(ctx, fmt.Sprintf("RollDecision:\n%+v", rollDecision))
 
 	//create a slack attachment from RollDecision
-	attachment, _ := rollDecision.ToSlackAttachment()
+	attachment, _ := rollDecisionToSlackAttachment(&rollDecision)
 	//attach it to Slack payload
 	slackRollResponse.Attachments = append(slackRollResponse.Attachments, attachment)
 	slackRollResponse.Text = "I'll roll some dice to help you make that decision."
@@ -248,8 +262,10 @@ func handleDecideIntent(ctx context.Context, dialogueFlowRequest DialogueFlowReq
 	json.NewEncoder(w).Encode(dialogueFlowResponse)
 }
 func handleRollIntent(ctx context.Context, dialogueFlowRequest DialogueFlowRequest, w http.ResponseWriter, r *http.Request) {
+	ctx, span := trace.StartSpan(ctx, "handleRollIntent")
+	defer span.End()
 	diceExpressionCount := len(dialogueFlowRequest.QueryResult.Parameters["DiceExpression"].([]interface{}))
-	var command RollCommand
+	var command internal.RollCommand
 	var diceStrings []string
 	for i := 0; i < diceExpressionCount; i++ {
 		diceExpressionString := addMissingCloseParens(dialogueFlowRequest.QueryResult.Parameters["DiceExpression"].([]interface{})[i].(string))
@@ -262,11 +278,16 @@ func handleRollIntent(ctx context.Context, dialogueFlowRequest DialogueFlowReque
 	command.FromString(diceStrings...)
 
 	//Save for replay
-	namespace := dialogueFlowRequest.OriginalDetectIntentRequest.Payload.Data.TeamID
-	key := hashStrings("!!", dialogueFlowRequest.OriginalDetectIntentRequest.Payload.Data.Event.User)
-	go command.Save(ctx, namespace, key)
-	//
+	key := hashStrings("!!",
+		dialogueFlowRequest.OriginalDetectIntentRequest.Payload.Data.TeamID,
+		dialogueFlowRequest.OriginalDetectIntentRequest.Payload.Data.Event.User)
+
+	err := command.Save(ctx, key)
+	if err != nil {
+		log.Errorf(ctx, "could not persist command: %s", err)
+	}
 	handleRollCommand(ctx, command, w, r)
+
 }
 
 func printErrorToDialogFlowSlack(ctx context.Context, err error, w http.ResponseWriter, r *http.Request) {
