@@ -21,16 +21,12 @@ func ProcessSaveCommand(w http.ResponseWriter, r *http.Request) {
 		log.Criticalf(ctx, "Failed to get key (%s): %s", r.FormValue("key"), err)
 		return
 	}
-
-	if command.DiceMagicDatabase == nil {
-		db, err := internal.ConfigureDatastoreDB(ctx)
-		if err != nil {
-			log.Criticalf(ctx, err.Error())
-			return
-		}
-		command.DiceMagicDatabase = db
+	db, err := internal.ConfigureDatastoreDB(ctx)
+	if err != nil {
+		log.Criticalf(ctx, err.Error())
+		return
 	}
-	err = command.DiceMagicDatabase.UpsertRoll(ctx, r.FormValue("key"), &command)
+	err = db.UpsertRoll(ctx, r.FormValue("key"), &command)
 	if err != nil {
 		log.Criticalf(ctx, err.Error())
 		return
