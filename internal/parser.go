@@ -1,6 +1,6 @@
-//Credit to https://blog.gopheracademy.com/advent-2014/parsers-lexers/
-
 package internal
+
+//Credit to https://blog.gopheracademy.com/advent-2014/parsers-lexers/
 
 import (
 	"bufio"
@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
+
+	"github.com/donna-legal/word2number"
 )
 
 type token int
@@ -153,7 +155,11 @@ func (s *Scanner) scanIdent() (tok token, lit string) {
 	}
 
 	// If the string matches a keyword then return that keyword.
-	switch strings.ToUpper(buf.String()) {
+	word := strings.ToUpper(buf.String())
+	if found, n := convertToNumeric(word); found {
+		return numberToken, strconv.Itoa(n)
+	}
+	switch word {
 	case "ROLL":
 		return rolltoken, buf.String()
 	}
@@ -368,4 +374,13 @@ func populateRequired(tok token, lit string, tokExpect token) (string, error) {
 		return lit, nil
 	}
 	return "", fmt.Errorf("found %q, expected %v", lit, tokExpect)
+}
+
+func convertToNumeric(word string) (bool, int) {
+	c, _ := word2number.NewConverter("en")
+	n := c.Words2Number(word)
+	if n == 0 {
+		return false, 0
+	}
+	return true, int(n)
 }

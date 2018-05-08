@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -77,7 +78,8 @@ type DialogueFlowResponse struct {
 	} `json:"fulfillmentMessages"`
 	Source  string `json:"source"`
 	Payload struct {
-		Slack SlashRollJSONResponse `json:"slack"`
+		Slack  SlashRollJSONResponse `json:"slack"`
+		Google AssistantResponse     `json:"google"`
 	} `json:"payload"`
 	OutputContexts []struct {
 		Name          string `json:"name"`
@@ -208,8 +210,15 @@ func handleCommandIntent(ctx context.Context, dialogueFlowRequest DialogueFlowRe
 }
 func handleRollCommand(ctx context.Context, command internal.RollCommand, w http.ResponseWriter, r *http.Request) {
 	dialogueFlowResponse := new(DialogueFlowResponse)
+
 	slackRollResponse := SlashRollJSONResponse{}
+
+	googleAssistantRollResponse := AssistantResponse{}
+	googleAssistantRollResponse.RichResponse = RichResponse{}
+	var formattedText bytes.Buffer
+
 	diceExpressionCount := len(command.RollExpresions)
+	t := int64(0)
 	for i := 0; i < diceExpressionCount; i++ {
 		attachment, err := rollExpressionToSlackAttachment(&command.RollExpresions[i])
 		if err != nil {
@@ -217,12 +226,34 @@ func handleRollCommand(ctx context.Context, command internal.RollCommand, w http
 			return
 		}
 		slackRollResponse.Attachments = append(slackRollResponse.Attachments, attachment)
+		markdownRow, loopTotal, err := rollExpressionToMarkdown(&command.RollExpresions[i])
+		formattedText.WriteString(markdownRow)
+		if i != diceExpressionCount-1 {
+			formattedText.WriteString("  \n---  \n")
+		}
+		t += loopTotal
 	}
 
+	simpleResponseItem := SimpleResponseItem{}
+	if diceExpressionCount > 1 {
+		simpleResponseItem.SimpleResponse.TextToSpeech = "Rolling."
+	} else {
+		simpleResponseItem.SimpleResponse.TextToSpeech = fmt.Sprintf("You rolled %d", t)
+	}
+	googleAssistantRollResponse.RichResponse.Items = append(googleAssistantRollResponse.RichResponse.Items, simpleResponseItem)
+
+	basicCardItem := BasicCardItem{}
+	basicCardItem.BasicCard.Title = "results"
+	basicCardItem.BasicCard.FormattedText = formattedText.String()
+	googleAssistantRollResponse.RichResponse.Items = append(googleAssistantRollResponse.RichResponse.Items, basicCardItem)
+
+	dialogueFlowResponse.Payload.Google = googleAssistantRollResponse
 	dialogueFlowResponse.Payload.Slack = slackRollResponse
 
+	log.Debugf(ctx, "RichResponse: %+v", googleAssistantRollResponse.RichResponse)
 	//Send Response
 	w.Header().Set("Content-Type", "application/json")
+
 	json.NewEncoder(w).Encode(dialogueFlowResponse)
 }
 
