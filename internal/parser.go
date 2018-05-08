@@ -11,7 +11,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/donna-legal/word2number"
+	"github.com/aasmall/word2number"
 )
 
 type token int
