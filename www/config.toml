@@ -1,4 +1,4 @@
-baseurl = "https://www.dicemagic.io/"
+baseurl = "/"
 DefaultContentLanguage = "en"
 #DefaultContentLanguage = "ja"
 title = "Dice Magic"
