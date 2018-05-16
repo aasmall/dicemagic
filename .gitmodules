@@ -4,3 +4,6 @@
 [submodule "www/themes/hugo-fresh"]
 	path = www/themes/hugo-fresh
 	url = https://github.com/lucperkins/hugo-fresh
+[submodule "www/themes/hugo-geo"]
+	path = www/themes/hugo-geo
+	url = https://github.com/alexurquhart/hugo-geo.git
