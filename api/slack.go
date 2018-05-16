@@ -12,7 +12,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/aasmall/dicemagic/internal"
+	"github.com/aasmall/dicemagic/lib"
 	"google.golang.org/appengine"
 )
 
@@ -42,7 +42,7 @@ func SlackRollHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	content := fmt.Sprintf("roll %s", r.FormValue("text"))
-	expression, err := internal.NewParser(strings.NewReader(content)).Parse()
+	expression, err := lib.NewParser(strings.NewReader(content)).Parse()
 	if err != nil {
 		printErrorToSlack(ctx, err, w, r)
 		return
@@ -59,7 +59,7 @@ func SlackRollHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(slackRollResponse)
 }
 
-func rollDecisionToSlackAttachment(decision *internal.RollDecision) (Attachment, error) {
+func rollDecisionToSlackAttachment(decision *lib.RollDecision) (Attachment, error) {
 	attachment := Attachment{
 		Fallback: fmt.Sprintf("I rolled 1d%d to help decide. Results are in: %s",
 			len(decision.Choices),
@@ -71,7 +71,7 @@ func rollDecisionToSlackAttachment(decision *internal.RollDecision) (Attachment,
 	return attachment, nil
 }
 
-func rollExpressionToSlackAttachment(expression *internal.RollExpression) (Attachment, error) {
+func rollExpressionToSlackAttachment(expression *lib.RollExpression) (Attachment, error) {
 	rollTotals, err := expression.GetTotalsByType()
 	attachment := Attachment{}
 	if err != nil {
@@ -115,7 +115,7 @@ func rollExpressionToSlackAttachment(expression *internal.RollExpression) (Attac
 
 	return attachment, nil
 }
-func createAttachmentsDamageString(rollTotals []internal.RollTotal) string {
+func createAttachmentsDamageString(rollTotals []lib.RollTotal) string {
 	var buffer bytes.Buffer
 	for _, e := range rollTotals {
 		if e.RollType == "" {

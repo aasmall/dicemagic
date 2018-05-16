@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/aasmall/dicemagic/internal"
+	"github.com/aasmall/dicemagic/lib"
 	"github.com/aasmall/dicemagic/roll"
 	"go.opencensus.io/trace"
 
@@ -152,7 +152,7 @@ func handleRememberIntent(ctx context.Context, dialogueFlowRequest DialogueFlowR
 	dialogueFlowResponse := new(DialogueFlowResponse)
 	slackRollResponse := SlashRollJSONResponse{}
 	diceExpressionCount := len(dialogueFlowRequest.QueryResult.Parameters["DiceExpression"].([]interface{}))
-	var command internal.RollCommand
+	var command lib.RollCommand
 	var diceStrings []string
 	for i := 0; i < diceExpressionCount; i++ {
 		diceExpressionString := addMissingCloseParens(dialogueFlowRequest.QueryResult.Parameters["DiceExpression"].([]interface{})[i].(string))
@@ -187,7 +187,7 @@ func handleRememberIntent(ctx context.Context, dialogueFlowRequest DialogueFlowR
 
 func handleCommandIntent(ctx context.Context, dialogueFlowRequest DialogueFlowRequest, w http.ResponseWriter, r *http.Request) {
 	commandString := dialogueFlowRequest.QueryResult.QueryText
-	var rollCommand internal.RollCommand
+	var rollCommand lib.RollCommand
 	key := hashStrings(commandString,
 		dialogueFlowRequest.OriginalDetectIntentRequest.Payload.Data.TeamID,
 		dialogueFlowRequest.OriginalDetectIntentRequest.Payload.Data.Event.User)
@@ -208,7 +208,7 @@ func handleCommandIntent(ctx context.Context, dialogueFlowRequest DialogueFlowRe
 	handleRollCommand(ctx, rollCommand, w, r)
 
 }
-func handleRollCommand(ctx context.Context, command internal.RollCommand, w http.ResponseWriter, r *http.Request) {
+func handleRollCommand(ctx context.Context, command lib.RollCommand, w http.ResponseWriter, r *http.Request) {
 	dialogueFlowResponse := new(DialogueFlowResponse)
 
 	slackRollResponse := SlashRollJSONResponse{}
@@ -263,7 +263,7 @@ func handleDecideIntent(ctx context.Context, dialogueFlowRequest DialogueFlowReq
 	slackRollResponse := SlashRollJSONResponse{}
 
 	//create a RollDecision and fill it
-	rollDecision := internal.RollDecision{}
+	rollDecision := lib.RollDecision{}
 	rollDecision.Question = dialogueFlowRequest.QueryResult.QueryText
 
 	dflowChoices := dialogueFlowRequest.QueryResult.Parameters["Choices"].([]interface{})
@@ -296,7 +296,7 @@ func handleRollIntent(ctx context.Context, dialogueFlowRequest DialogueFlowReque
 	ctx, span := trace.StartSpan(ctx, "handleRollIntent")
 	defer span.End()
 	diceExpressionCount := len(dialogueFlowRequest.QueryResult.Parameters["DiceExpression"].([]interface{}))
-	var command internal.RollCommand
+	var command lib.RollCommand
 	var diceStrings []string
 	for i := 0; i < diceExpressionCount; i++ {
 		diceExpressionString := addMissingCloseParens(dialogueFlowRequest.QueryResult.Parameters["DiceExpression"].([]interface{})[i].(string))

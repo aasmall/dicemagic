@@ -25,10 +25,10 @@ type ChallengeRequest struct {
 }
 
 type KMSDecryptResponse struct {
-	plaintext string `json:"plaintext"`
+	Plaintext string `json:"plaintext"`
 }
 type KMSEncryptResponse struct {
-	ciphertext string `json:"ciphertext"`
+	Ciphertext string `json:"ciphertext"`
 }
 type Message struct {
 	Channel string `json:"channel"`
