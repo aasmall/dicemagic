@@ -1,10 +1,9 @@
 runtime: go
 api_version: go1
-
+service: default
+skip_files:
+  - sa.json
 handlers:
-- url: /(.*\.(gif|png|jpg|ico))$
-  static_files: www/static/\1
-  upload: www/static/.*\.(gif|png|jpg|ico)$
 - url: /.*
   script: _go_app
 env_variables:
@@ -16,4 +15,3 @@ env_variables:
   KMSKEYRING: DiceMagic
   KMSKEY: SlackBotKeyKEK
   SLACK_BOT_USER_ACCES_TOKEN: CiQAgjBGQkAwZZ4Q68biZVm/fmBSLy4sQm5UUW+KfDX2kx7JZCcSUwCdk3ogWwNXj2mgUPbuxitIgT7Jcchr+yjDcZ/Q1uq4NKJR/gKfDTdOzZ5H5aMPnGemp0c/I4c8DI0hdwU3IFPky7Bv8eyj1bBpsC0RqAnebfk2
-  

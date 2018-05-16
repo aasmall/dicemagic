@@ -1,12 +1,12 @@
 
-# MagicDice
+# Dice Magic
 
 Slack Bot for Rolling Complex Dice
 
 
 |Branch|Build Status |
 |--|--|
-| master | [![Build Status](https://semaphoreci.com/api/v1/aasmall/dicemagic/branches/master/badge.svg)](https://semaphoreci.com/aasmall/dicemagic)  |
+| master | [![Build Status](https://semaphoreci.com/api/v1/aasmall/dicemagic/branches/master/badge.svg)](https://semaphoreci.com/aasmall/dicemagic) |
 | vDev |  [![Build Status](https://semaphoreci.com/api/v1/aasmall/dicemagic/branches/vdev/badge.svg)](https://semaphoreci.com/aasmall/dicemagic)|
 
 ## Set up dev environment
