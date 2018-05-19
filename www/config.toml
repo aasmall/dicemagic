@@ -14,7 +14,7 @@ disqusShortname = "dicemagic/5"
 googleAnalytics = "UA-119339106-2"
 
 [Params]
-#  homeTitle = "Beautiful Hugo Theme" # Set a different text for the header on the home page
+  # homeTitle = "Beautiful Hugo Theme" # Set a different text for the header on the home page
   subtitle = "Friendly dice rolling chatbot"
   logo = "img/DiceMagic_Big-01.png"
   favicon = "img/favicon.ico"

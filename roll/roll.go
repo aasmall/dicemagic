@@ -32,8 +32,16 @@ func Roll(numberOfDice int64, sides int64) (int64, error) {
 }
 
 func generateRandomInt(min int64, max int64) (int64, error) {
-	size := max - min + 1
-	nBig, err := rand.Int(rand.Reader, big.NewInt(int64(size)))
+	if max <= 0 || min < 0 {
+		err := fmt.Errorf("Cannot make a random int of size zero")
+		return 0, err
+	}
+	size := max - min
+	if size == 0 {
+		return 1, nil
+	}
+	//rand.Int does not return the max value, add 1
+	nBig, err := rand.Int(rand.Reader, big.NewInt(int64(size+1)))
 	if err != nil {
 		err = fmt.Errorf("Couldn't make a random number. Out of entropy?")
 		return 0, err
