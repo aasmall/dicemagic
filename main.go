@@ -14,11 +14,13 @@ import (
 )
 
 func main() {
-	serveIndexHtml := func(w http.ResponseWriter, r *http.Request) {
+	serve404 := func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		w.WriteHeader(http.StatusNotFound)
 		http.ServeFile(w, r, "www/public/404.html")
 	}
 	trace.ApplyConfig(trace.Config{DefaultSampler: trace.AlwaysSample()})
-	http.Handle("/", http.StripPrefix("/", CustomFileServer(http.Dir("www/public"), serveIndexHtml)))
+	http.Handle("/", http.StripPrefix("/", CustomFileServer(http.Dir("www/public"), serve404)))
 	http.HandleFunc("/api/slack/roll/", api.SlackRollHandler)
 	http.HandleFunc("/api/dflow/", api.DialogueWebhookHandler)
 	http.HandleFunc("/savecommand", queue.ProcessSaveCommand)
@@ -30,6 +32,8 @@ type customFileServer struct {
 	NotFoundHandler func(http.ResponseWriter, *http.Request)
 }
 
+// CustomFileServer serves static content, disables directory browsing
+// and calls NotFoundHandler in the case of a 404
 func CustomFileServer(root http.Dir, NotFoundHandler http.HandlerFunc) http.Handler {
 	return &customFileServer{root: root, NotFoundHandler: NotFoundHandler}
 }
