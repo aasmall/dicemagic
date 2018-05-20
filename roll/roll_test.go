@@ -48,22 +48,22 @@ func TestRoll(t *testing.T) {
 	}{
 		{
 			name:    "2d12",
-			args:    args{loops: 10000, minPValue: .05, numberOfDice: 2, sides: 6},
+			args:    args{loops: 100000, minPValue: .05, numberOfDice: 2, sides: 12},
 			want:    true,
 			wantErr: false},
 		{
 			name:    "2d6",
-			args:    args{loops: 10000, minPValue: .05, numberOfDice: 2, sides: 6},
+			args:    args{loops: 100000, minPValue: .05, numberOfDice: 2, sides: 6},
 			want:    true,
 			wantErr: false},
 		{
 			name:    "3d20",
-			args:    args{loops: 10000, minPValue: .05, numberOfDice: 3, sides: 20},
+			args:    args{loops: 100000, minPValue: .05, numberOfDice: 3, sides: 20},
 			want:    true,
 			wantErr: false},
 		{
 			name:    "8d4",
-			args:    args{loops: 100000, minPValue: .05, numberOfDice: 8, sides: 4},
+			args:    args{loops: 500000, minPValue: .05, numberOfDice: 8, sides: 4},
 			want:    true,
 			wantErr: false}}
 	for _, tt := range tests {
