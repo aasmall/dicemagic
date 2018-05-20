@@ -69,15 +69,17 @@ func (fs *customFileServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	defer f.Close()
 	s, err := f.Stat()
 	if s.IsDir() {
 		index := strings.TrimSuffix(name, "/") + "/index.html"
-		if _, err := os.Open(index); err != nil {
+		g, err := os.Open(index)
+		if err != nil {
 			fs.NotFoundHandler(w, r)
 			return
 		}
+		defer g.Close()
 	}
-	defer f.Close()
 
 	http.ServeFile(w, r, name)
 }
