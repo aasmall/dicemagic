@@ -6,6 +6,8 @@ skip_files:
 handlers:
 - url: /.*
   script: _go_app
+  secure: always
+  redirect_http_response_code: 301
 env_variables:
   SLACK_CLIENT_ID: "42142079431.351057397637"
   SLACK_KEY: CiQAgjBGQm1aFTfNsTYceo46b1omBy+BvZjPPOIitEyK6opxWckSSQCdk3ogbDHvTEHHMD8V+QmKRq65dhQPaU5Fh+OsUSunVgI2HKZMFIviuxqKQs3YgrwuVALIQ3476V4VB42gaNViw7mG2/QFkns=
