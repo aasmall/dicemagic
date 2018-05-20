@@ -35,6 +35,9 @@ func Test_generateRandomInt(t *testing.T) {
 
 func TestRoll(t *testing.T) {
 	type args struct {
+		biasMod      int64
+		biasTo       int64
+		biasFreq     float64
 		loops        int
 		minPValue    float64
 		numberOfDice int64
@@ -47,28 +50,45 @@ func TestRoll(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name:    "2d12",
-			args:    args{loops: 100000, minPValue: .05, numberOfDice: 2, sides: 12},
+			name: "2d12",
+			args: args{
+				biasMod:      0,
+				biasTo:       0,
+				biasFreq:     0,
+				loops:        100000,
+				minPValue:    .01,
+				numberOfDice: 2,
+				sides:        12},
 			want:    true,
 			wantErr: false},
 		{
 			name:    "2d6",
-			args:    args{loops: 100000, minPValue: .05, numberOfDice: 2, sides: 6},
+			args:    args{biasMod: 0, biasTo: 0, biasFreq: 0, loops: 100000, minPValue: .01, numberOfDice: 2, sides: 6},
 			want:    true,
 			wantErr: false},
 		{
 			name:    "3d20",
-			args:    args{loops: 100000, minPValue: .05, numberOfDice: 3, sides: 20},
+			args:    args{biasMod: 0, biasTo: 0, biasFreq: 0, loops: 100000, minPValue: .01, numberOfDice: 3, sides: 20},
 			want:    true,
 			wantErr: false},
 		{
+			name:    "3d20 bias +1",
+			args:    args{biasMod: 1, biasTo: 0, biasFreq: 0, loops: 100000, minPValue: .01, numberOfDice: 3, sides: 20},
+			want:    false,
+			wantErr: false},
+		{
+			name:    "3d20 1% bias",
+			args:    args{biasMod: 0, biasTo: 31, biasFreq: .01, loops: 100000, minPValue: .01, numberOfDice: 3, sides: 20},
+			want:    false,
+			wantErr: false},
+		{
 			name:    "8d4",
-			args:    args{loops: 500000, minPValue: .05, numberOfDice: 8, sides: 4},
+			args:    args{biasMod: 0, biasTo: 0, biasFreq: 0, loops: 500000, minPValue: .01, numberOfDice: 8, sides: 4},
 			want:    true,
 			wantErr: false}}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := testRoll(t, tt.args.loops, tt.args.minPValue, tt.args.numberOfDice, tt.args.sides)
+			got, err := testRoll(t, tt.args.biasMod, tt.args.biasTo, tt.args.biasFreq, tt.args.loops, tt.args.minPValue, tt.args.numberOfDice, tt.args.sides)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("testRoll() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -85,18 +105,28 @@ type rollBucket struct {
 	count  int64
 }
 
-func testRoll(t *testing.T, loops int, minPValue float64, numberOfDice int64, sides int64) (bool, error) {
+func testRoll(t *testing.T, biasMod int64, biasTo int64, biasFreq float64, loops int, minPValue float64, numberOfDice int64, sides int64) (bool, error) {
 	m := make(map[int64]int)
 	for i := numberOfDice; i < numberOfDice*sides; i++ {
 		m[i] = 0
 	}
+	biasCount := 0
 	for i := 0; i < loops; i++ {
 		x, err := Roll(numberOfDice, sides)
 		if err != nil {
 			return false, err
 		}
+		//calculate biases
+		x += biasMod
+		if biasFreq > 0 {
+			if i%int(1/biasFreq) == 0 {
+				biasCount++
+				x = biasTo
+			}
+		}
 		m[x]++
 	}
+
 	var obs []float64
 	var exp []float64
 	var keys []int64
@@ -119,6 +149,9 @@ func testRoll(t *testing.T, loops int, minPValue float64, numberOfDice int64, si
 	c := stat.ChiSquare(obs, exp)
 	p := 1 - distuv.ChiSquared{K: float64(df), Src: nil}.CDF(c)
 	t.Logf("chi2=%v, df=%v, p=%v", c, df, p)
+	if biasFreq > 0 {
+		t.Logf("Biased to %v %d times", biasTo, biasCount)
+	}
 	if p > minPValue {
 		return true, nil
 	}
