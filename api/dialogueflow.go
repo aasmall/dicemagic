@@ -349,7 +349,7 @@ func rollExpressionToFulfillmentMessage(expression *roll.RollExpression) DialogF
 	//Dice rolls into Expanded, formatted string
 	var fmtString []interface{}
 	for i, d := range expression.DiceSet.Dice {
-		fmtString = append(fmtString, fmt.Sprintf("%dd%d(rolled: %d)", d.NumberOfDice, d.Sides, expression.DiceSet.Results[i]))
+		fmtString = append(fmtString, fmt.Sprintf("%dd%d(%d)", d.NumberOfDice, d.Sides, expression.DiceSet.Results[i]))
 	}
 	returnMessage.DialogFlowCard.Title = fmt.Sprintf(expression.ExpandedTextTemplate, fmtString...)
 	var buff bytes.Buffer
