@@ -1,7 +1,7 @@
 ---
 title: "Terms and Privacy"
 date: 2018-05-26T12:12:40-07:00
-draft: true
+draft: false
 ---
 ## Privacy Policy
 
