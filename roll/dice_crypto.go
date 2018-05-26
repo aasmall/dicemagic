@@ -1,4 +1,4 @@
-package api
+package roll
 
 import (
 	"context"
@@ -12,7 +12,7 @@ import (
 	"google.golang.org/api/cloudkms/v1"
 )
 
-func slackVerificationToken(ctx context.Context) string {
+func SlackVerificationToken(ctx context.Context) string {
 	val, _ := decrypt(ctx, os.Getenv("SLACK_CLIENT_VERIFICATION_TOKEN"))
 	return val
 }
@@ -74,7 +74,9 @@ func encrypt(ctx context.Context, plaintext string) (string, error) {
 
 	return string(resp.Ciphertext), nil
 }
-func hashStrings(inputs ...string) string {
+
+// HashStrings computes the MD5 hash of all input strings
+func HashStrings(inputs ...string) string {
 	h := md5.New()
 	for _, input := range inputs {
 		h.Write([]byte(input))

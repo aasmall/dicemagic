@@ -1,4 +1,4 @@
-package api
+package roll
 
 type EventCallback struct {
 	Token       string `json:"token"`

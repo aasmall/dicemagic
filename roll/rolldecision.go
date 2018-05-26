@@ -1,4 +1,4 @@
-package lib
+package roll
 
 //RollDecision represents a decision
 type RollDecision struct {

@@ -1,10 +1,10 @@
-package api
+package main
 
 import (
 	"bytes"
 	"fmt"
 
-	"github.com/aasmall/dicemagic/lib"
+	"github.com/aasmall/dicemagic/roll"
 )
 
 //AssistantResponse represents a response that will be sent to Dialogflow for Google Actions API
@@ -34,7 +34,7 @@ type BasicCardItem struct {
 	} `json:"basicCard,omitempty"`
 }
 
-func createMarkdownDamageString(rollTotals []lib.RollTotal) (string, int64) {
+func createMarkdownDamageString(rollTotals []roll.Total) (string, int64) {
 	var buffer bytes.Buffer
 	t := int64(0)
 	for _, e := range rollTotals {
@@ -47,11 +47,12 @@ func createMarkdownDamageString(rollTotals []lib.RollTotal) (string, int64) {
 	}
 	return buffer.String(), t
 }
-func rollExpressionToMarkdown(expression *lib.RollExpression) (string, int64, error) {
-	rollTotals, err := expression.GetTotalsByType()
+func rollExpressionToMarkdown(expression *roll.RollExpression) (string, int64, error) {
+	err := expression.Total()
 	if err != nil {
 		return "", 0, err
 	}
+	rollTotals := expression.RollTotals
 	s, t := createMarkdownDamageString(rollTotals)
 	return s, t, nil
 }

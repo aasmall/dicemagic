@@ -1,4 +1,4 @@
-package api
+package main
 
 import (
 	"bytes"
@@ -12,12 +12,12 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/aasmall/dicemagic/lib"
+	"github.com/aasmall/dicemagic/roll"
 	"google.golang.org/appengine"
 )
 
-//SlashRollJSONResponse is the response format for slack slash commands
-type SlashRollJSONResponse struct {
+//SlackRollJSONResponse is the response format for slack slash commands
+type SlackRollJSONResponse struct {
 	Text        string       `json:"text"`
 	Attachments []Attachment `json:"attachments"`
 }
@@ -37,17 +37,17 @@ func SlackRollHandler(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm()
 	ctx := appengine.NewContext(r)
 	//Form into syntacticly correct roll statement.
-	if r.FormValue("token") != slackVerificationToken(ctx) {
+	if r.FormValue("token") != roll.SlackVerificationToken(ctx) {
 		fmt.Fprintf(w, "This is not the droid you're looking for.")
 		return
 	}
 	content := fmt.Sprintf("roll %s", r.FormValue("text"))
-	expression, err := lib.NewParser(strings.NewReader(content)).Parse()
+	expression, err := roll.NewParser(strings.NewReader(content)).Parse()
 	if err != nil {
 		printErrorToSlack(ctx, err, w, r)
 		return
 	}
-	slackRollResponse := SlashRollJSONResponse{}
+	slackRollResponse := SlackRollJSONResponse{}
 	attachment, err := rollExpressionToSlackAttachment(expression)
 	if err != nil {
 		printErrorToSlack(ctx, err, w, r)
@@ -59,7 +59,7 @@ func SlackRollHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(slackRollResponse)
 }
 
-func rollDecisionToSlackAttachment(decision *lib.RollDecision) (Attachment, error) {
+func rollDecisionToSlackAttachment(decision *roll.RollDecision) (Attachment, error) {
 	attachment := Attachment{
 		Fallback: fmt.Sprintf("I rolled 1d%d to help decide. Results are in: %s",
 			len(decision.Choices),
@@ -71,8 +71,9 @@ func rollDecisionToSlackAttachment(decision *lib.RollDecision) (Attachment, erro
 	return attachment, nil
 }
 
-func rollExpressionToSlackAttachment(expression *lib.RollExpression) (Attachment, error) {
-	rollTotals, err := expression.GetTotalsByType()
+func rollExpressionToSlackAttachment(expression *roll.RollExpression) (Attachment, error) {
+	err := expression.Total()
+	rollTotals := expression.RollTotals
 	attachment := Attachment{}
 	if err != nil {
 		return attachment, err
@@ -115,7 +116,7 @@ func rollExpressionToSlackAttachment(expression *lib.RollExpression) (Attachment
 
 	return attachment, nil
 }
-func createAttachmentsDamageString(rollTotals []lib.RollTotal) string {
+func createAttachmentsDamageString(rollTotals []roll.Total) string {
 	var buffer bytes.Buffer
 	for _, e := range rollTotals {
 		if e.RollType == "" {
@@ -127,7 +128,7 @@ func createAttachmentsDamageString(rollTotals []lib.RollTotal) string {
 	return buffer.String()
 }
 func printErrorToSlack(ctx context.Context, err error, w http.ResponseWriter, r *http.Request) {
-	slackRollResponse := new(SlashRollJSONResponse)
+	slackRollResponse := new(SlackRollJSONResponse)
 	slackRollResponse.Text = err.Error()
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(slackRollResponse)
