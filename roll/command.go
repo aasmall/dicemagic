@@ -1,9 +1,9 @@
-package lib
+package roll
 
 import (
 	"bytes"
 	"context"
-	"net/url"
+	"encoding/gob"
 	"strings"
 
 	"google.golang.org/appengine/log"
@@ -15,8 +15,8 @@ import (
 type CommandType int
 
 const (
-	//DiceRoll represents a command to roll dice.
-	DiceRoll CommandType = iota
+	//DiceRollCommand represents a command to roll dice.
+	DiceRollCommand CommandType = iota
 	//Decision represents a command to make a decision
 	Decision
 )
@@ -26,8 +26,8 @@ const (
 //Command represents a user command that can be saved,
 //retrieved, and parsed from a string.
 type Command interface {
-	Save(ctx context.Context, key string) error
-	Get(ctx context.Context, key string) error
+	Save(ctx context.Context) error
+	Get(ctx context.Context, ID string) error
 	FromString(inputString ...string) error
 	String() string
 }
@@ -36,8 +36,8 @@ type Command interface {
 //comand interface
 var _ Command = &RollCommand{}
 
-//RollCommand represents multiple RollExpressions
 type RollCommand struct {
+	ID             string
 	RollExpresions []RollExpression
 }
 
@@ -69,16 +69,16 @@ func (r *RollCommand) FromString(inputString ...string) error {
 
 //Get retrieves a RollCommand from the DB and populates the struct
 //using memcache if possible
-func (r *RollCommand) Get(ctx context.Context, key string) error {
+func (r *RollCommand) Get(ctx context.Context, ID string) error {
 	var c RollCommand
-	_, err := memcache.Gob.Get(ctx, key, &c)
+	_, err := memcache.Gob.Get(ctx, ID, &c)
 	if err != nil {
-		log.Infof(ctx, "cache miss (%s): %s", key, err)
+		log.Infof(ctx, "cache miss (%s): %s", ID, err)
 		db, err := ConfigureDatastoreDB(ctx)
 		if err != nil {
 			return err
 		}
-		command, err := db.GetRoll(ctx, key)
+		command, err := db.GetRoll(ctx, ID)
 		if err != nil {
 			return err
 		}
@@ -91,9 +91,9 @@ func (r *RollCommand) Get(ctx context.Context, key string) error {
 
 //Save persists a RollCommand to the DB
 //using memcache if possible
-func (r *RollCommand) Save(ctx context.Context, key string) error {
+func (r *RollCommand) Save(ctx context.Context) error {
 	item := &memcache.Item{
-		Key:    key,
+		Key:    r.ID,
 		Object: r}
 	err := memcache.Gob.Set(ctx, item)
 	if err != nil {
@@ -104,7 +104,7 @@ func (r *RollCommand) Save(ctx context.Context, key string) error {
 			log.Criticalf(ctx, err.Error())
 			return err
 		}
-		err = db.UpsertRoll(ctx, key, r)
+		err = db.UpsertRoll(ctx, r.ID, r)
 		if err != nil {
 			log.Criticalf(ctx, err.Error())
 			return err
@@ -112,10 +112,13 @@ func (r *RollCommand) Save(ctx context.Context, key string) error {
 		return nil
 	}
 	//issue task to read from memcache and persist
-	v := url.Values{"key": []string{key}}
-	t := taskqueue.NewPOSTTask("/savecommand", v)
-	log.Debugf(ctx, "Issuing task to save command at key: %v", v)
-	tx, err := taskqueue.Add(ctx, t, "default")
+	var buf bytes.Buffer
+	gob.NewEncoder(&buf).Encode(r)
+	t := &taskqueue.Task{
+		Payload: buf.Bytes(),
+		Method:  "PULL",
+	}
+	tx, err := taskqueue.Add(ctx, t, "savecommand")
 	if err != nil {
 		log.Criticalf(ctx, "Task Add Error %s\n%v", err, tx)
 		return err

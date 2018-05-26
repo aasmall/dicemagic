@@ -1,0 +1,15 @@
+dispatch:
+  - url: "*/favicon.ico"
+    service: default
+  - url: "www.dicemagic.io/*"
+    service: www
+  - url: "api.dicemagic.io/*"
+    service: api
+  - url: "worker.dicemagic.io/*"
+    service: worker
+  - url: "www.dev.dicemagic.io/*"
+    service: www
+  - url: "api.dev.dicemagic.io/*"
+    service: api
+  - url: "worker.dev.dicemagic.io/*"
+    service: worker

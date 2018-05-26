@@ -1,4 +1,4 @@
-package lib
+package roll
 
 //Credit to https://blog.gopheracademy.com/advent-2014/parsers-lexers/
 
@@ -48,11 +48,13 @@ func isNumber(ch rune) bool {
 // Scanner represents a lexical scanner.
 type Scanner struct {
 	r *bufio.Reader
+	c *word2number.Converter
 }
 
 // NewScanner returns a new instance of Scanner.
 func NewScanner(r io.Reader) *Scanner {
-	return &Scanner{r: bufio.NewReader(r)}
+	c, _ := word2number.NewConverter("en")
+	return &Scanner{r: bufio.NewReader(r), c: c}
 }
 
 // read reads the next rune from the bufferred reader.
@@ -156,7 +158,7 @@ func (s *Scanner) scanIdent() (tok token, lit string) {
 
 	// If the string matches a keyword then return that keyword.
 	word := strings.ToUpper(buf.String())
-	if found, n := convertToNumeric(word); found {
+	if found, n := convertToNumeric(s.c, word); found {
 		return numberToken, strconv.Itoa(n)
 	}
 	switch word {
@@ -245,63 +247,71 @@ func (p *Parser) MustParse() *RollExpression {
 func (p *Parser) Parse() (*RollExpression, error) {
 	expression := new(RollExpression)
 	tok, lit := p.scanIgnoreWhitespace()
-	var buffer bytes.Buffer
+	var initialTextBuffer bytes.Buffer
+	var expandedTextBuffer bytes.Buffer
 	_, err := populateRequired(tok, lit, rolltoken)
 	if err != nil {
 		return nil, fmt.Errorf("found %q, expected ROLL", lit)
 	}
-	buffer.WriteString("Roll ")
-	//flow control
-	//rollback := false
-	//rollbackModifier := int64(0)
+	initialTextBuffer.WriteString("Roll ")
+
 	tok, lit = illegal, ""
 	evalOrder := 0
+	lenOfLastNumber := 0
+	ignoreNextNumber := false
 	//dat parse loops
 	for {
 		//create this loops objects
-		segment := new(Segment)
+		segmentHalf := new(SegmentHalf)
 		tok, lit = p.scanIgnoreWhitespace()
 		if tok == eofToken {
 			break
 		}
-		segment.EvaluationPriority = evalOrder
+		segmentHalf.EvaluationPriority = evalOrder
 		// find OParen, decrement eval order and restart loop
 		if _, found := populateOptional(tok, lit, oparen); found {
 			evalOrder--
-			buffer.WriteString("(")
+			initialTextBuffer.WriteString("(")
+			expandedTextBuffer.WriteString("(")
 			continue
 		}
 		// find CParen, increment eval order and restart loop
 		if _, found := populateOptional(tok, lit, cparen); found {
 			evalOrder++
-			buffer.WriteString(")")
+			initialTextBuffer.WriteString(")")
+			expandedTextBuffer.WriteString(")")
 			continue
 		}
 		//what if I don't require brackets at all?
 		if segmentType, found := populateOptional(tok, strings.Title(lit), ident); found {
-			for i, e := range expression.Segments {
+			for i, e := range expression.SegmentHalfs {
 				if e.SegmentType == "" {
-					expression.Segments[i].SegmentType = segmentType
+					expression.SegmentHalfs[i].SegmentType = segmentType
 				}
 			}
-			buffer.WriteString("[")
-			buffer.WriteString(segmentType)
-			buffer.WriteString("]")
+			initialTextBuffer.WriteString("[")
+			initialTextBuffer.WriteString(segmentType)
+			initialTextBuffer.WriteString("]")
+			expandedTextBuffer.WriteString("[")
+			expandedTextBuffer.WriteString(segmentType)
+			expandedTextBuffer.WriteString("]")
 			continue
 		}
 		if _, found := populateOptional(tok, lit, obrkt); found {
 			//found an open bracket. Read for Segment Type (force title case)
-			buffer.WriteString("[")
+			initialTextBuffer.WriteString("[")
+			expandedTextBuffer.WriteString("[")
 			tok, lit = p.scanIgnoreWhitespace()
 			segmentType, err := populateRequired(tok, strings.Title(lit), ident)
 			if err != nil {
 				return expression, err
 			}
 			//found segment type, Apply to all previous non-typed segments then require close bracket
-			buffer.WriteString(segmentType)
-			for i, e := range expression.Segments {
+			initialTextBuffer.WriteString(segmentType)
+			expandedTextBuffer.WriteString(segmentType)
+			for i, e := range expression.SegmentHalfs {
 				if e.SegmentType == "" {
-					expression.Segments[i].SegmentType = segmentType
+					expression.SegmentHalfs[i].SegmentType = segmentType
 				}
 			}
 			tok, lit = p.scanIgnoreWhitespace()
@@ -310,54 +320,69 @@ func (p *Parser) Parse() (*RollExpression, error) {
 				return expression, err
 			}
 			//found close bracket, contune.
-			buffer.WriteString("]")
+			initialTextBuffer.WriteString("]")
+			expandedTextBuffer.WriteString("]")
 			continue
 
 		}
 		//optional: OPERATOR
 		if operator, found := populateOptional(tok, lit, operatorToken); found {
-			segment.Operator = strings.ToLower(operator)
-			buffer.WriteString(segment.Operator)
+			segmentHalf.Operator = strings.ToLower(operator)
+			initialTextBuffer.WriteString(segmentHalf.Operator)
+			if segmentHalf.Operator == "d" {
+				expandedTextBuffer.Truncate(expandedTextBuffer.Len() - lenOfLastNumber)
+				expandedTextBuffer.WriteString("%s")
+				ignoreNextNumber = true
+			} else {
+				expandedTextBuffer.WriteString(segmentHalf.Operator)
+			}
 			tok, lit = p.scanIgnoreWhitespace()
 		} else {
-			segment.Operator = "+"
+			segmentHalf.Operator = "+"
 		}
 		//optional: Number
 		if number, found := populateOptional(tok, lit, numberToken); found {
 			foundNumber, _ := strconv.ParseInt(number, 10, 0)
-			buffer.WriteString(number)
-			segment.Number = foundNumber
+			initialTextBuffer.WriteString(number)
+			if ignoreNextNumber {
+				ignoreNextNumber = false
+			} else {
+				expandedTextBuffer.WriteString(number)
+			}
+			lenOfLastNumber = len([]byte(lit))
+			segmentHalf.Number = foundNumber
 		}
-		expression.Segments = append(expression.Segments, *segment)
+		expression.SegmentHalfs = append(expression.SegmentHalfs, *segmentHalf)
 	}
-	for i, e := range expression.Segments {
+	//force dice rolls to highest priority
+	for i, e := range expression.SegmentHalfs {
+		if e.Operator == "d" {
+			expression.SegmentHalfs[i].EvaluationPriority = getHighestPriority(expression.SegmentHalfs) - 1
+		}
+	}
+	for i, e := range expression.SegmentHalfs {
 		if e.Operator == "*" || e.Operator == "/" {
-			expression.adjustIfLowerPriority(expression.Segments[i].EvaluationPriority, -1)
-			expression.Segments[i].EvaluationPriority += -1
+			expression.adjustIfLowerPriority(expression.SegmentHalfs[i].EvaluationPriority, -1)
+			expression.SegmentHalfs[i].EvaluationPriority += -1
 		}
 	}
 
-	//force dice rolls to highest priority
-	for i, e := range expression.Segments {
-		if e.Operator == "d" {
-			expression.Segments[i].EvaluationPriority = getHighestPriority(expression.Segments) - 1
-		}
-	}
-	expression.InitialText = buffer.String()
+	expression.InitialText = initialTextBuffer.String()
+	expression.ExpandedTextTemplate = expandedTextBuffer.String()
 	return expression, nil
 }
 
 func (e *RollExpression) adjustIfLowerPriority(ifLowerThan int, adjustBy int) {
-	for i, s := range e.Segments {
+	for i, s := range e.SegmentHalfs {
 		if s.EvaluationPriority < ifLowerThan {
-			e.Segments[i].EvaluationPriority += adjustBy
+			e.SegmentHalfs[i].EvaluationPriority += adjustBy
 		}
 	}
 }
 func (e *RollExpression) adjustIfHigherPriority(ifHigherThan int, adjustBy int) {
-	for i, s := range e.Segments {
+	for i, s := range e.SegmentHalfs {
 		if s.EvaluationPriority > ifHigherThan {
-			e.Segments[i].EvaluationPriority += adjustBy
+			e.SegmentHalfs[i].EvaluationPriority += adjustBy
 		}
 	}
 }
@@ -376,8 +401,7 @@ func populateRequired(tok token, lit string, tokExpect token) (string, error) {
 	return "", fmt.Errorf("found %q, expected %v", lit, tokExpect)
 }
 
-func convertToNumeric(word string) (bool, int) {
-	c, _ := word2number.NewConverter("en")
+func convertToNumeric(c *word2number.Converter, word string) (bool, int) {
 	n := c.Words2Number(word)
 	if n == 0 {
 		return false, 0

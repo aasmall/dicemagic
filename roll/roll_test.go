@@ -4,8 +4,6 @@ import (
 	"sort"
 	"testing"
 
-	"math"
-
 	"gonum.org/v1/gonum/stat"
 	"gonum.org/v1/gonum/stat/distuv"
 )
@@ -112,7 +110,7 @@ func testRoll(t *testing.T, biasMod int64, biasTo int64, biasFreq float64, loops
 	}
 	biasCount := 0
 	for i := 0; i < loops; i++ {
-		x, err := Roll(numberOfDice, sides)
+		x, err := roll(numberOfDice, sides)
 		if err != nil {
 			return false, err
 		}
@@ -141,7 +139,7 @@ func testRoll(t *testing.T, biasMod int64, biasTo int64, biasFreq float64, loops
 	t.Logf("------------------------------------------")
 	for _, k := range keys {
 		obs = append(obs, float64(m[k]))
-		prob := diceProbability(t, numberOfDice, sides, k)
+		prob := diceProbability(numberOfDice, sides, k)
 		exp = append(exp, prob*float64(loops))
 		t.Logf("%6d : %10.5g%% : %8.5g : %8g", k, prob*100, prob*float64(loops), float64(m[k]))
 		df++
@@ -156,49 +154,4 @@ func testRoll(t *testing.T, biasMod int64, biasTo int64, biasFreq float64, loops
 		return true, nil
 	}
 	return false, nil
-}
-func diceProbability(t *testing.T, numberOfDice int64, sides int64, target int64) float64 {
-	rollAmount := math.Pow(float64(sides), float64(numberOfDice))
-	targetAmount := float64(0)
-	var possibilities []int64
-	for i := int64(1); i <= sides; i++ {
-		possibilities = append(possibilities, i)
-	}
-	c := make(chan []int64)
-	go GenerateProducts(c, possibilities, numberOfDice)
-	for product := range c {
-		if sumInt64(product...) == target {
-			targetAmount++
-		}
-	}
-	p := (targetAmount / rollAmount)
-	return p
-}
-
-func GenerateProducts(c chan []int64, possibilities []int64, numberOfDice int64) {
-	lens := int64(len(possibilities))
-	for ix := make([]int64, numberOfDice); ix[0] < lens; NextIndex(ix, lens) {
-		r := make([]int64, numberOfDice)
-		for i, j := range ix {
-			r[i] = possibilities[j]
-		}
-		c <- r
-	}
-	close(c)
-}
-func NextIndex(ix []int64, lens int64) {
-	for j := len(ix) - 1; j >= 0; j-- {
-		ix[j]++
-		if j == 0 || ix[j] < lens {
-			return
-		}
-		ix[j] = 0
-	}
-}
-func sumInt64(nums ...int64) int64 {
-	r := int64(0)
-	for _, n := range nums {
-		r += n
-	}
-	return r
 }

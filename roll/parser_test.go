@@ -1,4 +1,4 @@
-package lib
+package roll
 
 import (
 	"reflect"
@@ -74,32 +74,35 @@ func TestParser_Parse(t *testing.T) {
 	}{
 		{name: "ROLL (1d12+7)/2[mundane]+1d4[fire]",
 			p: NewParser(strings.NewReader("ROLL (1d12+7)/2[mundane]+1D4[fire]")),
-			want: &RollExpression{"Roll (1d12+7)/2[Mundane]+1d4[Fire]", []Segment{
-				Segment{Number: 1, Operator: "+", SegmentType: "Mundane", EvaluationPriority: -2},
-				Segment{Number: 12, Operator: "d", SegmentType: "Mundane", EvaluationPriority: -3},
-				Segment{Number: 7, Operator: "+", SegmentType: "Mundane", EvaluationPriority: -2},
-				Segment{Number: 2, Operator: "/", SegmentType: "Mundane", EvaluationPriority: -1},
-				Segment{Number: 1, Operator: "+", SegmentType: "Fire", EvaluationPriority: 0},
-				Segment{Number: 4, Operator: "d", SegmentType: "Fire", EvaluationPriority: -4}}},
-			wantErr: false}, {name: "ROLL (1d12+7)/2 mundane +1d4 fire",
-			p: NewParser(strings.NewReader("ROLL (1d12+7)/2mundane+1d4 fire")),
-			want: &RollExpression{"Roll (1d12+7)/2[Mundane]+1d4[Fire]", []Segment{
-				Segment{Number: 1, Operator: "+", SegmentType: "Mundane", EvaluationPriority: -2},
-				Segment{Number: 12, Operator: "d", SegmentType: "Mundane", EvaluationPriority: -3},
-				Segment{Number: 7, Operator: "+", SegmentType: "Mundane", EvaluationPriority: -2},
-				Segment{Number: 2, Operator: "/", SegmentType: "Mundane", EvaluationPriority: -1},
-				Segment{Number: 1, Operator: "+", SegmentType: "Fire", EvaluationPriority: 0},
-				Segment{Number: 4, Operator: "d", SegmentType: "Fire", EvaluationPriority: -4}}},
+			want: &RollExpression{InitialText: "Roll (1d12+7)/2[Mundane]+1d4[Fire]", RollTotals: []Total(nil), ExpandedTextTemplate: "(%s+7)/2[Mundane]+%s[Fire]",
+				SegmentHalfs: []SegmentHalf{
+					SegmentHalf{Number: 1, Operator: "+", SegmentType: "Mundane", EvaluationPriority: -2},
+					SegmentHalf{Number: 12, Operator: "d", SegmentType: "Mundane", EvaluationPriority: -3},
+					SegmentHalf{Number: 7, Operator: "+", SegmentType: "Mundane", EvaluationPriority: -2},
+					SegmentHalf{Number: 2, Operator: "/", SegmentType: "Mundane", EvaluationPriority: -1},
+					SegmentHalf{Number: 1, Operator: "+", SegmentType: "Fire", EvaluationPriority: 0},
+					SegmentHalf{Number: 4, Operator: "d", SegmentType: "Fire", EvaluationPriority: -4}}},
+			wantErr: false},
+		{name: "ROLL (one d12+7)/2 mundane +1d4 fire",
+			p: NewParser(strings.NewReader("ROLL (one d12+7)/2mundane+1d4 fire")),
+			want: &RollExpression{InitialText: "Roll (1d12+7)/2[Mundane]+1d4[Fire]", RollTotals: []Total(nil), ExpandedTextTemplate: "(%s+7)/2[Mundane]+%s[Fire]",
+				SegmentHalfs: []SegmentHalf{
+					SegmentHalf{Number: 1, Operator: "+", SegmentType: "Mundane", EvaluationPriority: -2},
+					SegmentHalf{Number: 12, Operator: "d", SegmentType: "Mundane", EvaluationPriority: -3},
+					SegmentHalf{Number: 7, Operator: "+", SegmentType: "Mundane", EvaluationPriority: -2},
+					SegmentHalf{Number: 2, Operator: "/", SegmentType: "Mundane", EvaluationPriority: -1},
+					SegmentHalf{Number: 1, Operator: "+", SegmentType: "Fire", EvaluationPriority: 0},
+					SegmentHalf{Number: 4, Operator: "d", SegmentType: "Fire", EvaluationPriority: -4}}},
 			wantErr: false}}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := tt.p.Parse()
 			if (err != nil) != tt.wantErr {
-				t.Errorf("Parser.Parse() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("Parser.Parse() error = %#v, wantErr %#v", err, tt.wantErr)
 				return
 			}
 			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("Parser.Parse() = %v, want %v", got, tt.want)
+				t.Errorf("Parser.Parse() got:\n%#v, want:\n%#v", got, tt.want)
 			}
 		})
 	}
