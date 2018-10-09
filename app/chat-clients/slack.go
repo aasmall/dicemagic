@@ -11,9 +11,8 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/aasmall/dicemagic/dicelang"
-
-	"github.com/aasmall/dicemagic/roll"
+	"github.com/aasmall/dicemagic/app/dice-server/dicelang"
+	"github.com/aasmall/dicemagic/app/dice-server/roll"
 	"google.golang.org/appengine"
 )
 

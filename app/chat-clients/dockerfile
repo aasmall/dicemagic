@@ -1,0 +1,21 @@
+FROM golang:alpine
+
+RUN apk add --no-cache git mercurial \
+    && go get cloud.google.com/go/logging \
+    && go get github.com/gorilla/mux \
+    && go get github.com/aasmall/dicemagic/app/proto \
+    && go get google.golang.org/grpc \
+    && go get google.golang.org/grpc/reflection \
+    && apk del git mercurial
+
+ADD . /go/src/github.com/aasmall/dicemagic/app/chat-clients
+
+WORKDIR /go/src/github.com/aasmall/dicemagic/app/chat-clients
+
+RUN go install github.com/aasmall/dicemagic/app/chat-clients
+
+ENV GOOGLE_APPLICATION_CREDENTIALS "/go/src/github.com/aasmall/dicemagic/dice-api/k8s-dice-magic.json"
+
+ENTRYPOINT /go/bin/chat-clients
+
+EXPOSE 7070

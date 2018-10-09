@@ -10,9 +10,9 @@ import (
 	"net/http/httputil"
 	"strings"
 
-	"github.com/aasmall/dicemagic/dicelang"
+	"github.com/aasmall/dicemagic/app/dice-server/dicelang"
 
-	"github.com/aasmall/dicemagic/roll"
+	"github.com/aasmall/dicemagic/app/dice-server/roll"
 	"go.opencensus.io/trace"
 
 	"google.golang.org/appengine"

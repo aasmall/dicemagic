@@ -76,6 +76,7 @@ func main() {
 	}
 	s := grpc.NewServer()
 	pb.RegisterRollerServer(s, &server{})
+
 	// Register reflection service on gRPC server.
 	reflection.Register(s)
 	if err := s.Serve(lis); err != nil {

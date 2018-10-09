@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/gob"
 
-	"github.com/aasmall/dicemagic/dicelang"
+	"github.com/aasmall/dicemagic/app/dice-server/dicelang"
 	"google.golang.org/appengine/log"
 	"google.golang.org/appengine/memcache"
 	"google.golang.org/appengine/taskqueue"

@@ -31,10 +31,12 @@ func main() {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
+	for index := 0; index < 1000; index++ {
 
-	r, err := c.Roll(ctx, &pb.RollRequest{Cmd: cmd})
-	if err != nil {
-		log.Fatalf("could not greet: %v", err)
+		r, err := c.Roll(ctx, &pb.RollRequest{Cmd: cmd})
+		if err != nil {
+			log.Fatalf("could not greet: %v", err)
+		}
+		log.Printf("%d: Greeting: %+v", index, r)
 	}
-	log.Printf("Greeting: %+v", r)
 }
