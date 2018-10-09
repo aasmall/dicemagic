@@ -5,6 +5,12 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Python: Current File",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}"
+        },
+        {
             "name": "Launch",
             "type": "go",
             "request": "launch",
@@ -14,7 +20,7 @@
             "host": "127.0.0.1",
             "program": "${fileDirname}",
             "env": {},
-            "args": [],
+            "args": ["-cmd=roll 1d1+5 fire and 3d0 +2mundane","-v" ],
             "showLog": true
         }
     ]

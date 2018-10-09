@@ -1,13 +1,12 @@
 package main
 
 import (
+	"log"
 	"net/http"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
-
-	"google.golang.org/appengine"
 )
 
 func main() {
@@ -17,7 +16,8 @@ func main() {
 		http.ServeFile(w, r, "public/404.html")
 	}
 	http.Handle("/", http.StripPrefix("/", CustomFileServer(http.Dir("public"), serve404)))
-	appengine.Main()
+
+	log.Fatal(http.ListenAndServe(":8080", nil))
 }
 
 type customFileServer struct {

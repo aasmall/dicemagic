@@ -33,7 +33,7 @@ $GOPATH
 └── src
     └── github.com
         └── aasmall
-            └── MagicDice
+            └── dicemagic
 ```
 
 ### Example Build Script
@@ -46,7 +46,7 @@ tar -xzf ~/sdk-tar.gz -C ~/
 . ~/google-cloud-sdk/path.bash.inc
 gcloud components update --quiet
 gcloud components install app-engine-go --quiet
-cd $GOPATH/src/github.com/aasmall/MagicDice
+cd $GOPATH/src/github.com/aasmall/dicemagic
 go get -d -v -t ./... && go build -v ./...
 
 ```

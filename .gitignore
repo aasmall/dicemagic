@@ -1,3 +1,7 @@
 sa.json
 debug.test
 www/public
+*debug
+dicelang/cli/cli
+coverage.out
+dice-api/k8s-dice-magic.json

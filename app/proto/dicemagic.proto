@@ -1,0 +1,39 @@
+syntax = "proto3";
+
+package proto;
+
+// The roller service definition.
+service Roller {
+  // Rolls dice
+  rpc Roll (RollRequest) returns (RollResponse) {}
+}
+
+// The request message containing the user's name.
+message RollRequest {
+  string cmd = 1;
+  bool probabilities = 2;
+  bool chart = 3;
+}
+
+// The response message containing the greetings
+message RollResponse {
+  string Cmd = 1;
+  DiceSet DiceSet = 2;
+}
+message Dice {
+  int64 Count = 1;
+  int64 Sides = 2;
+  int64 Total = 3;
+  repeated int64 Faces = 4;
+  string Color = 5;
+  int64 Max = 6;
+  int64 Min = 7;
+  int64 DropHighest = 8;
+  int64 DropLowest = 9;
+  bytes Chart = 10;
+  map<int64, double> Probabilities = 11;
+}
+message DiceSet {
+  repeated Dice Dice = 1;
+  map<string, double> TotalsByColor = 2;
+}

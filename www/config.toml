@@ -53,10 +53,6 @@ googleAnalytics = "UA-119339106-2"
     url = "/page/features"
     weight = 2
     
-[[menu.main]]
-    name = "Chat"
-    url = "/page/chat/"
-    weight = 3
 
 [[menu.main]]
     identifier = "donate"

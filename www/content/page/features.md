@@ -2,7 +2,7 @@
 
 ### 1) Cryptographically strong random number generation
 
-Dice Magic uses Go's [crypto/rand](https://golang.org/pkg/crypto/rand/) package to roll dice. It's overkill, but nice to know.
+Dice Magic uses Go's [crypto/rand](https://golang.org/pkg/crypto/rand/) package to roll dice. It's overkill, but nice to know. [How do we make sure?](/page/random)
 
 ### 2) Implements most standard notation and more
 
