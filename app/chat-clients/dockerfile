@@ -14,7 +14,7 @@ WORKDIR /go/src/github.com/aasmall/dicemagic/app/chat-clients
 
 RUN go install github.com/aasmall/dicemagic/app/chat-clients
 
-ENV GOOGLE_APPLICATION_CREDENTIALS "/go/src/github.com/aasmall/dicemagic/app/chat-clients/k8s-dice-magic.json"
+ENV GOOGLE_APPLICATION_CREDENTIALS "/etc/google-default"
 
 ENTRYPOINT /go/bin/chat-clients
 
