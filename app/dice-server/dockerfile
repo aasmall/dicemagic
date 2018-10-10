@@ -15,7 +15,7 @@ WORKDIR /go/src/github.com/aasmall/dicemagic/app/server
 
 RUN go install github.com/aasmall/dicemagic/app/server
 
-ENV GOOGLE_APPLICATION_CREDENTIALS "/go/src/github.com/aasmall/dicemagic/dice-api/k8s-dice-magic.json"
+ENV GOOGLE_APPLICATION_CREDENTIALS "/etc/google-default/k8s-dice-magic.json"
 
 ENTRYPOINT /go/bin/server
 

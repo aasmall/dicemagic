@@ -3,9 +3,9 @@ kind: Deployment
 metadata:
   labels:
     app: dice-magic
-  name: chat-clients
+  name: dice-server
   namespace: default
-  selfLink: /apis/extensions/v1beta1/namespaces/default/deployments/chat-clients
+  selfLink: /apis/extensions/v1beta1/namespaces/default/deployments/dice-server
 spec:
   progressDeadlineSeconds: 600
   replicas: 3
@@ -25,9 +25,9 @@ spec:
         app: dice-magic
     spec:
       containers:
-      - image: gcr.io/k8s-dice-magic/chat-clients:latest
+      - image: gcr.io/k8s-dice-magic/dice-server:latest
         imagePullPolicy: IfNotPresent
-        name: chat-clients
+        name: dice-server
         resources: {}
         terminationMessagePath: /dev/termination-log
         terminationMessagePolicy: File
