@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -15,12 +16,13 @@ import (
 )
 
 const (
-	inAddress     = "localhost:7070"
-	serverAddress = "localhost:50051"
-	logName       = "dicemagic-chat-clients"
-	projectID     = "k8s-dice-magic"
-	redirectURL   = "https://www.smallnet.org/"
+	inAddress   = "localhost:7070"
+	logName     = "dicemagic-chat-clients"
+	projectID   = "k8s-dice-magic"
+	redirectURL = "https://www.smallnet.org/"
 )
+
+var serverAddress string
 
 func main() {
 	var wait time.Duration
@@ -34,6 +36,15 @@ func main() {
 	}
 	defer client.Close()
 	Debuglogger := client.Logger(logName).StandardLogger(logging.Debug)
+
+	// Get server addresses
+	serverHost, hostExists := os.LookupEnv(os.Getenv("DICE_SERVER_SERVICE_SERVICE_HOST"))
+	serverPort, portExists := os.LookupEnv(os.Getenv("DICE_SERVER_SERVICE_SERVICE_PORT"))
+	if hostExists && portExists {
+		serverAddress = fmt.Sprintf("%s:%s", serverHost, serverPort)
+	} else {
+		serverAddress = "localhost:50051"
+	}
 
 	// Define inbound Routes
 	r := mux.NewRouter()

@@ -1,18 +1,15 @@
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
-  labels:
-    app: dice-magic
   name: dice-server
   namespace: default
-  selfLink: /apis/extensions/v1beta1/namespaces/default/deployments/dice-server
 spec:
   progressDeadlineSeconds: 600
-  replicas: 3
+  replicas: 2
   revisionHistoryLimit: 10
   selector:
     matchLabels:
-      app: dice-magic
+      app: dice-server
   strategy:
     rollingUpdate:
       maxSurge: 1
@@ -22,13 +19,19 @@ spec:
     metadata:
       creationTimestamp: null
       labels:
-        app: dice-magic
+        app: dice-server
     spec:
       containers:
-      - image: gcr.io/k8s-dice-magic/dice-server:latest
-        imagePullPolicy: IfNotPresent
+      - image: gcr.io/k8s-dice-magic/dice-server:52fb0c56802af813a659a143e761b8ec1777d0e8
+        resources:
+          limits:
+            cpu: 9.25m
+            memory: 200Mi
+          requests:
+            cpu: 4.625m
+            memory: 100Mi
+        imagePullPolicy: Always
         name: dice-server
-        resources: {}
         terminationMessagePath: /dev/termination-log
         terminationMessagePolicy: File
         volumeMounts:
@@ -39,7 +42,7 @@ spec:
       restartPolicy: Always
       schedulerName: default-scheduler
       securityContext: {}
-      terminationGracePeriodSeconds: 30
+      terminationGracePeriodSeconds: 10
       volumes:
       - name: google-default
         secret:
