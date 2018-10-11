@@ -1,0 +1,11 @@
+FROM alpine:3.8
+
+RUN apk add lighttpd
+
+ADD . /certbot
+WORKDIR /certbot
+
+RUN wget https://dl.eff.org/certbot-auto
+RUN chmod a+x certbot-auto
+
+ENTRYPOINT renewcerts.sh
