@@ -8,9 +8,10 @@ fi
 
 NAMESPACE=$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)
 
-lighttpd -f lighttpd.conf &
+cd $HOME
+python -m SimpleHTTPServer 80 &
 PID=$!
-certbot certonly --webroot -w /var/www/dicemagic -n --agree-tos --email ${EMAIL} --no-self-upgrade -d ${DOMAINS}
+certbot certonly --webroot -w $HOME -n --agree-tos --email ${EMAIL} --no-self-upgrade -d ${DOMAINS}
 kill $PID
 
 CERTPATH=/etc/letsencrypt/live/$(echo $DOMAINS | cut -f1 -d',')
