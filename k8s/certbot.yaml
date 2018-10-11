@@ -19,16 +19,24 @@ spec:
         imagePullPolicy: Always
         ports:
         - name: letsencrypt
-          containerPort: 80
+          containerPort: 8080
+        volumeMounts:
+        - mountPath: /etc/google-default
+          name: google-default
+          readOnly: true
         env:
         - name: DOMAINS
-          value: "www.k8s.dicemagic.io;api.k8s.dicemagic.io" # Domain you want to use. CHANGE ME!
+          value: "www.k8s.dicemagic.io,api.k8s.dicemagic.io" # Domain you want to use. CHANGE ME!
         - name: EMAIL
           value: certs@smallnet.org # Your email. CHANGE ME!
         - name: SECRET
           value: letsencrypt-certs
       restartPolicy: Never
-
+      volumes:
+      - name: google-default
+        secret:
+          defaultMode: 420
+          secretName: google-default
 ---
 apiVersion: v1
 kind: Secret
@@ -46,3 +54,4 @@ spec:
   ports:
   - protocol: "TCP"
     port: 80
+    targetPort: 8080

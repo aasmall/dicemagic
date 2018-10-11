@@ -11,7 +11,6 @@ steps:
   args: [
             'build',
             '-t', 'gcr.io/$PROJECT_ID/chat-clients:latest',
-            '-t', 'gcr.io/$PROJECT_ID/chat-clients:$COMMIT_SHA',
             '--cache-from', 'gcr.io/$PROJECT_ID/chat-clients:latest',
             './app/chat-clients'
         ]
@@ -19,7 +18,6 @@ steps:
   args: [
             'build',
             '-t', 'gcr.io/$PROJECT_ID/dice-server:latest',
-            '-t', 'gcr.io/$PROJECT_ID/dice-server:$COMMIT_SHA',
             '--cache-from', 'gcr.io/$PROJECT_ID/dice-server:latest',
             './app/dice-server'
         ]
@@ -27,7 +25,6 @@ steps:
   args: [
             'build',
             '-t', 'gcr.io/$PROJECT_ID/www:latest',
-            '-t', 'gcr.io/$PROJECT_ID/www:$COMMIT_SHA',
             '--cache-from', 'gcr.io/$PROJECT_ID/www:latest',
             './www'
         ]
@@ -35,15 +32,10 @@ steps:
   args: [
             'build',
             '-t', 'gcr.io/$PROJECT_ID/letsencrypt:latest',
-            '-t', 'gcr.io/$PROJECT_ID/letsencrypt:$COMMIT_SHA',
             '--cache-from', 'gcr.io/$PROJECT_ID/letsencrypt:latest',
             './letsencrypt'
         ]
 images: 
-- 'gcr.io/$PROJECT_ID/chat-clients:$COMMIT_SHA'
-- 'gcr.io/$PROJECT_ID/dice-server:$COMMIT_SHA'
-- 'gcr.io/$PROJECT_ID/www:$COMMIT_SHA'
-- 'gcr.io/$PROJECT_ID/letsencrypt:$COMMIT_SHA'
 - 'gcr.io/$PROJECT_ID/chat-clients:latest'
 - 'gcr.io/$PROJECT_ID/dice-server:latest'
 - 'gcr.io/$PROJECT_ID/www:latest'

@@ -1,11 +1,22 @@
 FROM alpine:3.8
 
-RUN apk add lighttpd
+RUN apk add --no-cache lighttpd 
+RUN apk add --no-cache bash
 
-ADD . /certbot
+
+RUN mkdir /certbot
+
+COPY . /certbot
+
 WORKDIR /certbot
 
 RUN wget https://dl.eff.org/certbot-auto
-RUN chmod a+x certbot-auto
 
-ENTRYPOINT renewcerts.sh
+RUN chmod a+x certbot-auto
+RUN chmod a+x renewcerts.sh
+
+ENV GOOGLE_APPLICATION_CREDENTIALS "/etc/google-default/k8s-dice-magic.json"
+
+ENTRYPOINT [ "/bin/bash ./renewcerts.sh" ]
+
+EXPOSE 8080

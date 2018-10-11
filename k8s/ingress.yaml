@@ -5,12 +5,21 @@ metadata:
   annotations:
     kubernetes.io/ingress.global-static-ip-name: "dice-magic"
 spec:
+  tls:
+  - hosts:
+    - www.k8s.dicemagic.io # Your host. CHANGE ME
+    secretName: letsencrypt-certs # Name of the secret
   rules:
   - host: www.k8s.dicemagic.io
     http:
       paths:
-      - backend:
+      - path: /
+        backend:
           serviceName: www-service
+          servicePort: 80
+      - path: /.well-known
+        backend:
+          serviceName: letsencrypt
           servicePort: 80
   - host: api.k8s.dicemagic.io
     http:
