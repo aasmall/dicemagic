@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	inAddress   = "localhost:7070"
+	inAddress   = ":7070"
 	logName     = "dicemagic-chat-clients"
 	projectID   = "k8s-dice-magic"
 	redirectURL = "https://www.smallnet.org/"
@@ -35,7 +35,7 @@ func main() {
 		log.Fatalf("Failed to create client: %v", err)
 	}
 	defer client.Close()
-	Debuglogger := client.Logger(logName).StandardLogger(logging.Debug)
+	logger := client.Logger(logName).StandardLogger(logging.Info)
 
 	// Get server addresses
 	serverHost, hostExists := os.LookupEnv(os.Getenv("DICE_SERVER_SERVICE_SERVICE_HOST"))
@@ -45,11 +45,12 @@ func main() {
 	} else {
 		serverAddress = "localhost:50051"
 	}
+	logger.Printf("Initalized with serverAddress: %s", serverAddress)
 
 	// Define inbound Routes
 	r := mux.NewRouter()
 	r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		Debuglogger.Printf("Redirecting to: %s", redirectURL)
+		logger.Printf("Redirecting to: %s", redirectURL)
 		http.Redirect(w, r, redirectURL, 302)
 	})
 	r.HandleFunc("/roll", QueryStringRollHandler)
@@ -67,7 +68,7 @@ func main() {
 	// Run our server in a goroutine so that it doesn't block.
 	go func() {
 		if err := srv.ListenAndServe(); err != nil {
-			Debuglogger.Fatalln(err)
+			logger.Fatalln(err)
 		}
 	}()
 
