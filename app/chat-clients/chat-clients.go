@@ -11,7 +11,6 @@ import (
 	"syscall"
 	"time"
 
-	"cloud.google.com/go/logging"
 	"github.com/gorilla/mux"
 )
 
@@ -29,13 +28,6 @@ func main() {
 	flag.DurationVar(&wait, "graceful-timeout", time.Second*15, "the duration for which the server gracefully wait for existing connections to finish - e.g. 15s or 1m")
 	flag.Parse()
 
-	// Create a logging client.
-	client, err := logging.NewClient(context.Background(), projectID)
-	if err != nil {
-		log.Fatalf("Failed to create client: %v", err)
-	}
-	defer client.Close()
-	logger := client.Logger(logName).StandardLogger(logging.Info)
 	// Get server addresses
 	serverHost, hostExists := os.LookupEnv("DICE_SERVER_SERVICE_SERVICE_HOST")
 	serverPort, portExists := os.LookupEnv("DICE_SERVER_SERVICE_SERVICE_PORT")
@@ -44,13 +36,12 @@ func main() {
 	} else {
 		serverAddress = "localhost:50051"
 	}
-	logger.Printf("Initalized with serverAddress: %s", serverAddress)
 	log.Printf("Initalized with serverAddress: %s", serverAddress)
 
 	// Define inbound Routes
 	r := mux.NewRouter()
 	r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		logger.Printf("Redirecting to: %s", redirectURL)
+		log.Printf("Redirecting to: %s", redirectURL)
 		http.Redirect(w, r, redirectURL, 302)
 	})
 	r.HandleFunc("/roll", QueryStringRollHandler)
@@ -68,7 +59,7 @@ func main() {
 	// Run our server in a goroutine so that it doesn't block.
 	go func() {
 		if err := srv.ListenAndServe(); err != nil {
-			logger.Fatalln(err)
+			log.Fatalln(err)
 		}
 	}()
 

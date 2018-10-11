@@ -17,10 +17,9 @@ import (
 
 func QueryStringRollHandler(w http.ResponseWriter, r *http.Request) {
 	// Set up a connection to the dice-server.
-	log.Printf("serverAddress: %s", serverAddress)
 	conn, err := grpc.Dial(serverAddress, grpc.WithInsecure())
 	if err != nil {
-		log.Fatalf("did not connect: %v", err)
+		log.Panicf("did not connect to dice-server(%s): %v", serverAddress, err)
 	}
 	defer conn.Close()
 	client := pb.NewRollerClient(conn)
