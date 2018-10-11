@@ -6,8 +6,6 @@ ADD . /go/src/github.com/aasmall/dicemagic/www
 
 WORKDIR /go/src/github.com/aasmall/dicemagic/www
 
-RUN git init && git submodule update --init
-
 RUN hugo
 
 RUN apk del git mercurial \
