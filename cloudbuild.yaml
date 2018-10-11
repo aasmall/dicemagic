@@ -5,4 +5,4 @@ steps:
   args: ['build', '--tag=gcr.io/$PROJECT_ID/dice-server:$COMMIT_SHA', '--tag=gcr.io/$PROJECT_ID/dice-server:latest', './app/dice-server']
 - name: 'gcr.io/cloud-builders/docker'
   args: ['build', '--tag=gcr.io/$PROJECT_ID/www:$COMMIT_SHA', '--tag=gcr.io/$PROJECT_ID/www:latest', './www']
-images: ['gcr.io/$PROJECT_ID/chat-clients:$COMMIT_SHA','gcr.io/$PROJECT_ID/dice-server:$COMMIT_SHA','gcr.io/$PROJECT_ID/www:$COMMIT_SHA','gcr.io/$PROJECT_ID/chat-clients:$latest','gcr.io/$PROJECT_ID/dice-server:$latest','gcr.io/$PROJECT_ID/www:$latest']
+images: ['gcr.io/$PROJECT_ID/chat-clients:$COMMIT_SHA','gcr.io/$PROJECT_ID/dice-server:$COMMIT_SHA','gcr.io/$PROJECT_ID/www:$COMMIT_SHA','gcr.io/$PROJECT_ID/chat-clients:latest','gcr.io/$PROJECT_ID/dice-server:latest','gcr.io/$PROJECT_ID/www:latest']
