@@ -40,11 +40,8 @@ func main() {
 
 	// Define inbound Routes
 	r := mux.NewRouter()
-	r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("Redirecting to: %s", redirectURL)
-		http.Redirect(w, r, redirectURL, 302)
-	})
 	r.HandleFunc("/roll", QueryStringRollHandler)
+	r.HandleFunc("/", RootHandler)
 	http.Handle("/", r)
 
 	// Define a server with timeouts
@@ -82,4 +79,9 @@ func main() {
 	// to finalize based on context cancellation.
 	log.Println("shutting down")
 	os.Exit(0)
+}
+
+func RootHandler(w http.ResponseWriter, r *http.Request) {
+
+	fmt.Fprint(w, "200")
 }

@@ -22,7 +22,7 @@ spec:
         app: chat-clients
     spec:
       containers:
-      - image: gcr.io/k8s-dice-magic/chat-clients:e3aa6fe377ee447840cf0ac929fccc3bc949451b
+      - image: gcr.io/k8s-dice-magic/chat-clients:f0dabd8231711d4f3510d501928f8342a555eadb
         resources:
           limits:
             cpu: 9.25m

@@ -3,8 +3,18 @@ kind: Ingress
 metadata:
   name: basic-ingress
   annotations:
-    kubernetes.io/ingress.global-static-ip-name: "web-static-ip"
+    kubernetes.io/ingress.global-static-ip-name: "dice-magic"
 spec:
-  backend:
-    serviceName: chat-clients-service
-    servicePort: 7070
+  rules:
+  - host: www.k8s.dicemagic.io
+    http:
+      paths:
+      - backend:
+          serviceName: www-service
+          servicePort: 80
+  - host: api.k8s.dicemagic.io
+    http:
+      paths:
+      - backend:
+          serviceName: chat-clients-service
+          servicePort: 80
