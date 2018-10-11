@@ -22,7 +22,7 @@ spec:
         app: dice-server
     spec:
       containers:
-      - image: gcr.io/k8s-dice-magic/dice-server:25b2c317b2ce377daa188c5f5c1354be5f908d14
+      - image: gcr.io/k8s-dice-magic/dice-server:0ff83f6b9393b584b5bf47a234b50e72f8ec870a
         resources:
           limits:
             cpu: 9.25m

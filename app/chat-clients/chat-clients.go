@@ -37,8 +37,8 @@ func main() {
 	defer client.Close()
 	logger := client.Logger(logName).StandardLogger(logging.Info)
 	// Get server addresses
-	serverHost, hostExists := os.LookupEnv(os.Getenv("DICE_SERVER_SERVICE_SERVICE_HOST"))
-	serverPort, portExists := os.LookupEnv(os.Getenv("DICE_SERVER_SERVICE_SERVICE_PORT"))
+	serverHost, hostExists := os.LookupEnv("DICE_SERVER_SERVICE_SERVICE_HOST")
+	serverPort, portExists := os.LookupEnv("DICE_SERVER_SERVICE_SERVICE_PORT")
 	if hostExists && portExists {
 		serverAddress = fmt.Sprintf("%s:%s", serverHost, serverPort)
 	} else {
