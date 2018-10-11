@@ -17,6 +17,7 @@ import (
 
 func QueryStringRollHandler(w http.ResponseWriter, r *http.Request) {
 	// Set up a connection to the dice-server.
+	log.Printf("serverAddress: %s", serverAddress)
 	conn, err := grpc.Dial(serverAddress, grpc.WithInsecure())
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
@@ -30,6 +31,7 @@ func QueryStringRollHandler(w http.ResponseWriter, r *http.Request) {
 	diceServerResponse, err := client.Roll(diceServerCtx, &pb.RollRequest{Cmd: cmd, Probabilities: prob})
 	if err != nil {
 		log.Fatalf("could not greet: %v", err)
+		return
 	}
 
 	fmt.Fprintf(w, "%+v", diceServerResponse)

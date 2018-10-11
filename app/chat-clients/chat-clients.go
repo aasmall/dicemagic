@@ -36,7 +36,6 @@ func main() {
 	}
 	defer client.Close()
 	logger := client.Logger(logName).StandardLogger(logging.Info)
-
 	// Get server addresses
 	serverHost, hostExists := os.LookupEnv(os.Getenv("DICE_SERVER_SERVICE_SERVICE_HOST"))
 	serverPort, portExists := os.LookupEnv(os.Getenv("DICE_SERVER_SERVICE_SERVICE_PORT"))
@@ -46,6 +45,7 @@ func main() {
 		serverAddress = "localhost:50051"
 	}
 	logger.Printf("Initalized with serverAddress: %s", serverAddress)
+	log.Printf("Initalized with serverAddress: %s", serverAddress)
 
 	// Define inbound Routes
 	r := mux.NewRouter()
