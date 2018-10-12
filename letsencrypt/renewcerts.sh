@@ -11,7 +11,7 @@ NAMESPACE=$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)
 certbot certonly \
   --dns-google \
   --dns-google-credentials ${GOOGLE_APPLICATION_CREDENTIALS} \
-  --dns-google-propagation-seconds 30 \
+  --dns-google-propagation-seconds 120 \
   --email ${EMAIL} \
   --agree-tos \
   --non-interactive \
