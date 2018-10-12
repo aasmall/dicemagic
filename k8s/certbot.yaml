@@ -1,3 +1,8 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: secret-manager
+---
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -11,6 +16,7 @@ spec:
       labels:
         app: letsencrypt
     spec:
+      serviceAccountName: secret-manager
       containers:
       # Bash script that starts an http server and launches certbot
       # Fork of github.com/sjenning/kube-nginx-letsencrypt
@@ -28,9 +34,13 @@ spec:
         - name: DOMAINS
           value: "www.k8s.dicemagic.io,api.k8s.dicemagic.io" # Domain you want to use. CHANGE ME!
         - name: EMAIL
-          value: certs@smallnet.org # Your email. CHANGE ME!
+          value: certs@smallnet.org
         - name: SECRET
           value: letsencrypt-certs
+        - name: DEPLOYMENT
+          value: basic-ingress
+        - name: NAMESPACE
+          value: default
       restartPolicy: Never
       volumes:
       - name: google-default
@@ -43,15 +53,3 @@ kind: Secret
 metadata:
   name: letsencrypt-certs
 type: Opaque
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: certbot
-spec:
-  selector:
-    app: certbot
-  ports:
-  - protocol: "TCP"
-    port: 80
-    targetPort: 8080

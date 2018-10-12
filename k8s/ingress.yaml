@@ -2,28 +2,24 @@ apiVersion: extensions/v1beta1
 kind: Ingress
 metadata:
   name: basic-ingress
+  namespace: default
   annotations:
     kubernetes.io/ingress.global-static-ip-name: "dice-magic"
 spec:
   tls:
-  - hosts:
-    - www.k8s.dicemagic.io # Your host. CHANGE ME
-    secretName: letsencrypt-certs # Name of the secret
+  - secretName: letsencrypt-certs
   rules:
-  - host: www.k8s.dicemagic.io
-    http:
-      paths:
-      - path: /
-        backend:
-          serviceName: www-service
-          servicePort: 80
-      - path: /.well-known
-        backend:
-          serviceName: letsencrypt
-          servicePort: 80
-  - host: api.k8s.dicemagic.io
-    http:
-      paths:
-      - backend:
-          serviceName: chat-clients-service
-          servicePort: 80
+    - host: www.k8s.dicemagic.io
+      http:
+        paths:
+        - path: /*
+          backend:
+            serviceName: www-service
+            servicePort: 80
+    - host: api.k8s.dicemagic.io
+      http:
+        paths:
+        - path: /*
+          backend:
+            serviceName: chat-clients-service
+            servicePort: 80

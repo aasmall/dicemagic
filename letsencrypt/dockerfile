@@ -1,18 +1,22 @@
 FROM alpine:3.8
 
-RUN apk add --no-cache lighttpd 
-RUN apk add --no-cache bash
-
+RUN apk add --no-cache lighttpd bash python curl python-dev musl-dev libffi-dev openssl-dev gcc
 
 RUN mkdir /certbot
-
+RUN mkdir /var/www/dicemagic
 COPY . /certbot
 
 WORKDIR /certbot
 
-RUN wget https://dl.eff.org/certbot-auto
+RUN wget https://bootstrap.pypa.io/get-pip.py
+RUN python get-pip.py
+RUN pip install virtualenv
+RUN pip install certbot
+RUN pip install certbot-dns-google
+RUN rm get-pip.py
 
-RUN chmod a+x certbot-auto
+#RUN apk del gcc python-dev musl-dev libffi-dev openssl-dev
+
 RUN chmod a+x renewcerts.sh
 
 ENV GOOGLE_APPLICATION_CREDENTIALS "/etc/google-default/k8s-dice-magic.json"

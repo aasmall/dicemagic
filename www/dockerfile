@@ -1,6 +1,5 @@
 FROM golang:alpine
-RUN apk add --no-cache git mercurial 
-RUN apk add --no-cache hugo
+RUN apk add --no-cache git mercurial hugo
 
 ADD . /go/src/github.com/aasmall/dicemagic/www
 
@@ -8,8 +7,7 @@ WORKDIR /go/src/github.com/aasmall/dicemagic/www
 
 RUN hugo
 
-RUN apk del git mercurial \
-    && apk del hugo
+RUN apk del git mercurial hugo 
 
 RUN go install github.com/aasmall/dicemagic/www
 
