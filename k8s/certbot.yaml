@@ -30,8 +30,8 @@ spec:
             - name: letsencrypt
               containerPort: 8080
             volumeMounts:
-            - mountPath: /etc/google-default
-              name: google-default
+            - mountPath: /etc/certbot-dns
+              name: certbot-dns
               readOnly: true
             env:
             - name: DOMAINS
@@ -46,10 +46,10 @@ spec:
               value: default
           restartPolicy: Never
           volumes:
-          - name: google-default
+          - name: certbot-dns
             secret:
               defaultMode: 420
-              secretName: google-default
+              secretName: certbot-dns
 ---
 apiVersion: v1
 kind: Secret

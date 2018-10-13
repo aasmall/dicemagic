@@ -35,8 +35,9 @@ steps:
             '--cache-from', 'gcr.io/$PROJECT_ID/letsencrypt:latest',
             './letsencrypt'
         ]
+tags: ['latest']
 images: 
-- 'gcr.io/$PROJECT_ID/chat-clients:latest'
-- 'gcr.io/$PROJECT_ID/dice-server:latest'
-- 'gcr.io/$PROJECT_ID/www:latest'
-- 'gcr.io/$PROJECT_ID/letsencrypt:latest'
+- 'gcr.io/$PROJECT_ID/chat-clients'
+- 'gcr.io/$PROJECT_ID/dice-server'
+- 'gcr.io/$PROJECT_ID/www'
+- 'gcr.io/$PROJECT_ID/letsencrypt'

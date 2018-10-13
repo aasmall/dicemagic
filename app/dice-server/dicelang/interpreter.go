@@ -8,6 +8,7 @@ import (
 	"math/big"
 	"sort"
 	"strconv"
+	"strings"
 )
 
 //Dice represents a a throw of a single type of die
@@ -238,7 +239,7 @@ func (token *AST) inverseShuntingYard(buff *bytes.Buffer, preStack *Stack, postS
 			}
 		}
 	}
-	switch sym := token.Sym; sym {
+	switch sym := strings.ToUpper(token.Sym); sym {
 	case "-":
 		//fucking unary operators
 		if len(token.Children) == 1 {
@@ -256,13 +257,13 @@ func (token *AST) inverseShuntingYard(buff *bytes.Buffer, preStack *Stack, postS
 			Value:        fmt.Sprintf("%s%s%s", op2.Value, token.Value, op1.Value),
 			Sym:          token.Sym,
 			BindingPower: token.BindingPower})
-	case "d":
+	case "D":
 		//infix dice
 		op1 := s.Pop().(*AST)
 		op2 := s.Pop().(*AST)
 		var sym string
-		if lastSym == "d" {
-			sym = "d"
+		if lastSym == "D" {
+			sym = "D"
 		} else {
 			sym = "(COMPOUND)"
 		}
@@ -282,9 +283,9 @@ func (token *AST) inverseShuntingYard(buff *bytes.Buffer, preStack *Stack, postS
 			postStack.Push(&AST{Value: "else"})
 		}
 		postStack.Push(&AST{Value: "}"})
-	case "if":
+	case "IF":
 		preStack.Push(token)
-	case "(rootnode)":
+	case "(ROOTNODE)":
 	default:
 		//prefix
 		preStack.Push(token)
@@ -292,7 +293,7 @@ func (token *AST) inverseShuntingYard(buff *bytes.Buffer, preStack *Stack, postS
 }
 
 func (t *AST) eval(ds *DiceSet) (float64, *DiceSet, error) {
-	switch t.Sym {
+	switch strings.ToUpper(t.Sym) {
 	case "(NUMBER)":
 		i, _ := strconv.ParseFloat(t.Value, 64)
 		if len(t.Children) > 0 {
@@ -318,7 +319,7 @@ func (t *AST) eval(ds *DiceSet) (float64, *DiceSet, error) {
 			ds.dropLowest = int64(sum)
 		}
 		return 0, ds, nil
-	case "d":
+	case "D":
 		dice := Dice{}
 		var nums []int64
 		for i := 0; i < len(t.Children); i++ {
@@ -343,7 +344,7 @@ func (t *AST) eval(ds *DiceSet) (float64, *DiceSet, error) {
 			return 0, ds, err
 		}
 		return x, ds, nil
-	case "{", "roll", "(rootnode)":
+	case "{", "ROLL", "(ROOTNODE)":
 		var x float64
 		for _, c := range t.Children {
 			y, ds, err := c.eval(ds)
@@ -356,7 +357,7 @@ func (t *AST) eval(ds *DiceSet) (float64, *DiceSet, error) {
 	case "(IDENT)":
 		ds.PushColor(t.Value)
 		return 0, ds, nil
-	case "if":
+	case "IF":
 		res, ds, err := t.Children[0].evaluateBoolean(ds)
 		if err != nil {
 			return 0, ds, err

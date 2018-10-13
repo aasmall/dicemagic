@@ -11,31 +11,57 @@ import (
 	"syscall"
 	"time"
 
+	"contrib.go.opencensus.io/exporter/stackdriver"
+	"contrib.go.opencensus.io/exporter/stackdriver/propagation"
 	"github.com/gorilla/mux"
+	"go.opencensus.io/plugin/ochttp"
+	"go.opencensus.io/trace"
+	"google.golang.org/grpc"
 )
 
 const (
-	inAddress   = ":7070"
-	logName     = "dicemagic-chat-clients"
-	projectID   = "k8s-dice-magic"
-	redirectURL = "https://www.smallnet.org/"
+	inAddress     = ":7070"
+	serverAddress = ":50051"
+	logName       = "dicemagic-chat-clients"
+	projectID     = "k8s-dice-magic"
+	redirectURL   = "https://www.smallnet.org/"
 )
 
-var serverAddress string
+var traceClient *http.Client
 
 func main() {
+	grpc.EnableTracing = true
 	var wait time.Duration
 	flag.DurationVar(&wait, "graceful-timeout", time.Second*15, "the duration for which the server gracefully wait for existing connections to finish - e.g. 15s or 1m")
 	flag.Parse()
 
-	// Get server addresses
-	serverHost, hostExists := os.LookupEnv("DICE_SERVER_SERVICE_SERVICE_HOST")
-	serverPort, portExists := os.LookupEnv("DICE_SERVER_SERVICE_SERVICE_PORT")
-	if hostExists && portExists {
-		serverAddress = fmt.Sprintf("%s:%s", serverHost, serverPort)
-	} else {
-		serverAddress = "localhost:50051"
+	// Stackdriver Trace exporter
+	exporter, err := stackdriver.NewExporter(stackdriver.Options{
+		ProjectID: projectID,
+	})
+	if err != nil {
+		log.Fatal(err)
 	}
+	trace.RegisterExporter(exporter)
+	traceClient = &http.Client{
+		Transport: &ochttp.Transport{
+			Propagation: &propagation.HTTPFormat{},
+		},
+	}
+	trace.ApplyConfig(trace.Config{DefaultSampler: trace.AlwaysSample()})
+
+	ctx, span := trace.StartSpan(context.Background(), "startup")
+	defer span.End()
+
+	// Get server addresses
+	// serverHost, hostExists := os.LookupEnv("DICE_SERVER_SERVICE_SERVICE_HOST")
+	// serverPort, portExists := os.LookupEnv("DICE_SERVER_SERVICE_SERVICE_PORT")
+	// if hostExists && portExists {
+	// 	serverAddress = fmt.Sprintf("%s:%s", serverHost, serverPort)
+	// } else {
+	// 	serverAddress = "localhost:50051"
+	// }
+
 	log.Printf("Initalized with serverAddress: %s", serverAddress)
 
 	// Define inbound Routes
@@ -44,13 +70,16 @@ func main() {
 	r.HandleFunc("/", RootHandler)
 	http.Handle("/", r)
 
+	h := &ochttp.Handler{Handler: r}
+
 	// Define a server with timeouts
 	srv := &http.Server{
 		Addr:         inAddress,
 		WriteTimeout: time.Second * 15,
 		ReadTimeout:  time.Second * 15,
 		IdleTimeout:  time.Second * 60,
-		Handler:      r, // Pass our instance of gorilla/mux in.
+		Handler:      h, // Pass our instance of gorilla/mux and tracer in.
+
 	}
 
 	// Run our server in a goroutine so that it doesn't block.
@@ -82,6 +111,5 @@ func main() {
 }
 
 func RootHandler(w http.ResponseWriter, r *http.Request) {
-
 	fmt.Fprint(w, "200")
 }

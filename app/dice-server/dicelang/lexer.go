@@ -159,7 +159,7 @@ func (lex *Lexer) nextOperator() (*AST, error) {
 	}
 
 	// single character operator
-	textStr := strings.ToLower(text.String())
+	textStr := strings.ToUpper(text.String())
 	if !lex.tokReg.defined(textStr) {
 		return nil, LexError{fmt.Sprintf("operator not defined: %s", textStr), lex.line, col}
 	}
@@ -187,8 +187,8 @@ func (lex *Lexer) nextIdent() (*AST, error) {
 	}
 	symbol := text.String()
 
-	if lex.tokReg.defined(symbol) {
-		return lex.tokReg.token(symbol, symbol, lex.line, col), nil
+	if sym := strings.ToUpper(symbol); lex.tokReg.defined(sym) {
+		return lex.tokReg.token(sym, sym, lex.line, col), nil
 	} else if found, value := convertToNumeric(lex.c, symbol); found {
 		return lex.tokReg.token("(NUMBER)", strconv.Itoa(value), lex.line, col), nil
 	}
@@ -331,14 +331,14 @@ func getTokenRegistry() *tokenRegistry {
 
 	t.consumable(")")
 	t.consumable(",")
-	t.consumable("and")
-	t.consumable("else")
+	t.consumable("AND")
+	t.consumable("ELSE")
 
-	t.consumable("(rootnode)")
+	t.consumable("(ROOTNODE)")
 	t.consumable("(EOF)")
 	t.consumable("{")
 	t.consumable("}")
-	t.consumable("roll")
+	t.consumable("ROLL")
 	t.consumable("(NEWLINE)")
 
 	t.infix("+", 50)
@@ -347,7 +347,7 @@ func getTokenRegistry() *tokenRegistry {
 	t.infix("*", 60)
 	t.infix("/", 60)
 	t.infix("^", 70)
-	t.infix("d", 80)
+	t.infix("D", 80)
 
 	t.infixLed("-L", 80, func(t *AST, p *Parser, left *AST) (*AST, error) {
 		next, err := p.lexer.peek()
@@ -399,7 +399,7 @@ func getTokenRegistry() *tokenRegistry {
 		return left, nil
 	})
 
-	t.infixLed("if", 20, func(t *AST, p *Parser, left *AST) (*AST, error) {
+	t.infixLed("IF", 20, func(t *AST, p *Parser, left *AST) (*AST, error) {
 		cond, err := p.expression(0)
 		if err != nil {
 			return nil, err
@@ -444,7 +444,7 @@ func getTokenRegistry() *tokenRegistry {
 		return token, nil
 	})
 
-	t.infixLed("and", 25, func(t *AST, p *Parser, left *AST) (*AST, error) {
+	t.infixLed("AND", 25, func(t *AST, p *Parser, left *AST) (*AST, error) {
 		left.Children = append(left.Children, t.Children...)
 		return left, nil
 	})
@@ -479,7 +479,7 @@ func getTokenRegistry() *tokenRegistry {
 		return t.Children[0], nil
 	})
 
-	t.stmt("if", func(t *AST, p *Parser) (*AST, error) {
+	t.stmt("IF", func(t *AST, p *Parser) (*AST, error) {
 		token, err := p.expression(0)
 		if err != nil {
 			return nil, err
@@ -537,7 +537,7 @@ func getTokenRegistry() *tokenRegistry {
 		return p.Statement()
 	})
 
-	t.stmt("roll", func(t *AST, p *Parser) (*AST, error) {
+	t.stmt("ROLL", func(t *AST, p *Parser) (*AST, error) {
 		stmt, err := p.Statement()
 		if err != nil {
 			return nil, err

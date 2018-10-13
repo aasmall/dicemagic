@@ -21,5 +21,5 @@ spec:
         paths:
         - path: /*
           backend:
-            serviceName: chat-clients-service
+            serviceName: dice-magic-app-service
             servicePort: 80

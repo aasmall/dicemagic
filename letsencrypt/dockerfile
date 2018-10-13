@@ -19,7 +19,7 @@ RUN rm get-pip.py
 
 RUN chmod a+x renewcerts.sh
 
-ENV GOOGLE_APPLICATION_CREDENTIALS "/etc/google-default/k8s-dice-magic.json"
+ENV GOOGLE_APPLICATION_CREDENTIALS "/etc/certbot-dns/certbot-dns.json"
 
 ENTRYPOINT [ "/bin/bash", "renewcerts.sh" ]
 

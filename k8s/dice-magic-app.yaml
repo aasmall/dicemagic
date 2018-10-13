@@ -1,7 +1,7 @@
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
-  name: www
+  name: dice-magic-app
   namespace: default
 spec:
   progressDeadlineSeconds: 600
@@ -9,7 +9,7 @@ spec:
   revisionHistoryLimit: 10
   selector:
     matchLabels:
-      app: www
+      app: dice-magic-app
   strategy:
     rollingUpdate:
       maxSurge: 1
@@ -19,19 +19,35 @@ spec:
     metadata:
       creationTimestamp: null
       labels:
-        app: www
+        app: dice-magic-app
     spec:
       containers:
-      - image: gcr.io/k8s-dice-magic/www:latest
+      - name: dice-server
+        image: gcr.io/k8s-dice-magic/dice-server:latest
         resources:
           limits:
-            cpu: 100m
+            cpu: 200m
             memory: 200Mi
           requests:
-            cpu: 100m
+            cpu: 200m
             memory: 100Mi
         imagePullPolicy: Always
-        name: www
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /etc/google-default
+          name: google-default
+          readOnly: true
+      - name: chat-clients
+        image: gcr.io/k8s-dice-magic/chat-clients:latest
+        resources:
+          limits:
+            cpu: 200m
+            memory: 200Mi
+          requests:
+            cpu: 200m
+            memory: 100Mi
+        imagePullPolicy: Always
         terminationMessagePath: /dev/termination-log
         terminationMessagePolicy: File
         volumeMounts:
@@ -52,17 +68,17 @@ spec:
 apiVersion: "v1"
 kind: "Service"
 metadata:
-  name: "www-service"
+  name: "dice-magic-app-service"
   namespace: "default"
   labels:
-    app: "www"
+    app: "dice-magic-app"
 spec:
   ports:
   - protocol: "TCP"
     port: 80
-    targetPort: 8080
+    targetPort: 7070
   selector:
-    app: "www"
+    app: "dice-magic-app"
   type: "NodePort"
 ---
 apiVersion: v1
@@ -71,8 +87,8 @@ items:
   kind: HorizontalPodAutoscaler
   metadata:
     labels:
-      app: www
-    name: www-hpa
+      app: dice-magic-app
+    name: dice-magic-app-hpa
     namespace: default
   spec:
     maxReplicas: 5
@@ -80,7 +96,7 @@ items:
     scaleTargetRef:
       apiVersion: apps/v1beta1
       kind: Deployment
-      name: www
+      name: dice-magic-app
     targetCPUUtilizationPercentage: 80
 kind: List
 metadata:

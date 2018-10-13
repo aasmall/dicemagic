@@ -10,7 +10,7 @@ import (
 )
 
 func TestAST_GetDiceSet(t *testing.T) {
-	roll1d20AST, _, _ := NewParser("roll 20d1 mundane").Statements()
+	roll1d20AST, _, _ := NewParser("ROLL 20d1 mundane").Statements()
 	tests := []struct {
 		name    string
 		t       *AST

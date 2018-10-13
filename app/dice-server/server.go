@@ -6,28 +6,38 @@ import (
 	"fmt"
 	"net"
 
+	"contrib.go.opencensus.io/exporter/stackdriver"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 
 	"log"
 
+	"github.com/aasmall/dicemagic/app/dice-server/dicelang"
 	pb "github.com/aasmall/dicemagic/app/proto"
-	"github.com/aasmall/dicemagic/app/server/dicelang"
 	"golang.org/x/net/context"
+
+	"go.opencensus.io/plugin/ocgrpc"
+	"go.opencensus.io/trace"
 )
 
 const (
-	port = ":50051"
+	port      = ":50051"
+	projectID = "k8s-dice-magic"
 )
 
 type server struct{}
 
 func (s *server) Roll(ctx context.Context, in *pb.RollRequest) (*pb.RollResponse, error) {
+	ctx, span := trace.StartSpan(ctx, "Roll")
+	defer span.End()
 	var out pb.RollResponse
 
+	ctx, parseSpan := trace.StartSpan(ctx, "Parse")
 	var p *dicelang.Parser
 	p = dicelang.NewParser(in.Cmd)
+	parseSpan.End()
 
+	ctx, getDiceSetSpan := trace.StartSpan(ctx, "GetDiceSet")
 	_, root, err := p.Statements()
 	if err != nil {
 		fmt.Println(err.Error(), err.(dicelang.LexError).Col, err.(dicelang.LexError).Line)
@@ -39,9 +49,12 @@ func (s *server) Roll(ctx context.Context, in *pb.RollRequest) (*pb.RollResponse
 		fmt.Println(err.Error(), err.(dicelang.LexError).Col, err.(dicelang.LexError).Line)
 		return &pb.RollResponse{}, err
 	}
+	getDiceSetSpan.End()
 
+	ctx, restructureSpan := trace.StartSpan(ctx, "RestructureDice")
 	var outDice []*pb.Dice
 	for _, d := range ds.Dice {
+
 		var dice pb.Dice
 		dice.Color = d.Color
 		dice.Count = d.Count
@@ -60,7 +73,7 @@ func (s *server) Roll(ctx context.Context, in *pb.RollRequest) (*pb.RollResponse
 		}
 		outDice = append(outDice, &dice)
 	}
-
+	restructureSpan.End()
 	var outDiceSet pb.DiceSet
 	outDiceSet.Dice = outDice
 	outDiceSet.TotalsByColor = ds.TotalsByColor
@@ -70,11 +83,21 @@ func (s *server) Roll(ctx context.Context, in *pb.RollRequest) (*pb.RollResponse
 }
 
 func main() {
+
+	// Stackdriver Trace exporter
+	grpc.EnableTracing = true
+	exporter, err := stackdriver.NewExporter(stackdriver.Options{
+		ProjectID: projectID,
+	})
+
+	trace.RegisterExporter(exporter)
+	trace.ApplyConfig(trace.Config{DefaultSampler: trace.AlwaysSample()})
+
 	lis, err := net.Listen("tcp", port)
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
-	s := grpc.NewServer()
+	s := grpc.NewServer(grpc.StatsHandler(&ocgrpc.ServerHandler{}))
 	pb.RegisterRollerServer(s, &server{})
 
 	// Register reflection service on gRPC server.

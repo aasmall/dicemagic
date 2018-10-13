@@ -25,10 +25,10 @@ spec:
       - image: gcr.io/k8s-dice-magic/chat-clients:latest
         resources:
           limits:
-            cpu: 9.25m
+            cpu: 300m
             memory: 200Mi
           requests:
-            cpu: 4.625m
+            cpu: 300m
             memory: 100Mi
         imagePullPolicy: Always
         name: chat-clients
@@ -48,3 +48,41 @@ spec:
         secret:
           defaultMode: 420
           secretName: google-default
+---
+apiVersion: "v1"
+kind: "Service"
+metadata:
+  name: "chat-clients-service"
+  namespace: "default"
+  labels:
+    app: "chat-clients"
+spec:
+  ports:
+  - protocol: "TCP"
+    port: 80
+    targetPort: 7070
+  selector:
+    app: "chat-clients"
+  type: "NodePort"
+---
+apiVersion: v1
+items:
+- apiVersion: autoscaling/v1
+  kind: HorizontalPodAutoscaler
+  metadata:
+    labels:
+      app: chat-clients
+    name: chat-clients-hpa
+    namespace: default
+  spec:
+    maxReplicas: 5
+    minReplicas: 1
+    scaleTargetRef:
+      apiVersion: apps/v1beta1
+      kind: Deployment
+      name: chat-clients
+    targetCPUUtilizationPercentage: 80
+kind: List
+metadata:
+  resourceVersion: ""
+  selfLink: ""

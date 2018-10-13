@@ -5,3 +5,4 @@ www/public
 dicelang/cli/cli
 coverage.out
 *k8s-dice-magic.json
+*certbot-dns.json

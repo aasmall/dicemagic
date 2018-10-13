@@ -6,6 +6,9 @@ RUN apk add --no-cache git mercurial \
     && go get github.com/aasmall/dicemagic/app/proto \
     && go get google.golang.org/grpc \
     && go get google.golang.org/grpc/reflection \
+    && go get contrib.go.opencensus.io/exporter/stackdriver \
+    && go get go.opencensus.io/plugin/ochttp \
+    && go get go.opencensus.io/trace \
     && apk del git mercurial
 
 ADD . /go/src/github.com/aasmall/dicemagic/app/chat-clients
