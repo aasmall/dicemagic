@@ -35,7 +35,7 @@ steps:
             '--cache-from', 'gcr.io/$PROJECT_ID/letsencrypt:latest',
             './letsencrypt'
         ]
-tags: ['$COMMITSHA','latest','']
+tags: ['$COMMIT_SHA','latest','']
 images: 
 - 'gcr.io/$PROJECT_ID/chat-clients'
 - 'gcr.io/$PROJECT_ID/dice-server'
