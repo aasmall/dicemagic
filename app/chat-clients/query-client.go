@@ -18,16 +18,29 @@ import (
 	pb "github.com/aasmall/dicemagic/app/proto"
 )
 
+var conn *grpc.ClientConn
+var initd bool
+
+func dialDiceServer() bool {
+	if initd == false {
+		log.Println("dialDiceServer")
+		grpc.EnableTracing = true
+		// Set up a connection to the dice-server.
+		c, err := grpc.Dial(serverAddress,
+			grpc.WithInsecure(),
+			grpc.WithStatsHandler(&ocgrpc.ClientHandler{}))
+		if err != nil {
+			log.Panicf("did not connect to dice-server(%s): %v", serverAddress, err)
+		}
+		conn = c
+	}
+	return true
+}
+
 func QueryStringRollHandler(w http.ResponseWriter, r *http.Request) {
 	ctx, span := trace.StartSpan(r.Context(), "QueryStringRollHandler")
 	defer span.End()
-	grpc.EnableTracing = true
-	// Set up a connection to the dice-server.
-	conn, err := grpc.Dial(serverAddress, grpc.WithInsecure(), grpc.WithStatsHandler(&ocgrpc.ClientHandler{}))
-	if err != nil {
-		log.Panicf("did not connect to dice-server(%s): %v", serverAddress, err)
-	}
-	defer conn.Close()
+	initd = dialDiceServer()
 	client := pb.NewRollerClient(conn)
 	timeOutCtx, cancel := context.WithTimeout(ctx, time.Second)
 	defer cancel()

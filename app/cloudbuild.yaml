@@ -17,7 +17,6 @@ steps:
             '--cache-from', 'gcr.io/$PROJECT_ID/dice-server:latest',
             './dice-server'
         ]
-tags: ['latest','']
 images: 
-- 'gcr.io/$PROJECT_ID/chat-clients'
-- 'gcr.io/$PROJECT_ID/dice-server'
+- 'gcr.io/$PROJECT_ID/chat-clients:latest'
+- 'gcr.io/$PROJECT_ID/dice-server:latest'

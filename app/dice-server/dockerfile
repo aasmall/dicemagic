@@ -12,14 +12,14 @@ RUN apk add --no-cache git mercurial \
     && go get go.opencensus.io/plugin/ocgrpc \
     && apk del git mercurial
 
-ADD . /go/src/github.com/aasmall/dicemagic/app/server
+ADD . /go/src/github.com/aasmall/dicemagic/app/dice-server
 
-WORKDIR /go/src/github.com/aasmall/dicemagic/app/server
+WORKDIR /go/src/github.com/aasmall/dicemagic/app/dice-server
 
-RUN go install github.com/aasmall/dicemagic/app/server
+RUN go install github.com/aasmall/dicemagic/app/dice-server
 
 ENV GOOGLE_APPLICATION_CREDENTIALS "/etc/google-default/k8s-dice-magic.json"
 
-ENTRYPOINT /go/bin/server
+ENTRYPOINT /go/bin/dice-server
 
 EXPOSE 50051

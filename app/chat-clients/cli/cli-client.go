@@ -6,6 +6,7 @@ import (
 	"time"
 
 	pb "github.com/aasmall/dicemagic/app/proto"
+	"go.opencensus.io/plugin/ocgrpc"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 )
@@ -14,6 +15,25 @@ const (
 	address    = "localhost:50051"
 	defaultCmd = "roll 1d20"
 )
+
+var conn *grpc.ClientConn
+var initd bool
+
+func dialDiceServer() bool {
+	if initd == false {
+		log.Println("dialDiceServer")
+		grpc.EnableTracing = true
+		// Set up a connection to the dice-server.
+		c, err := grpc.Dial(address,
+			grpc.WithInsecure(),
+			grpc.WithStatsHandler(&ocgrpc.ClientHandler{}))
+		if err != nil {
+			log.Panicf("did not connect to dice-server(%s): %v", address, err)
+		}
+		conn = c
+	}
+	return true
+}
 
 func main() {
 	// Set up a connection to the server.
