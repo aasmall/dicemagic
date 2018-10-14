@@ -7,7 +7,6 @@ import (
 	"strconv"
 	"time"
 
-	"go.opencensus.io/trace"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 
@@ -23,14 +22,14 @@ var initd bool
 
 func dialDiceServer() bool {
 	if initd == false {
-		log.Println("dialDiceServer")
+		logger.Println("dialDiceServer")
 		grpc.EnableTracing = true
 		// Set up a connection to the dice-server.
-		c, err := grpc.Dial(serverAddress,
+		c, err := grpc.Dial(diceServerPort,
 			grpc.WithInsecure(),
 			grpc.WithStatsHandler(&ocgrpc.ClientHandler{}))
 		if err != nil {
-			log.Panicf("did not connect to dice-server(%s): %v", serverAddress, err)
+			log.Panicf("did not connect to dice-server(%s): %v", diceServerPort, err)
 		}
 		conn = c
 	}
@@ -38,17 +37,15 @@ func dialDiceServer() bool {
 }
 
 func QueryStringRollHandler(w http.ResponseWriter, r *http.Request) {
-	ctx, span := trace.StartSpan(r.Context(), "QueryStringRollHandler")
-	defer span.End()
 	initd = dialDiceServer()
 	client := pb.NewRollerClient(conn)
-	timeOutCtx, cancel := context.WithTimeout(ctx, time.Second)
+	timeOutCtx, cancel := context.WithTimeout(r.Context(), time.Second)
 	defer cancel()
 	cmd := r.URL.Query().Get("cmd")
 	prob, _ := strconv.ParseBool(r.URL.Query().Get("p"))
 	diceServerResponse, err := client.Roll(timeOutCtx, &pb.RollRequest{Cmd: cmd, Probabilities: prob})
 	if err != nil {
-		log.Fatalf("could not greet: %v", err)
+		log.Println("could not roll: %v", err)
 		return
 	}
 

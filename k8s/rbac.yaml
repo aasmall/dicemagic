@@ -4,7 +4,7 @@ metadata:
   name: cluster-admins
 subjects:
 - kind: User
-  name: gke_k8s-dice-magic_us-central1-a_dice-magic
+  name: aaron@smallnet.org
 roleRef:
   kind: ClusterRole
   name: cluster-admin

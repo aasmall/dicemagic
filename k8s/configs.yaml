@@ -1,0 +1,11 @@
+apiVersion: v1
+data:
+    project-id: "k8s-dice-magic"
+    keyring: "dice-magic"
+    slack-kms-key: "slack"
+    slack-kms-key-location-id: "us-central1"
+    slack-client-id: "42142079431.351057397637"
+kind: ConfigMap
+metadata:
+  name: dice-magic-config
+  namespace: default

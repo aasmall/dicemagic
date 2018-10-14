@@ -1,4 +1,4 @@
-package roll
+package main
 
 import (
 	"context"
@@ -12,15 +12,11 @@ import (
 	"google.golang.org/api/cloudkms/v1"
 )
 
-func SlackVerificationToken(ctx context.Context) string {
-	val, _ := decrypt(ctx, os.Getenv("SLACK_CLIENT_VERIFICATION_TOKEN"))
+func slackClientSecret(ctx context.Context) string {
+	val, _ := decrypt(ctx, encSlackClientSecret)
 	return val
 }
 func decrypt(ctx context.Context, ciphertext string) (string, error) {
-	projectID := os.Getenv("PROJECT_ID")
-	keyRing := os.Getenv("KMSKEYRING")
-	key := os.Getenv("KMSKEY")
-	locationID := "global"
 
 	client, err := google.DefaultClient(ctx, cloudkms.CloudPlatformScope)
 	if err != nil {
@@ -46,10 +42,10 @@ func decrypt(ctx context.Context, ciphertext string) (string, error) {
 	return string(decodedString), nil
 }
 func encrypt(ctx context.Context, plaintext string) (string, error) {
-	projectID := os.Getenv("PROJECT_ID")
-	keyRing := os.Getenv("KMSKEYRING")
-	key := os.Getenv("KMSKEY")
-	locationID := "global"
+	projectID := os.Getenv("project-id")
+	keyRing := os.Getenv("keyring")
+	key := os.Getenv("slack-kms-key")
+	locationID := os.Getenv("slack-kms-key-location-id")
 
 	client, err := google.DefaultClient(ctx, cloudkms.CloudPlatformScope)
 	if err != nil {
@@ -83,4 +79,8 @@ func HashStrings(inputs ...string) string {
 	}
 	hexb := h.Sum(nil)
 	return hex.EncodeToString(hexb)
+}
+func BasicAuth(username, password string) string {
+	auth := username + ":" + password
+	return base64.StdEncoding.EncodeToString([]byte(auth))
 }

@@ -11,6 +11,8 @@ metadata:
     app: letsencrypt
 spec:
   schedule: "0 3 * * 6" 
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 120
   jobTemplate:
     spec:
       template:
@@ -35,7 +37,7 @@ spec:
               readOnly: true
             env:
             - name: DOMAINS
-              value: "www.k8s.dicemagic.io,api.k8s.dicemagic.io" # Domain you want to use. CHANGE ME!
+              value: "www.dicemagic.io,api.dicemagic.io" # Domain you want to use. CHANGE ME!
             - name: EMAIL
               value: certs@smallnet.org
             - name: SECRET

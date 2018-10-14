@@ -11,6 +11,8 @@ import (
 	"syscall"
 	"time"
 
+	"cloud.google.com/go/datastore"
+	"cloud.google.com/go/logging"
 	"contrib.go.opencensus.io/exporter/stackdriver"
 	"contrib.go.opencensus.io/exporter/stackdriver/propagation"
 	"github.com/gorilla/mux"
@@ -20,20 +22,37 @@ import (
 )
 
 const (
-	inAddress     = ":7070"
-	serverAddress = ":50051"
-	logName       = "dicemagic-chat-clients"
-	projectID     = "k8s-dice-magic"
-	redirectURL   = "https://www.smallnet.org/"
+	serverPort     = ":7070"
+	diceServerPort = ":50051"
+	logName        = "dicemagic-chat-clients-logs"
 )
 
-var traceClient *http.Client
+var (
+	traceClient          *http.Client
+	dsClient             *datastore.Client
+	logger               *log.Logger
+	projectID            string
+	keyRing              string
+	key                  string
+	locationID           string
+	slackClientID        string
+	encSlackClientSecret string
+)
 
 func main() {
+	ctx := context.Background()
 	grpc.EnableTracing = true
 	var wait time.Duration
 	flag.DurationVar(&wait, "graceful-timeout", time.Second*15, "the duration for which the server gracefully wait for existing connections to finish - e.g. 15s or 1m")
 	flag.Parse()
+
+	// Gather Environment Variables
+	projectID = os.Getenv("project-id")
+	keyRing = os.Getenv("keyring")
+	key = os.Getenv("slack-kms-key")
+	locationID = os.Getenv("slack-kms-key-location-id")
+	slackClientID = os.Getenv("slack-client-id")
+	encSlackClientSecret = os.Getenv("slack-client-secret")
 
 	// Stackdriver Trace exporter
 	exporter, err := stackdriver.NewExporter(stackdriver.Options{
@@ -50,23 +69,24 @@ func main() {
 	}
 	trace.ApplyConfig(trace.Config{DefaultSampler: trace.AlwaysSample()})
 
-	ctx, span := trace.StartSpan(context.Background(), "startup")
-	defer span.End()
+	// Cloud Datastore Client
+	dsClient, err = datastore.NewClient(ctx, projectID)
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	// Get server addresses
-	// serverHost, hostExists := os.LookupEnv("DICE_SERVER_SERVICE_SERVICE_HOST")
-	// serverPort, portExists := os.LookupEnv("DICE_SERVER_SERVICE_SERVICE_PORT")
-	// if hostExists && portExists {
-	// 	serverAddress = fmt.Sprintf("%s:%s", serverHost, serverPort)
-	// } else {
-	// 	serverAddress = "localhost:50051"
-	// }
-
-	log.Printf("Initalized with serverAddress: %s", serverAddress)
+	// Creates a logging client.
+	client, err := logging.NewClient(ctx, projectID)
+	if err != nil {
+		log.Fatalf("Failed to create client: %v", err)
+	}
+	defer client.Close()
+	logger = client.Logger(logName).StandardLogger(logging.Info)
 
 	// Define inbound Routes
 	r := mux.NewRouter()
 	r.HandleFunc("/roll", QueryStringRollHandler)
+	r.HandleFunc("/slack/oauth", SlackOAuthHandler)
 	r.HandleFunc("/", RootHandler)
 	http.Handle("/", r)
 
@@ -74,7 +94,7 @@ func main() {
 
 	// Define a server with timeouts
 	srv := &http.Server{
-		Addr:         inAddress,
+		Addr:         serverPort,
 		WriteTimeout: time.Second * 15,
 		ReadTimeout:  time.Second * 15,
 		IdleTimeout:  time.Second * 60,

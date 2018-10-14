@@ -9,14 +9,14 @@ spec:
   tls:
   - secretName: letsencrypt-certs
   rules:
-    - host: www.k8s.dicemagic.io
+    - host: www.dicemagic.io
       http:
         paths:
         - path: /*
           backend:
             serviceName: www-service
             servicePort: 80
-    - host: api.k8s.dicemagic.io
+    - host: api.dicemagic.io
       http:
         paths:
         - path: /*

@@ -1,5 +1,11 @@
 FROM golang:alpine
-RUN apk add --no-cache git mercurial hugo
+RUN apk add --no-cache git mercurial hugo \
+    && go get cloud.google.com/go/logging \
+    && go get github.com/gorilla/mux \
+    && go get contrib.go.opencensus.io/exporter/stackdriver \
+    && go get go.opencensus.io/plugin/ochttp \
+    && go get go.opencensus.io/trace \
+    && apk del git mercurial
 
 ADD . /go/src/github.com/aasmall/dicemagic/www
 
@@ -7,9 +13,9 @@ WORKDIR /go/src/github.com/aasmall/dicemagic/www
 
 RUN hugo
 
-RUN apk del git mercurial hugo 
-
 RUN go install github.com/aasmall/dicemagic/www
+
+RUN apk del hugo 
 
 ENTRYPOINT /go/bin/www
 

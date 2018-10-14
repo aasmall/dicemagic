@@ -1,6 +1,0 @@
-cron:
-- description: "save commands"
-  url: /savecommand/
-  target: worker
-  schedule: every 1 minutes
-  

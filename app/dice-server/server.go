@@ -5,6 +5,7 @@ package main
 import (
 	"fmt"
 	"net"
+	"os"
 
 	"contrib.go.opencensus.io/exporter/stackdriver"
 	"google.golang.org/grpc"
@@ -21,9 +22,10 @@ import (
 )
 
 const (
-	port      = ":50051"
-	projectID = "k8s-dice-magic"
+	port = ":50051"
 )
+
+var projectID string
 
 type server struct{}
 
@@ -51,7 +53,6 @@ func (s *server) Roll(ctx context.Context, in *pb.RollRequest) (*pb.RollResponse
 	}
 	getDiceSetSpan.End()
 
-	ctx, restructureSpan := trace.StartSpan(ctx, "RestructureDice")
 	var outDice []*pb.Dice
 	for _, d := range ds.Dice {
 
@@ -73,7 +74,6 @@ func (s *server) Roll(ctx context.Context, in *pb.RollRequest) (*pb.RollResponse
 		}
 		outDice = append(outDice, &dice)
 	}
-	restructureSpan.End()
 	var outDiceSet pb.DiceSet
 	outDiceSet.Dice = outDice
 	outDiceSet.TotalsByColor = ds.TotalsByColor
@@ -83,7 +83,7 @@ func (s *server) Roll(ctx context.Context, in *pb.RollRequest) (*pb.RollResponse
 }
 
 func main() {
-
+	projectID = os.Getenv("project-id")
 	// Stackdriver Trace exporter
 	grpc.EnableTracing = true
 	exporter, err := stackdriver.NewExporter(stackdriver.Options{
