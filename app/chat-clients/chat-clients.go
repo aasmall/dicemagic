@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"flag"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -37,6 +39,9 @@ var (
 	locationID           string
 	slackClientID        string
 	encSlackClientSecret string
+	slackSuccessURL      string
+	slackAccessDeniedURL string
+	slackSigningSecret   string
 )
 
 func main() {
@@ -52,7 +57,9 @@ func main() {
 	key = os.Getenv("slack-kms-key")
 	locationID = os.Getenv("slack-kms-key-location-id")
 	slackClientID = os.Getenv("slack-client-id")
+	slackSigningSecret = os.Getenv("slack-signing-secret")
 	encSlackClientSecret = os.Getenv("slack-client-secret")
+	slackAccessDeniedURL = os.Getenv("slack-success-access-denied-redirect-url")
 
 	// Stackdriver Trace exporter
 	exporter, err := stackdriver.NewExporter(stackdriver.Options{
@@ -87,8 +94,9 @@ func main() {
 	r := mux.NewRouter()
 	r.HandleFunc("/roll", QueryStringRollHandler)
 	r.HandleFunc("/slack/oauth", SlackOAuthHandler)
+	r.HandleFunc("/slack/slash/roll", SlackSlashRollHandler)
 	r.HandleFunc("/", RootHandler)
-	http.Handle("/", r)
+	// http.Handle("/", r)
 
 	h := &ochttp.Handler{Handler: r}
 
@@ -132,4 +140,28 @@ func main() {
 
 func RootHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, "200")
+}
+
+func TotalsMapString(m map[string]float64) string {
+	var b [][]byte
+	if len(m) == 1 && m[""] != 0 {
+		return strconv.FormatFloat(m[""], 'f', 1, 64)
+	}
+	for k, v := range m {
+		if k == "" {
+			b = append(b, []byte("Unspecified"))
+		} else {
+			b = append(b, []byte(k))
+		}
+		b = append(b, []byte(": "))
+		b = append(b, []byte(strconv.FormatFloat(v, 'f', 1, 64)))
+	}
+	return string(bytes.Join(b, []byte(", ")))
+}
+func FacesSliceString(faces []int64) string {
+	var b [][]byte
+	for _, f := range faces {
+		b = append(b, []byte(strconv.FormatInt(f, 10)))
+	}
+	return string(bytes.Join(b, []byte(", ")))
 }

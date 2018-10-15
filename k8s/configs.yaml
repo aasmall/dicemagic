@@ -5,6 +5,8 @@ data:
     slack-kms-key: "slack"
     slack-kms-key-location-id: "us-central1"
     slack-client-id: "42142079431.351057397637"
+    slack-success-access-denied-redirect-url: "https://www.dicemagic.io/page/access-denied/"
+    slack-app-id: "AAB1PBPJR"
 kind: ConfigMap
 metadata:
   name: dice-magic-config

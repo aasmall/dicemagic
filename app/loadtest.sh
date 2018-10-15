@@ -1,8 +1,22 @@
 #!/bin/bash
 
-secs=300                         # Set interval (duration) in seconds.
-endTime=$(( $(date +%s) + secs )) # Calculate end time.
+max="$1"
+date
+echo "url: $2
+rate: $max calls / second"
+START=$(date +%s);
 
-while [ $(date +%s) -lt $endTime ]; do  # Loop until interval has elapsed.
-    curl "https://api.k8s.dicemagic.io/roll?cmd=roll%201d20%20red%20and%208d8%20blue"
+get () {
+  curl -s -v "$1" 2>&1 | tr '\r\n' '\\n' | awk -v date="$(date +'%r')" '{print $0"\n-----", date}' >> /tmp/perf-test.log
+}
+
+while true
+do
+  echo $(($(date +%s) - START)) | awk '{print int($1/60)":"int($1%60)}'
+  sleep 1
+
+  for i in `seq 1 $max`
+  do
+    get $2 &
+  done
 done

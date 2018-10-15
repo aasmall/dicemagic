@@ -17,8 +17,10 @@ import (
 	pb "github.com/aasmall/dicemagic/app/proto"
 )
 
-var conn *grpc.ClientConn
-var initd bool
+var (
+	conn  *grpc.ClientConn
+	initd bool
+)
 
 func dialDiceServer() bool {
 	if initd == false {
@@ -38,12 +40,12 @@ func dialDiceServer() bool {
 
 func QueryStringRollHandler(w http.ResponseWriter, r *http.Request) {
 	initd = dialDiceServer()
-	client := pb.NewRollerClient(conn)
+	rollerClient := pb.NewRollerClient(conn)
 	timeOutCtx, cancel := context.WithTimeout(r.Context(), time.Second)
 	defer cancel()
 	cmd := r.URL.Query().Get("cmd")
 	prob, _ := strconv.ParseBool(r.URL.Query().Get("p"))
-	diceServerResponse, err := client.Roll(timeOutCtx, &pb.RollRequest{Cmd: cmd, Probabilities: prob})
+	diceServerResponse, err := rollerClient.Roll(timeOutCtx, &pb.RollRequest{Cmd: cmd, Probabilities: prob})
 	if err != nil {
 		log.Println("could not roll: %v", err)
 		return

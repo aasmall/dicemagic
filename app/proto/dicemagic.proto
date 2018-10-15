@@ -36,4 +36,6 @@ message Dice {
 message DiceSet {
   repeated Dice Dice = 1;
   map<string, double> TotalsByColor = 2;
+  int64 Total =3;
+  string ReString = 4;
 }

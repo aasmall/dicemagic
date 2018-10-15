@@ -46,7 +46,7 @@ func (s *server) Roll(ctx context.Context, in *pb.RollRequest) (*pb.RollResponse
 		return &pb.RollResponse{}, err
 	}
 
-	_, ds, err := root.GetDiceSet()
+	total, ds, err := root.GetDiceSet()
 	if err != nil {
 		fmt.Println(err.Error(), err.(dicelang.LexError).Col, err.(dicelang.LexError).Line)
 		return &pb.RollResponse{}, err
@@ -55,7 +55,6 @@ func (s *server) Roll(ctx context.Context, in *pb.RollRequest) (*pb.RollResponse
 
 	var outDice []*pb.Dice
 	for _, d := range ds.Dice {
-
 		var dice pb.Dice
 		dice.Color = d.Color
 		dice.Count = d.Count
@@ -77,6 +76,8 @@ func (s *server) Roll(ctx context.Context, in *pb.RollRequest) (*pb.RollResponse
 	var outDiceSet pb.DiceSet
 	outDiceSet.Dice = outDice
 	outDiceSet.TotalsByColor = ds.TotalsByColor
+	outDiceSet.ReString = root.String()
+	outDiceSet.Total = int64(total)
 	out.DiceSet = &outDiceSet
 	out.Cmd = in.Cmd
 	return &out, nil

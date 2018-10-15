@@ -9,6 +9,7 @@ RUN apk add --no-cache git mercurial \
     && go get contrib.go.opencensus.io/exporter/stackdriver \
     && go get go.opencensus.io/plugin/ochttp \
     && go get go.opencensus.io/trace \
+    && go get github.com/nlopes/slack \
     && apk del git mercurial
 
 ADD . /go/src/github.com/aasmall/dicemagic/app/chat-clients
