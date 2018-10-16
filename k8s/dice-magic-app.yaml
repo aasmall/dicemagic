@@ -36,7 +36,7 @@ spec:
         terminationMessagePolicy: File
         envFrom:
         - configMapRef:
-            name: dice-magic-config
+            name: dice-server-config
         volumeMounts:
         - mountPath: /etc/google-default
           name: google-default
@@ -55,14 +55,14 @@ spec:
         terminationMessagePolicy: File
         envFrom:
         - configMapRef:
-            name: dice-magic-config
+            name: chat-clients-config
         env:
-        - name: slack-client-secret
+        - name: SLACK_CLIENT_SECRET
           valueFrom:
             secretKeyRef:
               name: slack-secrets
               key: slack-client-secret
-        - name: slack-signing-secret
+        - name: SLACK_SIGNING_SECRET
           valueFrom:
             secretKeyRef:
               name: slack-secrets

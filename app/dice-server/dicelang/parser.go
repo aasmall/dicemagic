@@ -98,6 +98,12 @@ func (parse *Parser) Statements() ([]*AST, *AST, error) {
 	return stmts, root, nil
 }
 
+//For tests only
+func (parse *Parser) testStatements() *AST {
+	_, root, _ := parse.Statements()
+	return root
+}
+
 func (parse *Parser) block() (*AST, error) {
 	tok, err := parse.lexer.next()
 	if err != nil {

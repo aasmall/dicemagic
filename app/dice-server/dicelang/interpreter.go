@@ -191,7 +191,7 @@ func (token *AST) String() string {
 			buf.WriteString(reverse.Pop().(*AST).Value + " ")
 		}
 	}
-	return buf.String()
+	return strings.TrimSpace(buf.String())
 }
 
 // GLWT Public License
@@ -262,13 +262,13 @@ func (token *AST) inverseShuntingYard(buff *bytes.Buffer, preStack *Stack, postS
 		op1 := s.Pop().(*AST)
 		op2 := s.Pop().(*AST)
 		var sym string
-		if lastSym == "D" {
-			sym = "D"
+		if lastSym == "D" || lastSym == "d" {
+			sym = "d"
 		} else {
 			sym = "(COMPOUND)"
 		}
 		s.Push(&AST{
-			Value:        fmt.Sprintf("%s%s%s(%%s)", op2.Value, token.Value, op1.Value),
+			Value:        fmt.Sprintf("%s%s%s(%%s)", op2.Value, "d", op1.Value),
 			Sym:          sym,
 			BindingPower: token.BindingPower})
 	case "(NUMBER)":
@@ -276,6 +276,7 @@ func (token *AST) inverseShuntingYard(buff *bytes.Buffer, preStack *Stack, postS
 		s.Push(token)
 	case "(IDENT)":
 		//postfix
+		token.Value = strings.Title(token.Value)
 		postStack.Push(token)
 	case "{":
 		preStack.Push(token)
@@ -288,6 +289,7 @@ func (token *AST) inverseShuntingYard(buff *bytes.Buffer, preStack *Stack, postS
 	case "(ROOTNODE)":
 	default:
 		//prefix
+		token.Value = strings.Title(strings.ToLower(token.Value))
 		preStack.Push(token)
 	}
 }

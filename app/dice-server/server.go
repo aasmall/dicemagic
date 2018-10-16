@@ -3,7 +3,6 @@
 package main
 
 import (
-	"fmt"
 	"net"
 	"os"
 
@@ -42,13 +41,13 @@ func (s *server) Roll(ctx context.Context, in *pb.RollRequest) (*pb.RollResponse
 	ctx, getDiceSetSpan := trace.StartSpan(ctx, "GetDiceSet")
 	_, root, err := p.Statements()
 	if err != nil {
-		fmt.Println(err.Error(), err.(dicelang.LexError).Col, err.(dicelang.LexError).Line)
+		log.Println(err.Error())
 		return &pb.RollResponse{}, err
 	}
 
 	total, ds, err := root.GetDiceSet()
 	if err != nil {
-		fmt.Println(err.Error(), err.(dicelang.LexError).Col, err.(dicelang.LexError).Line)
+		log.Println(err.Error())
 		return &pb.RollResponse{}, err
 	}
 	getDiceSetSpan.End()

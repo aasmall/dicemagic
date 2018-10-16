@@ -9,10 +9,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
-	"net/http/httputil"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -23,11 +20,7 @@ import (
 	"google.golang.org/api/cloudkms/v1"
 )
 
-func slackClientSecret(ctx context.Context) string {
-	val, _ := decrypt(ctx, encSlackClientSecret)
-	return val
-}
-func decrypt(ctx context.Context, ciphertext string) (string, error) {
+func decrypt(ctx context.Context, env *env, ciphertext string) (string, error) {
 
 	client, err := google.DefaultClient(ctx, cloudkms.CloudPlatformScope)
 	if err != nil {
@@ -40,7 +33,7 @@ func decrypt(ctx context.Context, ciphertext string) (string, error) {
 	}
 
 	parentName := fmt.Sprintf("projects/%s/locations/%s/keyRings/%s/cryptoKeys/%s",
-		projectID, locationID, keyRing, key)
+		env.config.projectID, env.config.kmsSlackKeyLocation, env.config.kmsKeyring, env.config.kmsSlackKey)
 	req := &cloudkms.DecryptRequest{
 		Ciphertext: ciphertext,
 	}
@@ -52,11 +45,7 @@ func decrypt(ctx context.Context, ciphertext string) (string, error) {
 	decodedString, _ := base64.StdEncoding.DecodeString(resp.Plaintext)
 	return string(decodedString), nil
 }
-func encrypt(ctx context.Context, plaintext string) (string, error) {
-	projectID := os.Getenv("project-id")
-	keyRing := os.Getenv("keyring")
-	key := os.Getenv("slack-kms-key")
-	locationID := os.Getenv("slack-kms-key-location-id")
+func encrypt(ctx context.Context, env *env, plaintext string) (string, error) {
 
 	client, err := google.DefaultClient(ctx, cloudkms.CloudPlatformScope)
 	if err != nil {
@@ -69,7 +58,7 @@ func encrypt(ctx context.Context, plaintext string) (string, error) {
 	}
 
 	parentName := fmt.Sprintf("projects/%s/locations/%s/keyRings/%s/cryptoKeys/%s",
-		projectID, locationID, keyRing, key)
+		env.config.projectID, env.config.kmsSlackKeyLocation, env.config.kmsKeyring, env.config.kmsSlackKey)
 	encodedPlaintext := base64.StdEncoding.EncodeToString([]byte(plaintext))
 	req := &cloudkms.EncryptRequest{
 		Plaintext: encodedPlaintext,
@@ -98,7 +87,8 @@ func CalculateHMAC(secret string, data []byte) []byte {
 	return h.Sum(nil)
 }
 
-func ValidateSlackSignature(r *http.Request) bool {
+func ValidateSlackSignature(env *env, r *http.Request) bool {
+	log := env.logger.WithRequest(r)
 	//read relevant headers
 	slackSigString := r.Header.Get("X-Slack-Signature")
 	remoteHMAC, _ := hex.DecodeString(strings.Split(slackSigString, "v0=")[1])
@@ -106,9 +96,9 @@ func ValidateSlackSignature(r *http.Request) bool {
 
 	//read body and reset request
 	body, err := ioutil.ReadAll(r.Body)
-	log.Println("body: " + string(body))
+	log.Debug("body: " + string(body))
 	if err != nil {
-		log.Println("cannot validate slack signature. Cannot read body")
+		log.Error("cannot validate slack signature. Cannot read body")
 		return false
 	}
 	r.Body = ioutil.NopCloser(bytes.NewBuffer(body))
@@ -116,38 +106,29 @@ func ValidateSlackSignature(r *http.Request) bool {
 	// check time skew
 	ts, err := strconv.ParseInt(timestamp, 10, 64)
 	if err != nil {
-		log.Printf("cannot validate slack signature. Cannot parse timestamp: %s", timestamp)
+		log.Errorf("cannot validate slack signature. Cannot parse timestamp: %s", timestamp)
 		return false
 	}
 	delta := time.Now().Sub(time.Unix(ts, 0))
-	log.Printf("timeskew: (%s)", delta.String())
 	if delta.Minutes() > 5 {
-		log.Printf("cannot validate slack signature. Time skew > 5 minutes (%s)", delta.String())
+		log.Errorf("cannot validate slack signature. Time skew > 5 minutes (%s)", delta.String())
+		log.Debugf("timeskew: (%s)", delta.String())
 		return false
 	}
 
-	decSigningSecret, err := decrypt(r.Context(), slackSigningSecret)
+	decSigningSecret, err := decrypt(r.Context(), env, env.config.encSlackSigningSecret)
 	if err != nil {
-		log.Printf("cannot validate slack signature. can't decrypt signing secret: %s", err)
+		log.Errorf("cannot validate slack signature. can't decrypt signing secret: %s", err)
 		return false
 	}
 
 	baseString := fmt.Sprintf("v0:%s:%s", timestamp, string(body))
-	log.Printf("baseString: %s", baseString)
 	locahHMAC := CalculateHMAC(decSigningSecret, []byte(baseString))
-	log.Printf("remoteHMAC: (%+v)\nlocahHMAC: (%+v)", hex.EncodeToString(remoteHMAC), hex.EncodeToString(locahHMAC))
 	if hmac.Equal(remoteHMAC, locahHMAC) {
 		return true
 	}
 
+	log.Debugf("baseString:  %s", baseString)
+	log.Debugf("remoteHMAC: (%+v)\nlocahHMAC: (%+v)", hex.EncodeToString(remoteHMAC), hex.EncodeToString(locahHMAC))
 	return false
-}
-
-func dumpRequest(w http.ResponseWriter, r *http.Request) {
-	dump, err := httputil.DumpRequest(r, true)
-	if err != nil {
-		log.Println("could not dump request")
-		return
-	}
-	log.Printf("HTTP Request Dump: \n\n%s", string(dump))
 }

@@ -5,16 +5,19 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"math/big"
 	"math/rand"
 	"net/http"
 	"net/url"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/aasmall/dicemagic/app/chat-clients/handler"
 
 	"golang.org/x/net/context"
 
@@ -68,55 +71,62 @@ type SlackField struct {
 	Short bool   `json:"short"`
 }
 
-func SlackOAuthHandler(w http.ResponseWriter, r *http.Request) {
+func SlackOAuthHandler(e interface{}, w http.ResponseWriter, r *http.Request) error {
 	r.ParseForm()
 	ctx := r.Context()
-	slackTokenURL := "https://slack.com/api/oauth.access"
+	env, _ := e.(*env)
+	log := env.logger.WithRequest(r)
 
 	oauthError := r.FormValue("error")
 	if oauthError == "access_denied" {
-		http.Redirect(w, r, slackAccessDeniedURL, http.StatusSeeOther)
-		return
+		http.Redirect(w, r, env.config.slackOAuthDeniedURL, http.StatusSeeOther)
+		log.Infof("OAuth Access Denied, redirecting to: %s", env.config.slackOAuthDeniedURL)
+		return nil
 	}
 
-	code := r.FormValue("code")
-
-	clientSecret, err := decrypt(ctx, encSlackClientSecret)
+	clientSecret, err := decrypt(ctx, env, env.config.encSlackClientSecret)
 	if err != nil {
-		logger.Fatalf("error decrypting secret: %s", err)
+		log.Criticalf("error decrypting secret: %s", err)
+		return err
 	}
 
 	form := url.Values{}
-	form.Add("code", code)
-	req, err := http.NewRequest("POST", slackTokenURL, strings.NewReader(form.Encode()))
-	req.SetBasicAuth(slackClientID, clientSecret)
-	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+	form.Add("code", r.FormValue("code"))
 
-	resp, err := traceClient.Do(req)
+	req, err := http.NewRequest("POST", env.config.slackTokenURL, strings.NewReader(form.Encode()))
+	req.SetBasicAuth(env.config.slackClientID, clientSecret)
+	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+	resp, err := env.traceClient.Do(req)
 	if err != nil {
-		logger.Fatalf("error getting oAuthToken: %s", err)
+		log.Criticalf("error getting oAuthToken: %s", err)
+		return err
 	}
 	defer resp.Body.Close()
+
 	var oauthResponse SlackInstallInstance
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := ioutil.ReadAll(resp.Body)
 		bodyString := string(bodyBytes)
-		logger.Printf("error in oAuth Response: %s", bodyString)
-		return
+		err := errors.New("error in oAuth Response")
+		log.Criticalf("%s: %s", err, bodyString)
+		return err
 	}
 
 	err = json.NewDecoder(resp.Body).Decode(&oauthResponse)
 	if err != nil {
-		log.Fatalf("error decoding oAuth Response: %s", err)
+		log.Criticalf("error decoding oAuth Response: %s", err)
+		return err
 	}
 
-	EncBotAccessToken, err := encrypt(ctx, oauthResponse.Bot.BotAccessToken)
+	EncBotAccessToken, err := encrypt(ctx, env, oauthResponse.Bot.BotAccessToken)
 	if err != nil {
-		log.Fatalf("error encrypting BotAccessToken: %s", err)
+		log.Criticalf("error encrypting BotAccessToken: %s", err)
+		return err
 	}
-	EncAccessToken, err := encrypt(ctx, oauthResponse.AccessToken)
+	EncAccessToken, err := encrypt(ctx, env, oauthResponse.AccessToken)
 	if err != nil {
-		log.Fatalf("error encrypting AccessToken: %s", err)
+		log.Criticalf("error encrypting AccessToken: %s", err)
+		return err
 	}
 
 	newDoc := &SlackInstallInstanceDoc{
@@ -134,46 +144,52 @@ func SlackOAuthHandler(w http.ResponseWriter, r *http.Request) {
 		UserID:   oauthResponse.UserID,
 	}
 
-	_, err = upsertSlackInstallInstance(ctx, newDoc)
+	_, err = upsertSlackInstallInstance(ctx, env, newDoc)
 	if err != nil {
-		log.Printf("error upserting SlackInstallInstance: %s", err)
+		log.Errorf("error upserting SlackInstallInstance: %s", err)
+		return err
 	}
-	slackSuccessURL = fmt.Sprintf("https://slack.com/app_redirect?app=%s")
 
+	slackSuccessURL := fmt.Sprintf("https://slack.com/app_redirect?app=%s", env.config.slackAppID)
 	http.Redirect(w, r, slackSuccessURL, http.StatusSeeOther)
+
+	return nil
 }
 
-func SlackSlashRollHandler(w http.ResponseWriter, r *http.Request) {
+func SlackSlashRollHandler(e interface{}, w http.ResponseWriter, r *http.Request) error {
+	env, _ := e.(*env)
+	log := env.logger.WithRequest(r)
 
 	//read body and reset request
 	body, err := ioutil.ReadAll(r.Body)
-	log.Println("body: " + string(body))
+	log.Debugf("body: %s", string(body))
 	if err != nil {
-		log.Println("cannot validate slack signature. Cannot read body")
-		return
+		log.Critical("cannot validate slack signature. Cannot read body")
+		return err
 	}
 	r.Body = ioutil.NopCloser(bytes.NewBuffer(body))
 	s, err := slack.SlashCommandParse(r)
-	r.Body = ioutil.NopCloser(bytes.NewBuffer(body))
 	if err != nil {
 		fmt.Fprintf(w, "could not parse slash command: %s", err)
 	}
-	dumpRequest(w, r)
-	if !ValidateSlackSignature(r) {
-		w.WriteHeader(http.StatusUnauthorized)
-		return
+	r.Body = ioutil.NopCloser(bytes.NewBuffer(body))
+	if !ValidateSlackSignature(env, r) {
+		return handler.StatusError{
+			Code: http.StatusUnauthorized,
+			Err:  errors.New("Invalid Slack Signature"),
+		}
 	}
 
-	initd = dialDiceServer()
+	initd = dialDiceServer(env)
 	rollerClient := pb.NewRollerClient(conn)
 	timeOutCtx, cancel := context.WithTimeout(r.Context(), time.Second)
 	defer cancel()
-	cmd := "roll " + s.Text
-	log.Println(cmd)
+	cmd := s.Text
+	log.Debug(cmd)
 	diceServerResponse, err := rollerClient.Roll(timeOutCtx, &pb.RollRequest{Cmd: cmd})
 	if err != nil {
-		fmt.Fprintf(w, "could not roll: %v", err)
-		return
+		fmt.Fprintf(w, "%+v: %+v", reflect.TypeOf(err), err)
+		return nil
 	}
 
 	slackRollResponse := SlackRollJSONResponse{}
@@ -182,6 +198,7 @@ func SlackSlashRollHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(slackRollResponse)
+	return nil
 }
 
 func SlackAttachmentFromRollResponse(ds *pb.DiceSet) SlackAttachment {

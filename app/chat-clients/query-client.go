@@ -22,24 +22,26 @@ var (
 	initd bool
 )
 
-func dialDiceServer() bool {
+func dialDiceServer(env *env) bool {
 	if initd == false {
-		logger.Println("dialDiceServer")
 		grpc.EnableTracing = true
 		// Set up a connection to the dice-server.
-		c, err := grpc.Dial(diceServerPort,
+		c, err := grpc.Dial(env.config.diceServerPort,
 			grpc.WithInsecure(),
 			grpc.WithStatsHandler(&ocgrpc.ClientHandler{}))
 		if err != nil {
-			log.Panicf("did not connect to dice-server(%s): %v", diceServerPort, err)
+			log.Fatalf("did not connect to dice-server(%s): %v", env.config.diceServerPort, err)
 		}
 		conn = c
 	}
 	return true
 }
 
-func QueryStringRollHandler(w http.ResponseWriter, r *http.Request) {
-	initd = dialDiceServer()
+func QueryStringRollHandler(e interface{}, w http.ResponseWriter, r *http.Request) error {
+	env, _ := e.(*env)
+	initd = dialDiceServer(env)
+	log := env.logger.WithRequest(r)
+
 	rollerClient := pb.NewRollerClient(conn)
 	timeOutCtx, cancel := context.WithTimeout(r.Context(), time.Second)
 	defer cancel()
@@ -47,11 +49,12 @@ func QueryStringRollHandler(w http.ResponseWriter, r *http.Request) {
 	prob, _ := strconv.ParseBool(r.URL.Query().Get("p"))
 	diceServerResponse, err := rollerClient.Roll(timeOutCtx, &pb.RollRequest{Cmd: cmd, Probabilities: prob})
 	if err != nil {
-		log.Println("could not roll: %v", err)
-		return
+		log.Errorf("Oops! %s", err)
+		return err
 	}
 
 	fmt.Fprintf(w, "%+v", diceServerResponse)
+	return nil
 }
 func sortProbMap(m map[int64]float64) []int64 {
 	var keys []int64

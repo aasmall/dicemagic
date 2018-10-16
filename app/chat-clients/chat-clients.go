@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"context"
-	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -14,111 +13,141 @@ import (
 	"time"
 
 	"cloud.google.com/go/datastore"
-	"cloud.google.com/go/logging"
 	"contrib.go.opencensus.io/exporter/stackdriver"
 	"contrib.go.opencensus.io/exporter/stackdriver/propagation"
+	"github.com/aasmall/dicemagic/app/chat-clients/handler"
 	"github.com/gorilla/mux"
 	"go.opencensus.io/plugin/ochttp"
 	"go.opencensus.io/trace"
 	"google.golang.org/grpc"
 )
 
-const (
-	serverPort     = ":7070"
-	diceServerPort = ":50051"
-	logName        = "dicemagic-chat-clients-logs"
-)
+type envReader struct {
+	missingKeys []string
+	errors      bool
+}
 
-var (
-	traceClient          *http.Client
-	dsClient             *datastore.Client
-	logger               *log.Logger
-	projectID            string
-	keyRing              string
-	key                  string
-	locationID           string
-	slackClientID        string
-	encSlackClientSecret string
-	slackSuccessURL      string
-	slackAccessDeniedURL string
-	slackSigningSecret   string
-)
+func (r *envReader) getEnv(key string) string {
+	if value, ok := os.LookupEnv(key); ok {
+		return value
+	}
+	r.errors = true
+	r.missingKeys = append(r.missingKeys, key)
+	return ""
+}
+
+type env struct {
+	traceClient *http.Client
+	dsClient    *datastore.Client
+	logger      *chatClientsLogger
+	config      *envConfig
+}
+
+type envConfig struct {
+	projectID             string
+	kmsKeyring            string
+	kmsSlackKey           string
+	kmsSlackKeyLocation   string
+	slackClientID         string
+	encSlackSigningSecret string
+	encSlackClientSecret  string
+	slackOAuthDeniedURL   string
+	logName               string
+	serverPort            string
+	diceServerPort        string
+	slackTokenURL         string
+	slackAppID            string
+	traceProbability      float64
+}
 
 func main() {
 	ctx := context.Background()
 	grpc.EnableTracing = true
-	var wait time.Duration
-	flag.DurationVar(&wait, "graceful-timeout", time.Second*15, "the duration for which the server gracefully wait for existing connections to finish - e.g. 15s or 1m")
-	flag.Parse()
 
 	// Gather Environment Variables
-	projectID = os.Getenv("project-id")
-	keyRing = os.Getenv("keyring")
-	key = os.Getenv("slack-kms-key")
-	locationID = os.Getenv("slack-kms-key-location-id")
-	slackClientID = os.Getenv("slack-client-id")
-	slackSigningSecret = os.Getenv("slack-signing-secret")
-	encSlackClientSecret = os.Getenv("slack-client-secret")
-	slackAccessDeniedURL = os.Getenv("slack-success-access-denied-redirect-url")
+	configReader := new(envReader)
+	traceProbability, ProbErr := strconv.ParseFloat(configReader.getEnv("TRACE_PROBABILITY"), 64)
+	config := &envConfig{
+		projectID:             configReader.getEnv("PROJECT-ID"),
+		kmsKeyring:            configReader.getEnv("KMS_KEYRING"),
+		kmsSlackKey:           configReader.getEnv("KMS_SLACK_KEY"),
+		kmsSlackKeyLocation:   configReader.getEnv("KMS_SLACK_KEY_LOCATION"),
+		slackClientID:         configReader.getEnv("SLACK_CLIENT_ID"),
+		slackAppID:            configReader.getEnv("SLACK_APP_ID"),
+		encSlackSigningSecret: configReader.getEnv("SLACK_SIGNING_SECRET"),
+		encSlackClientSecret:  configReader.getEnv("SLACK_CLIENT_SECRET"),
+		slackOAuthDeniedURL:   configReader.getEnv("SLACK_OAUTH_DENIED_URL"),
+		logName:               configReader.getEnv("LOG_NAME"),
+		serverPort:            configReader.getEnv("SERVER_PORT"),
+		slackTokenURL:         configReader.getEnv("SLACK_TOKEN_URL"),
+		diceServerPort:        configReader.getEnv("DICE_SERVER_PORT"),
+		traceProbability:      traceProbability,
+	}
+	if configReader.errors {
+		log.Fatalf("could not gather environment variables. Failed variables: %v", configReader.missingKeys)
+	}
+	if ProbErr != nil {
+		log.Fatalf("could not convert TRACE_PROBABILITY environment variable to float64: %s", ProbErr)
+	}
+	env := &env{config: config}
+
+	// Stackdriver Logger
+	logger := NewLogger(ctx, env.config.projectID, env.config.logName)
+	defer logger.Close()
+	env.logger = logger
 
 	// Stackdriver Trace exporter
 	exporter, err := stackdriver.NewExporter(stackdriver.Options{
-		ProjectID: projectID,
+		ProjectID: env.config.projectID,
 	})
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("could not configure Stackdriver Exporter: %s", err)
 	}
+	trace.ApplyConfig(trace.Config{DefaultSampler: trace.ProbabilitySampler(env.config.traceProbability)})
 	trace.RegisterExporter(exporter)
-	traceClient = &http.Client{
+
+	// Stackdriver Trace client
+	env.traceClient = &http.Client{
 		Transport: &ochttp.Transport{
 			Propagation: &propagation.HTTPFormat{},
 		},
 	}
-	trace.ApplyConfig(trace.Config{DefaultSampler: trace.AlwaysSample()})
 
 	// Cloud Datastore Client
-	dsClient, err = datastore.NewClient(ctx, projectID)
+	dsClient, err := datastore.NewClient(ctx, env.config.projectID)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("could not configure Datastore Client: %s", err)
 	}
-
-	// Creates a logging client.
-	client, err := logging.NewClient(ctx, projectID)
-	if err != nil {
-		log.Fatalf("Failed to create client: %v", err)
-	}
-	defer client.Close()
-	logger = client.Logger(logName).StandardLogger(logging.Info)
+	env.dsClient = dsClient
 
 	// Define inbound Routes
 	r := mux.NewRouter()
-	r.HandleFunc("/roll", QueryStringRollHandler)
-	r.HandleFunc("/slack/oauth", SlackOAuthHandler)
-	r.HandleFunc("/slack/slash/roll", SlackSlashRollHandler)
-	r.HandleFunc("/", RootHandler)
-	// http.Handle("/", r)
+	r.Handle("/roll", handler.Handler{Env: env, H: QueryStringRollHandler})
+	r.Handle("/slack/oauth", handler.Handler{Env: env, H: SlackOAuthHandler})
+	r.Handle("/slack/slash/roll", handler.Handler{Env: env, H: SlackSlashRollHandler})
+	r.Handle("/", handler.Handler{Env: env, H: RootHandler})
 
-	h := &ochttp.Handler{Handler: r}
+	// Add OpenCensus HTTP Handler Wrapper
+	openCensusWrapper := &ochttp.Handler{Handler: r}
 
 	// Define a server with timeouts
 	srv := &http.Server{
-		Addr:         serverPort,
+		Addr:         env.config.serverPort,
 		WriteTimeout: time.Second * 15,
 		ReadTimeout:  time.Second * 15,
 		IdleTimeout:  time.Second * 60,
-		Handler:      h, // Pass our instance of gorilla/mux and tracer in.
-
+		Handler:      openCensusWrapper, // Pass our instance of gorilla/mux and tracer in.
 	}
 
 	// Run our server in a goroutine so that it doesn't block.
 	go func() {
 		if err := srv.ListenAndServe(); err != nil {
-			log.Fatalln(err)
+			log.Fatal(err)
 		}
 	}()
 
 	// We'll accept graceful shutdowns when quit via SIGINT (Ctrl+C)
-	// SIGKILL, SIGQUIT or SIGTERM (Ctrl+/) will not be caught.
+	// SIGKILL, SIGQUIT or SIGTERM (Ctrl+/)
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM, syscall.SIGKILL, syscall.SIGQUIT)
 
@@ -126,7 +155,7 @@ func main() {
 	<-c
 
 	// Create a deadline to wait for.
-	ctx, cancel := context.WithTimeout(context.Background(), wait)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
 	defer cancel()
 	// Doesn't block if no connections, but will otherwise wait
 	// until the timeout deadline.
@@ -135,11 +164,12 @@ func main() {
 	// <-ctx.Done() if your application should wait for other services
 	// to finalize based on context cancellation.
 	log.Println("shutting down")
-	os.Exit(0)
+	//os.Exit(0)
 }
 
-func RootHandler(w http.ResponseWriter, r *http.Request) {
+func RootHandler(e interface{}, w http.ResponseWriter, r *http.Request) error {
 	fmt.Fprint(w, "200")
+	return nil
 }
 
 func TotalsMapString(m map[string]float64) string {
