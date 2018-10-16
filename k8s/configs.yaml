@@ -19,8 +19,9 @@ metadata:
 ---
 apiVersion: v1
 data:
-    PROJECT-ID: "k8s-dice-magic"
+    PROJECT_ID: "k8s-dice-magic"
     SERVER_PORT: ":50051"
+    LOG_NAME: "dicemagic-dice-server-logs"
 kind: ConfigMap
 metadata:
   name: dice-server-config

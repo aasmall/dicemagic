@@ -4,16 +4,15 @@ package main
 
 import (
 	"net"
-	"net/http"
 	"os"
 
-	"contrib.go.opencensus.io/exporter/stackdriver"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 
 	"log"
 
 	"github.com/aasmall/dicemagic/app/dice-server/dicelang"
+	"github.com/aasmall/dicemagic/app/logger"
 	pb "github.com/aasmall/dicemagic/app/proto"
 	"golang.org/x/net/context"
 
@@ -22,16 +21,80 @@ import (
 )
 
 type env struct {
-	traceClient *http.Client
-	logger      *log.Logger
-	config      *envConfig
+	log    *logger.Logger
+	config *envConfig
 }
 
 type envConfig struct {
 	projectID  string
-	kmsKeyring string
 	logName    string
 	serverPort string
+}
+
+type envReader struct {
+	missingKeys []string
+	errors      bool
+}
+
+type server struct {
+	env *env
+}
+
+func newServer(e *env) *server {
+	s := &server{env: e}
+	return s
+}
+
+func (r *envReader) getEnv(key string) string {
+	if value, ok := os.LookupEnv(key); ok {
+		return value
+	}
+	r.errors = true
+	r.missingKeys = append(r.missingKeys, key)
+	return ""
+}
+
+func main() {
+	configReader := new(envReader)
+
+	config := &envConfig{
+		projectID:  configReader.getEnv("PROJECT_ID"),
+		logName:    configReader.getEnv("LOG_NAME"),
+		serverPort: configReader.getEnv("SERVER_PORT"),
+	}
+	if configReader.errors {
+		log.Fatalf("could not gather environment variables. Failed variables: %v", configReader.missingKeys)
+	}
+	env := &env{config: config}
+
+	// Stackdriver Trace exporter
+	// grpc.EnableTracing = true
+	// exporter, err := stackdriver.NewExporter(stackdriver.Options{
+	// 	ProjectID: projectID,
+	// })
+
+	// trace.RegisterExporter(exporter)
+	// trace.ApplyConfig(trace.Config{DefaultSampler: trace.AlwaysSample()})
+
+	// Stackdriver Logger
+	env.log = logger.NewLogger(context.Background(), env.config.projectID, env.config.logName)
+	defer env.log.Info("Shutting down logger.")
+	defer env.log.Close()
+
+	lis, err := net.Listen("tcp", env.config.serverPort)
+	if err != nil {
+		env.log.Criticalf("failed to listen: %v", err)
+		return
+	}
+	s := grpc.NewServer(grpc.StatsHandler(&ocgrpc.ServerHandler{}))
+	pb.RegisterRollerServer(s, newServer(env))
+
+	// Register reflection service on gRPC server.
+	reflection.Register(s)
+	if err := s.Serve(lis); err != nil {
+		env.log.Criticalf("failed to serve: %v", err)
+		return
+	}
 }
 
 func (s *server) Roll(ctx context.Context, in *pb.RollRequest) (*pb.RollResponse, error) {
@@ -47,13 +110,13 @@ func (s *server) Roll(ctx context.Context, in *pb.RollRequest) (*pb.RollResponse
 	ctx, getDiceSetSpan := trace.StartSpan(ctx, "GetDiceSet")
 	_, root, err := p.Statements()
 	if err != nil {
-		log.Println(err.Error())
+		s.env.log.Error(err.Error())
 		return &pb.RollResponse{}, err
 	}
 
 	total, ds, err := root.GetDiceSet()
 	if err != nil {
-		log.Println(err.Error())
+		s.env.log.Error(err.Error())
 		return &pb.RollResponse{}, err
 	}
 	getDiceSetSpan.End()
@@ -86,29 +149,4 @@ func (s *server) Roll(ctx context.Context, in *pb.RollRequest) (*pb.RollResponse
 	out.DiceSet = &outDiceSet
 	out.Cmd = in.Cmd
 	return &out, nil
-}
-
-func main() {
-	projectID = os.Getenv("project-id")
-	// Stackdriver Trace exporter
-	grpc.EnableTracing = true
-	exporter, err := stackdriver.NewExporter(stackdriver.Options{
-		ProjectID: projectID,
-	})
-
-	trace.RegisterExporter(exporter)
-	trace.ApplyConfig(trace.Config{DefaultSampler: trace.AlwaysSample()})
-
-	lis, err := net.Listen("tcp", port)
-	if err != nil {
-		log.Fatalf("failed to listen: %v", err)
-	}
-	s := grpc.NewServer(grpc.StatsHandler(&ocgrpc.ServerHandler{}))
-	pb.RegisterRollerServer(s, &server{})
-
-	// Register reflection service on gRPC server.
-	reflection.Register(s)
-	if err := s.Serve(lis); err != nil {
-		log.Fatalf("failed to serve: %v", err)
-	}
 }

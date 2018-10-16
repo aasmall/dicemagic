@@ -21,6 +21,12 @@ spec:
           labels:
             app: letsencrypt
         spec:
+          securityContext:
+            privileged: false
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
           serviceAccountName: secret-manager
           containers:
           # Bash script that starts an http server and launches certbot
