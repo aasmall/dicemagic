@@ -15,7 +15,8 @@ import (
 	"cloud.google.com/go/datastore"
 	"contrib.go.opencensus.io/exporter/stackdriver"
 	"contrib.go.opencensus.io/exporter/stackdriver/propagation"
-	"github.com/aasmall/dicemagic/app/chat-clients/handler"
+	"github.com/aasmall/dicemagic/app/handler"
+	"github.com/aasmall/dicemagic/app/logger"
 	"github.com/gorilla/mux"
 	"go.opencensus.io/plugin/ochttp"
 	"go.opencensus.io/trace"
@@ -39,8 +40,8 @@ func (r *envReader) getEnv(key string) string {
 type env struct {
 	traceClient *http.Client
 	dsClient    *datastore.Client
-	logger      *chatClientsLogger
 	config      *envConfig
+	log         *logger.Logger
 }
 
 type envConfig struct {
@@ -68,7 +69,7 @@ func main() {
 	configReader := new(envReader)
 	traceProbability, ProbErr := strconv.ParseFloat(configReader.getEnv("TRACE_PROBABILITY"), 64)
 	config := &envConfig{
-		projectID:             configReader.getEnv("PROJECT-ID"),
+		projectID:             configReader.getEnv("PROJECT_ID"),
 		kmsKeyring:            configReader.getEnv("KMS_KEYRING"),
 		kmsSlackKey:           configReader.getEnv("KMS_SLACK_KEY"),
 		kmsSlackKeyLocation:   configReader.getEnv("KMS_SLACK_KEY_LOCATION"),
@@ -92,9 +93,9 @@ func main() {
 	env := &env{config: config}
 
 	// Stackdriver Logger
-	logger := NewLogger(ctx, env.config.projectID, env.config.logName)
-	defer logger.Close()
-	env.logger = logger
+	env.log = logger.NewLogger(ctx, env.config.projectID, env.config.logName)
+	defer env.log.Info("Shutting down logger.")
+	defer env.log.Close()
 
 	// Stackdriver Trace exporter
 	exporter, err := stackdriver.NewExporter(stackdriver.Options{

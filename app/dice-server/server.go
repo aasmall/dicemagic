@@ -4,6 +4,7 @@ package main
 
 import (
 	"net"
+	"net/http"
 	"os"
 
 	"contrib.go.opencensus.io/exporter/stackdriver"
@@ -20,13 +21,18 @@ import (
 	"go.opencensus.io/trace"
 )
 
-const (
-	port = ":50051"
-)
+type env struct {
+	traceClient *http.Client
+	logger      *log.Logger
+	config      *envConfig
+}
 
-var projectID string
-
-type server struct{}
+type envConfig struct {
+	projectID  string
+	kmsKeyring string
+	logName    string
+	serverPort string
+}
 
 func (s *server) Roll(ctx context.Context, in *pb.RollRequest) (*pb.RollResponse, error) {
 	ctx, span := trace.StartSpan(ctx, "Roll")

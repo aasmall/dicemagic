@@ -16,6 +16,7 @@ import (
 
 	"crypto/hmac"
 
+	"github.com/labstack/gommon/log"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/cloudkms/v1"
 )
@@ -88,7 +89,6 @@ func CalculateHMAC(secret string, data []byte) []byte {
 }
 
 func ValidateSlackSignature(env *env, r *http.Request) bool {
-	log := env.logger.WithRequest(r)
 	//read relevant headers
 	slackSigString := r.Header.Get("X-Slack-Signature")
 	remoteHMAC, _ := hex.DecodeString(strings.Split(slackSigString, "v0=")[1])

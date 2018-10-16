@@ -17,7 +17,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aasmall/dicemagic/app/chat-clients/handler"
+	"github.com/aasmall/dicemagic/app/handler"
 
 	"golang.org/x/net/context"
 
@@ -75,7 +75,7 @@ func SlackOAuthHandler(e interface{}, w http.ResponseWriter, r *http.Request) er
 	r.ParseForm()
 	ctx := r.Context()
 	env, _ := e.(*env)
-	log := env.logger.WithRequest(r)
+	log := env.log.WithRequest(r)
 
 	oauthError := r.FormValue("error")
 	if oauthError == "access_denied" {
@@ -158,7 +158,7 @@ func SlackOAuthHandler(e interface{}, w http.ResponseWriter, r *http.Request) er
 
 func SlackSlashRollHandler(e interface{}, w http.ResponseWriter, r *http.Request) error {
 	env, _ := e.(*env)
-	log := env.logger.WithRequest(r)
+	log := env.log.WithRequest(r)
 
 	//read body and reset request
 	body, err := ioutil.ReadAll(r.Body)
