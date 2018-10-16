@@ -6,6 +6,7 @@ RUN apk add --no-cache shadow \
     && useradd --uid 1000 --gid dicemagic --shell /bin/sh --create-home dicemagic \
     && apk del shadow 
 
+
 RUN apk add --no-cache git mercurial \
     && go get cloud.google.com/go/logging \
     && go get github.com/gorilla/mux \
@@ -19,7 +20,7 @@ RUN apk add --no-cache git mercurial \
     && apk del git mercurial 
 
 
-USER dicemagic
+USER 1000
 
 ADD . /go/src/github.com/aasmall/dicemagic/app/chat-clients
 

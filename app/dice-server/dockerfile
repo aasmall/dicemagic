@@ -1,5 +1,13 @@
 FROM golang:alpine
 
+RUN apk add --no-cache shadow \
+    && sed -i 's/^CREATE_MAIL_SPOOL=yes/CREATE_MAIL_SPOOL=no/' /etc/default/useradd \
+    && groupadd --gid 1000 dicemagic \
+    && useradd --uid 1000 --gid dicemagic --shell /bin/sh --create-home dicemagic \
+    && apk del shadow 
+
+
+
 RUN apk add --no-cache git mercurial \
     && go get cloud.google.com/go/logging \
     && go get github.com/aasmall/word2number \
@@ -11,6 +19,9 @@ RUN apk add --no-cache git mercurial \
     && go get go.opencensus.io/trace \
     && go get go.opencensus.io/plugin/ocgrpc \
     && apk del git mercurial
+
+
+USER 1000
 
 ADD . /go/src/github.com/aasmall/dicemagic/app/dice-server
 
