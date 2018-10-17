@@ -6,9 +6,7 @@ kubectl create secret generic slack-secrets --from-literal=slack-client-secret=$
     --keyring=dice-magic \
     --key=slack \
     --plaintext-file=slack-client-secret.txt \
-    --ciphertext-file=- \
-    | base64 -w0) \
-    --from-literal=slack-signing-secret=$(gcloud kms encrypt \
+    --ciphertext-file=- | base64 -w0) --from-literal=slack-signing-secret=$(gcloud kms encrypt \
     --location=us-central1 \
     --keyring=dice-magic \
     --key=slack \

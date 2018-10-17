@@ -2,8 +2,8 @@ FROM alpine:3.8
 
 RUN apk add --no-cache shadow \
     && sed -i 's/^CREATE_MAIL_SPOOL=yes/CREATE_MAIL_SPOOL=no/' /etc/default/useradd \
-    && groupadd --gid 1000 dicemagic \
-    && useradd --uid 1000 --gid dicemagic --shell /bin/sh --create-home dicemagic \
+    && groupadd --gid 1000 certbot \
+    && useradd --uid 1000 --gid certbot --shell /bin/sh --create-home certbot \
     && apk del shadow 
 
 RUN apk add --no-cache lighttpd bash python curl python-dev musl-dev libffi-dev openssl-dev gcc
