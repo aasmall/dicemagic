@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/aasmall/dicemagic/app/chat-clients/handler"
+	"github.com/aasmall/dicemagic/app/handler"
 
 	"log"
 

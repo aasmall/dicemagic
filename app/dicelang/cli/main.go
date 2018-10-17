@@ -7,7 +7,7 @@ import (
 	"os"
 	"sort"
 
-	"github.com/aasmall/dicemagic/app/dice-server/dicelang"
+	"github.com/aasmall/dicemagic/app/dicelang"
 )
 
 func main() {

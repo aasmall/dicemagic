@@ -13,7 +13,7 @@ RUN apk add --no-cache git mercurial \
     && go get github.com/aasmall/word2number \
     && go get github.com/wcharczuk/go-chart \
     && go get github.com/aasmall/dicemagic/app/proto \
-    && go get github.com/aasmall/dicemagic/app/logger \
+    && go get github.com/aasmall/dicemagic/app/server \
     && go get github.com/aasmall/dicemagic/app/handler \
     && go get google.golang.org/grpc \
     && go get google.golang.org/grpc/reflection \

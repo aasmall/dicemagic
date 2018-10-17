@@ -11,7 +11,7 @@ import (
 
 	"log"
 
-	"github.com/aasmall/dicemagic/app/dice-server/dicelang"
+	"github.com/aasmall/dicemagic/app/dicelang"
 	"github.com/aasmall/dicemagic/app/logger"
 	pb "github.com/aasmall/dicemagic/app/proto"
 	"golang.org/x/net/context"

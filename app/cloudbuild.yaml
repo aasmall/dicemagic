@@ -1,22 +1,54 @@
 steps:
 - name: 'gcr.io/cloud-builders/docker'
-  args: ['pull', 'gcr.io/$PROJECT_ID/chat-clients:latest']
-- name: 'gcr.io/cloud-builders/docker'
+  id: 'pull-dice-server'
   args: ['pull', 'gcr.io/$PROJECT_ID/dice-server:latest']
+  waitFor: ['-']
+
 - name: 'gcr.io/cloud-builders/docker'
-  args: [
-            'build',
-            '-t', 'gcr.io/$PROJECT_ID/chat-clients:latest',
-            '--cache-from', 'gcr.io/$PROJECT_ID/chat-clients:latest',
-            './chat-clients'
-        ]
+  id: 'pull-chat-clients'
+  args: ['pull', 'gcr.io/$PROJECT_ID/chat-clients:latest']
+  waitFor: ['-']
+
+- name: 'gcr.io/cloud-builders/go'
+  id: 'get-app'
+  args: ['get', './...']
+  env: ['PROJECT_ROOT=app']
+  waitFor: ['pull-chat-clients','pull-dice-server']
+
+- name: 'gcr.io/cloud-builders/go'
+  id: 'test-app'
+  args: ['test', './...']
+  env: ['PROJECT_ROOT=app']
+  waitFor: ['get-app']
+
+- name: 'gcr.io/cloud-builders/go'
+  id: 'install-app'
+  args: ['install', './...']
+  env: ['PROJECT_ROOT=app']
+  waitFor: ['test-app']
+
 - name: 'gcr.io/cloud-builders/docker'
   args: [
             'build',
             '-t', 'gcr.io/$PROJECT_ID/dice-server:latest',
+            # '-t', 'gcr.io/$PROJECT_ID/dice-server:$COMMIT_SHA',
             '--cache-from', 'gcr.io/$PROJECT_ID/dice-server:latest',
+            '-f', './dice-server/slim.dockerfile',
             './dice-server'
         ]
+  waitFor: ['install-app']
+- name: 'gcr.io/cloud-builders/docker'
+  args: [
+            'build',
+            '-t', 'gcr.io/$PROJECT_ID/chat-clients:latest',
+            # '-t', 'gcr.io/$PROJECT_ID/dice-server:$COMMIT_SHA',
+            '--cache-from', 'gcr.io/$PROJECT_ID/chat-clients:latest',
+            '-f', './chat-clients/slim.dockerfile',
+            './chat-clients'
+        ]
+  waitFor: ['install-app']
+tags: ['$COMMIT_SHA']
 images: 
-- 'gcr.io/$PROJECT_ID/chat-clients:latest'
 - 'gcr.io/$PROJECT_ID/dice-server:latest'
+- 'gcr.io/$PROJECT_ID/chat-clients:latest'
+# - 'gcr.io/$PROJECT_ID/dice-server:$COMMIT_SHA'

@@ -10,7 +10,7 @@ metadata:
   labels:
     app: letsencrypt
 spec:
-  schedule: "0 3 * * 6" 
+  schedule: "0 2 * * *" 
   concurrencyPolicy: Forbid
   startingDeadlineSeconds: 120
   jobTemplate:
@@ -21,16 +21,8 @@ spec:
           labels:
             app: letsencrypt
         spec:
-          securityContext:
-            privileged: false
-            allowPrivilegeEscalation: false
-            runAsNonRoot: true
-            capabilities:
-              drop: ["ALL"]
           serviceAccountName: secret-manager
           containers:
-          # Bash script that starts an http server and launches certbot
-          # Fork of github.com/sjenning/kube-nginx-letsencrypt
           - image: gcr.io/k8s-dice-magic/letsencrypt:latest
             name: letsencrypt
             imagePullPolicy: Always
@@ -51,13 +43,19 @@ spec:
             - name: DEPLOYMENT
               value: basic-ingress
             - name: NAMESPACE
-              value: default
+              value: default  
+            securityContext:
+              privileged: false
+              allowPrivilegeEscalation: false
+              runAsNonRoot: true
+              capabilities:
+                drop: ["ALL"]
           restartPolicy: Never
           volumes:
           - name: certbot-dns
             secret:
               defaultMode: 420
-              secretName: certbot-dns
+              secretName: certbot-dns 
 ---
 apiVersion: v1
 kind: Secret
