@@ -10,7 +10,7 @@ metadata:
   labels:
     app: letsencrypt
 spec:
-  schedule: "20 * * * *" 
+  schedule: "* * * * *" 
   concurrencyPolicy: Forbid
   startingDeadlineSeconds: 120
   jobTemplate:

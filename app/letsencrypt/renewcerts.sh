@@ -15,6 +15,9 @@ certbot certonly \
   --email ${EMAIL} \
   --agree-tos \
   --non-interactive \
+  --config-dir /home/certbot/config \
+  --work-dir /home/certbot/work \
+  --logs-dir /home/certbot/logs \
   -d ${DOMAINS}
 
 CERTPATH=/etc/letsencrypt/live/$(echo $DOMAINS | cut -f1 -d',')
