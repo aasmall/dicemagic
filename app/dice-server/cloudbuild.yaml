@@ -12,7 +12,7 @@ steps:
   env: ['PROJECT_ROOT=dice-server']
 
 - name: 'gcr.io/cloud-builders/go'
-  args: ['test', 'dice-server']
+  args: ['test', '.']
   env: ['PROJECT_ROOT=dice-server']
 
 - name: 'gcr.io/cloud-builders/docker'
