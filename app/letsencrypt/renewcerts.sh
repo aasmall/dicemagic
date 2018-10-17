@@ -20,7 +20,7 @@ certbot certonly \
   --logs-dir /home/certbot/logs \
   -d ${DOMAINS}
 
-CERTPATH=/etc/letsencrypt/live/$(echo $DOMAINS | cut -f1 -d',')
+CERTPATH=/home/certbot/config/live/$(echo $DOMAINS | cut -f1 -d',')
 
 ls $CERTPATH || exit 1
 
