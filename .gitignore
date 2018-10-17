@@ -8,3 +8,5 @@ coverage.out
 *certbot-dns.json
 secrets/slack-client-secret.txt
 secrets/slack-signing-secret.txt
+config.log
+*build.log

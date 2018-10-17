@@ -23,8 +23,8 @@ steps:
   args: [
             'build',
             '-t', 'gcr.io/$PROJECT_ID/chat-clients:latest',
-            # # '-t', 'gcr.io/$PROJECT_ID/chat-clients:$COMMIT_SHA',
-            # '--cache-from', 'gcr.io/$PROJECT_ID/chat-clients:latest',
+            '-t', 'gcr.io/$PROJECT_ID/chat-clients:$COMMIT_SHA',
+            '--cache-from', 'gcr.io/$PROJECT_ID/chat-clients:latest',
             '-f', 'slim.dockerfile',
             '.'
         ]
@@ -33,4 +33,4 @@ steps:
 tags: ['$COMMIT_SHA']
 images: 
 - 'gcr.io/$PROJECT_ID/chat-clients:latest'
-# - 'gcr.io/$PROJECT_ID/chat-clients:$COMMIT_SHA'
+- 'gcr.io/$PROJECT_ID/chat-clients:$COMMIT_SHA'

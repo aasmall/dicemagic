@@ -14,13 +14,12 @@ import (
 
 	"cloud.google.com/go/datastore"
 	"contrib.go.opencensus.io/exporter/stackdriver"
-	"contrib.go.opencensus.io/exporter/stackdriver/propagation"
 	"github.com/aasmall/dicemagic/app/handler"
 	"github.com/aasmall/dicemagic/app/logger"
 	"github.com/gorilla/mux"
 	"go.opencensus.io/plugin/ochttp"
 	"go.opencensus.io/trace"
-	"google.golang.org/grpc"
+	"go.opencensus.io/trace/propagation"
 )
 
 type envReader struct {
@@ -63,7 +62,6 @@ type envConfig struct {
 
 func main() {
 	ctx := context.Background()
-	grpc.EnableTracing = true
 
 	// Gather Environment Variables
 	configReader := new(envReader)
@@ -94,7 +92,8 @@ func main() {
 
 	// Stackdriver Logger
 	env.log = logger.NewLogger(ctx, env.config.projectID, env.config.logName)
-	defer env.log.Info("Shutting down logger.")
+	env.log.Info("Logger up and running!")
+	defer log.Println("Shutting down logger.")
 	defer env.log.Close()
 
 	// Stackdriver Trace exporter
@@ -108,11 +107,14 @@ func main() {
 	trace.RegisterExporter(exporter)
 
 	// Stackdriver Trace client
-	env.traceClient = &http.Client{
+	p := new(propagation.HTTPFormat)
+	tc := &http.Client{
 		Transport: &ochttp.Transport{
-			Propagation: &propagation.HTTPFormat{},
+			// Use Google Cloud propagation format.
+			Propagation: *p,
 		},
 	}
+	env.traceClient = tc
 
 	// Cloud Datastore Client
 	dsClient, err := datastore.NewClient(ctx, env.config.projectID)

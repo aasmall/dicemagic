@@ -2,11 +2,15 @@ steps:
 - name: 'gcr.io/cloud-builders/docker'
   args: ['pull', 'gcr.io/$PROJECT_ID/www:latest']
 - name: 'gcr.io/cloud-builders/docker'
+  dir: 'www'
   args: [
             'build',
             '-t', 'gcr.io/$PROJECT_ID/www:latest',
+            '-t', 'gcr.io/$PROJECT_ID/www:$COMMIT_SHA',
             '--cache-from', 'gcr.io/$PROJECT_ID/www:latest',
             '.'
         ]
+tags: ['$COMMIT_SHA']
 images: 
 - 'gcr.io/$PROJECT_ID/www:latest'
+- 'gcr.io/$PROJECT_ID/www:$COMMIT_SHA'

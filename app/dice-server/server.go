@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 
+	"contrib.go.opencensus.io/exporter/stackdriver"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 
@@ -67,14 +68,12 @@ func main() {
 	}
 	env := &env{config: config}
 
-	// Stackdriver Trace exporter
-	// grpc.EnableTracing = true
-	// exporter, err := stackdriver.NewExporter(stackdriver.Options{
-	// 	ProjectID: projectID,
-	// })
-
-	// trace.RegisterExporter(exporter)
-	// trace.ApplyConfig(trace.Config{DefaultSampler: trace.AlwaysSample()})
+	//Stackdriver Trace exporter
+	exporter, err := stackdriver.NewExporter(stackdriver.Options{
+		ProjectID: env.config.projectID,
+	})
+	trace.ApplyConfig(trace.Config{DefaultSampler: trace.AlwaysSample()})
+	trace.RegisterExporter(exporter)
 
 	// Stackdriver Logger
 	env.log = logger.NewLogger(context.Background(), env.config.projectID, env.config.logName)

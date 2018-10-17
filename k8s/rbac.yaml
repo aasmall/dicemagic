@@ -47,8 +47,22 @@ rules:
   verbs:
   - use
 ---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: psp-priv-user
+rules:
+- apiGroups:
+  - extensions
+  resources:
+  - podsecuritypolicies
+  resourceNames:
+  - privileged
+  verbs:
+  - use
+---
 apiVersion: rbac.authorization.k8s.io/v1beta1
-kind: RoleBinding
+kind: ClusterRoleBinding
 metadata:
   name: psp-rolebinding
   namespace: default
@@ -57,10 +71,29 @@ roleRef:
   kind: ClusterRole
   name: psp-user
 subjects:
-# Example: All service accounts in my-namespace
-- apiGroup: rbac.authorization.k8s.io
-  kind: Group
-  name: system:serviceaccounts
+# # Example: All service accounts in my-namespace
+# - apiGroup: rbac.authorization.k8s.io
+#   kind: Group
+#   name: system:serviceaccounts
+# Example: A specific service account in my-namespace
+- kind: ServiceAccount # Omit apiGroup
+  name: default
+  namespace: default
+---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRoleBinding
+metadata:
+  name: psp-priv-rolebinding
+  namespace: default
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: psp-priv-user
+subjects:
+# Example: A specific service account in my-namespace
+- kind: ServiceAccount # Omit apiGroup
+  name: nginx-ingress-serviceaccount
+  namespace: ingress-nginx
 # Example: A specific service account in my-namespace
 - kind: ServiceAccount # Omit apiGroup
   name: default

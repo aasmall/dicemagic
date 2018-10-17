@@ -35,7 +35,6 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-
 	trace.RegisterExporter(exporter)
 	trace.ApplyConfig(trace.Config{DefaultSampler: trace.AlwaysSample()})
 

@@ -39,8 +39,9 @@ func dialDiceServer(env *env) bool {
 
 func QueryStringRollHandler(e interface{}, w http.ResponseWriter, r *http.Request) error {
 	env, _ := e.(*env)
+	log := env.log.WithRequest(r)
 	initd = dialDiceServer(env)
-
+	log.Info("dial dice server")
 	rollerClient := pb.NewRollerClient(conn)
 	timeOutCtx, cancel := context.WithTimeout(r.Context(), time.Second)
 	defer cancel()

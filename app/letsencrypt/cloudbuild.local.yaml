@@ -1,0 +1,15 @@
+steps:
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['pull', 'gcr.io/$PROJECT_ID/letsencrypt:latest']
+- name: 'gcr.io/cloud-builders/docker'
+  dir: 'app/letsencrypt'
+  args: [
+            'build',
+            '-t', 'gcr.io/$PROJECT_ID/letsencrypt:latest',
+            '--cache-from', 'gcr.io/$PROJECT_ID/letsencrypt:latest',
+            '-f','dockerfile',
+            '.'
+        ]
+tags: ['local']
+images:
+- 'gcr.io/$PROJECT_ID/letsencrypt:latest'

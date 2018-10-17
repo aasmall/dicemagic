@@ -21,12 +21,12 @@ spec:
       labels:
         app: dice-magic-app
     spec:
-      securityContext:
-        privileged: false
-        allowPrivilegeEscalation: false
-        runAsNonRoot: true
-        capabilities:
-          drop: ["ALL"]
+      # securityContext:
+      #   privileged: false
+      #   allowPrivilegeEscalation: false
+      #   runAsNonRoot: true
+      #   # capabilities:
+      #   #   drop: ["ALL"]
       containers:
       - name: dice-server
         image: gcr.io/k8s-dice-magic/dice-server:latest

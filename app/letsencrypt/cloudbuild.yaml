@@ -6,12 +6,12 @@ steps:
   args: [
             'build',
             '-t', 'gcr.io/$PROJECT_ID/letsencrypt:latest',
-            # '-t', 'gcr.io/$PROJECT_ID/letsencrypt:$COMMIT_SHA',
+            '-t', 'gcr.io/$PROJECT_ID/letsencrypt:$COMMIT_SHA',
             '--cache-from', 'gcr.io/$PROJECT_ID/letsencrypt:latest',
             '-f','dockerfile',
             '.'
         ]
-# tags: ['$COMMIT_SHA']
+tags: ['$COMMIT_SHA']
 images:
 - 'gcr.io/$PROJECT_ID/letsencrypt:latest'
-# - 'gcr.io/$PROJECT_ID/letsencrypt:$COMMIT_SHA'
+- 'gcr.io/$PROJECT_ID/letsencrypt:$COMMIT_SHA'

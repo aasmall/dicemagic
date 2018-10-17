@@ -6,7 +6,7 @@ RUN apk add --no-cache shadow \
     && useradd --uid 1000 --gid dicemagic --shell /bin/sh --create-home dicemagic \
     && apk del shadow 
 
-USER 1000
+# USER 1000
 
 COPY gopath/bin/dice-server /go/bin/dice-server
 
