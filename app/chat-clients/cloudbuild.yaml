@@ -5,22 +5,22 @@ steps:
 
 - name: 'gcr.io/cloud-builders/go'
   args: ['get', '.']
-  env: ['PROJECT_ROOT=chat-clients']
+  env: ['PROJECT_ROOT=app/chat-clients']
 
 - name: 'gcr.io/cloud-builders/go'
   args: ['install', '.']
-  env: ['PROJECT_ROOT=chat-clients']
+  env: ['PROJECT_ROOT=app/chat-clients']
 
 - name: 'gcr.io/cloud-builders/go'
   args: ['test', '.']
-  env: ['PROJECT_ROOT=chat-clients']
+  env: ['PROJECT_ROOT=app/chat-clients']
 
 - name: 'gcr.io/cloud-builders/docker'
   args: [
             'build',
             '-t', 'gcr.io/$PROJECT_ID/chat-clients:latest',
-            # '-t', 'gcr.io/$PROJECT_ID/chat-clients:$COMMIT_SHA',
-            '--cache-from', 'gcr.io/$PROJECT_ID/chat-clients:latest',
+            # # '-t', 'gcr.io/$PROJECT_ID/chat-clients:$COMMIT_SHA',
+            # '--cache-from', 'gcr.io/$PROJECT_ID/chat-clients:latest',
             '-f', 'slim.dockerfile',
             '.'
         ]
