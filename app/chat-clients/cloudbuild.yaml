@@ -5,17 +5,21 @@ steps:
 
 - name: 'gcr.io/cloud-builders/go'
   args: ['get', '.']
+  dir: 'app/chat-clients'
   env: ['PROJECT_ROOT=app/chat-clients']
 
 - name: 'gcr.io/cloud-builders/go'
   args: ['install', '.']
+  dir: 'app/chat-clients'
   env: ['PROJECT_ROOT=app/chat-clients']
 
 - name: 'gcr.io/cloud-builders/go'
   args: ['test', '.']
+  dir: 'app/chat-clients'
   env: ['PROJECT_ROOT=app/chat-clients']
 
 - name: 'gcr.io/cloud-builders/docker'
+  dir: 'app/chat-clients'
   args: [
             'build',
             '-t', 'gcr.io/$PROJECT_ID/chat-clients:latest',

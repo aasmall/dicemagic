@@ -5,17 +5,21 @@ steps:
 
 - name: 'gcr.io/cloud-builders/go'
   args: ['get', '.']
+  dir: 'app/dice-server'
   env: ['PROJECT_ROOT=app/dice-server']
 
 - name: 'gcr.io/cloud-builders/go'
   args: ['install', '.']
+  dir: 'app/dice-server'
   env: ['PROJECT_ROOT=app/dice-server']
 
 - name: 'gcr.io/cloud-builders/go'
   args: ['test', '.']
+  dir: 'app/dice-server'
   env: ['PROJECT_ROOT=app/dice-server']
 
 - name: 'gcr.io/cloud-builders/docker'
+  dir: 'app/dice-server'
   args: [
             'build',
             '-t', 'gcr.io/$PROJECT_ID/dice-server:latest',
