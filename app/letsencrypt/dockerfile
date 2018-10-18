@@ -6,7 +6,7 @@ RUN apk add --no-cache shadow \
     && useradd --uid 1000 --gid certbot --shell /bin/sh --create-home certbot \
     && apk del shadow 
 
-RUN apk add --no-cache lighttpd bash python curl python-dev musl-dev libffi-dev openssl-dev gcc
+RUN apk add --no-cache lighttpd bash python curl python-dev musl-dev libffi-dev openssl-dev gcc ca-certificates
 
 RUN mkdir /certbot
 RUN mkdir /var/www/dicemagic

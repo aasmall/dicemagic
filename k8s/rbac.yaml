@@ -94,7 +94,3 @@ subjects:
 - kind: ServiceAccount # Omit apiGroup
   name: nginx-ingress-serviceaccount
   namespace: ingress-nginx
-# Example: A specific service account in my-namespace
-- kind: ServiceAccount # Omit apiGroup
-  name: default
-  namespace: default
