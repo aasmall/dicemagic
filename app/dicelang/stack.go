@@ -20,6 +20,9 @@ func (s *Stack) Empty() bool {
 }
 
 func (s *Stack) Top() interface{} {
+	if s.Empty() {
+		return nil
+	}
 	return s.top.value
 }
 

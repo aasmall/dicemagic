@@ -1,0 +1,34 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: letsencrypt-job
+  labels:
+    app: letsencrypt
+spec:
+  template:
+    metadata:
+      name: letsencrypt
+      annotations:
+        cloud.google.com/service-account: "certbot-dns-manager@k8s-dice-magic.iam.gserviceaccount.com"
+      labels:
+        app: letsencrypt
+    spec:
+      serviceAccountName: secret-manager
+      containers:
+      - image: gcr.io/k8s-dice-magic/letsencrypt:latest
+        name: letsencrypt
+        imagePullPolicy: Always
+        ports:
+        - name: letsencrypt
+          containerPort: 8080
+        envFrom:
+        - configMapRef:
+            name: certbot-config
+        securityContext:
+          privileged: false
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          capabilities:
+            drop: ["ALL"]
+      restartPolicy: Never
+  backoffLimit: 1

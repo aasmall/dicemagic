@@ -7,53 +7,38 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/aasmall/dicemagic/app/dicelang/errors"
+
 	"golang.org/x/net/context"
-	"google.golang.org/grpc"
-
-	"go.opencensus.io/plugin/ocgrpc"
-
-	"log"
 
 	pb "github.com/aasmall/dicemagic/app/proto"
 )
 
-var (
-	conn  *grpc.ClientConn
-	initd bool
-)
-
-func dialDiceServer(env *env) bool {
-	if initd == false {
-		grpc.EnableTracing = true
-		// Set up a connection to the dice-server.
-		c, err := grpc.Dial(env.config.diceServerPort,
-			grpc.WithInsecure(),
-			grpc.WithStatsHandler(&ocgrpc.ClientHandler{}))
-		if err != nil {
-			log.Fatalf("did not connect to dice-server(%s): %v", env.config.diceServerPort, err)
-		}
-		conn = c
-	}
-	return true
-}
-
 func QueryStringRollHandler(e interface{}, w http.ResponseWriter, r *http.Request) error {
 	env, _ := e.(*env)
 	log := env.log.WithRequest(r)
-	initd = dialDiceServer(env)
 	log.Info("dial dice server")
-	rollerClient := pb.NewRollerClient(conn)
+	rollerClient := pb.NewRollerClient(env.diceServerClient)
 	timeOutCtx, cancel := context.WithTimeout(r.Context(), time.Second)
 	defer cancel()
 	cmd := r.URL.Query().Get("cmd")
 	prob, _ := strconv.ParseBool(r.URL.Query().Get("p"))
 	diceServerResponse, err := rollerClient.Roll(timeOutCtx, &pb.RollRequest{Cmd: cmd, Probabilities: prob})
 	if err != nil {
-		env.log.Errorf("Oops! %s", err)
+		env.log.Errorf("Unexpected error: %+v", err)
+		fmt.Fprintf(w, "response: %+v", diceServerResponse)
 		return err
 	}
 
-	fmt.Fprintf(w, "%+v", diceServerResponse)
+	if diceServerResponse.Ok {
+		fmt.Fprintf(w, "%+v", diceServerResponse)
+	} else {
+		if diceServerResponse.Error.Code == errors.Friendly {
+			fmt.Fprint(w, diceServerResponse.Error.Msg)
+		} else {
+			fmt.Fprintf(w, "Oops! an error occured: %s", diceServerResponse.Error.Msg)
+		}
+	}
 	return nil
 }
 func sortProbMap(m map[int64]float64) []int64 {

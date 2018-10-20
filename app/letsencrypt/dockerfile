@@ -25,9 +25,6 @@ RUN rm get-pip.py
 
 RUN chmod a+x renewcerts.sh
 
-ENV GOOGLE_APPLICATION_CREDENTIALS "/etc/certbot-dns/certbot-dns.json"
-
-
 USER 1000:1000
 ENTRYPOINT [ "/bin/bash", "renewcerts.sh" ]
 

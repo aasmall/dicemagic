@@ -10,7 +10,7 @@ metadata:
   labels:
     app: letsencrypt
 spec:
-  schedule: "0 2 * * *" 
+  schedule: "0 2 * * 1/2" 
   concurrencyPolicy: Forbid
   startingDeadlineSeconds: 120
   jobTemplate:
@@ -18,6 +18,8 @@ spec:
       template:
         metadata:
           name: letsencrypt
+          annotations:
+            cloud.google.com/service-account: "certbot-dns-manager@k8s-dice-magic.iam.gserviceaccount.com"
           labels:
             app: letsencrypt
         spec:
@@ -33,17 +35,9 @@ spec:
             - mountPath: /etc/certbot-dns
               name: certbot-dns
               readOnly: true
-            env:
-            - name: DOMAINS
-              value: "www.dicemagic.io,api.dicemagic.io" # Domain you want to use. CHANGE ME!
-            - name: EMAIL
-              value: certs@smallnet.org
-            - name: SECRET
-              value: letsencrypt-certs
-            - name: DEPLOYMENT
-              value: basic-ingress
-            - name: NAMESPACE
-              value: default  
+            envFrom:
+            - configMapRef:
+                name: certbot-config
             securityContext:
               privileged: false
               allowPrivilegeEscalation: false
@@ -56,6 +50,7 @@ spec:
             secret:
               defaultMode: 420
               secretName: certbot-dns 
+      backoffLimit: 1
 ---
 apiVersion: v1
 kind: Secret

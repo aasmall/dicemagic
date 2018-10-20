@@ -8,18 +8,24 @@ service Roller {
   rpc Roll (RollRequest) returns (RollResponse) {}
 }
 
-// The request message containing the user's name.
+// The request message containing the command. Input validation preformed on the server side.
 message RollRequest {
   string cmd = 1;
   bool probabilities = 2;
   bool chart = 3;
+  bool rootOnly = 4;
+  
 }
 
-// The response message containing the greetings
+// The response message containing one DiceSet. If the command warrents multiple dice-sets, they will be merged
 message RollResponse {
   string Cmd = 1;
   DiceSet DiceSet = 2;
+  repeated DiceSet DiceSets = 3;
+  bool Ok = 4;
+  RollError Error = 5; 
 }
+
 message Dice {
   int64 Count = 1;
   int64 Sides = 2;
@@ -38,4 +44,11 @@ message DiceSet {
   map<string, double> TotalsByColor = 2;
   int64 Total =3;
   string ReString = 4;
+}
+message DiceSets {
+  repeated DiceSet DiceSet = 1;
+}
+message RollError{
+  string msg = 1;
+  int32 code = 2;
 }

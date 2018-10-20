@@ -35,29 +35,25 @@ spec:
         resources:
           limits:
             cpu: 400m
-            memory: 200Mi
+            memory: 600Mi
           requests:
-            cpu: 200m
-            memory: 100Mi
+            cpu: 300m
+            memory: 300Mi
         imagePullPolicy: Always
         terminationMessagePath: /dev/termination-log
         terminationMessagePolicy: File
         envFrom:
         - configMapRef:
             name: dice-server-config
-        volumeMounts:
-        - mountPath: /etc/google-default
-          name: google-default
-          readOnly: true
       - name: chat-clients
         image: gcr.io/k8s-dice-magic/chat-clients:latest
         resources:
           limits:
-            cpu: 200m
-            memory: 200Mi
+            cpu: 400m
+            memory: 600Mi
           requests:
-            cpu: 100m
-            memory: 100Mi
+            cpu: 200m
+            memory: 300Mi
         imagePullPolicy: Always
         terminationMessagePath: /dev/termination-log
         terminationMessagePolicy: File
@@ -75,20 +71,11 @@ spec:
             secretKeyRef:
               name: slack-secrets
               key: slack-signing-secret
-        volumeMounts:
-        - mountPath: /etc/google-default
-          name: google-default
-          readOnly: true
       dnsPolicy: ClusterFirst
       restartPolicy: Always
       schedulerName: default-scheduler
       securityContext: {}
       terminationGracePeriodSeconds: 10
-      volumes:
-      - name: google-default
-        secret:
-          defaultMode: 420
-          secretName: google-default
 ---
 apiVersion: "v1"
 kind: "Service"
@@ -116,8 +103,8 @@ items:
     name: dice-magic-app-hpa
     namespace: default
   spec:
-    maxReplicas: 10
-    minReplicas: 2
+    maxReplicas: 5
+    minReplicas: 1
     scaleTargetRef:
       apiVersion: apps/v1beta1
       kind: Deployment

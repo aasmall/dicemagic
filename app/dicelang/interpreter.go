@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/aasmall/dicemagic/app/dicelang/errors"
 )
 
 //Dice represents a a throw of a single type of die
@@ -167,11 +169,14 @@ func emitTokens(ch chan *AST, t *AST) {
 }
 
 // Convert AST to Infix expression
-func (token *AST) String() string {
+func (token *AST) String() (string, error) {
 	var buf bytes.Buffer
 	var preStack, postStack, s, reverse Stack
 	if len(token.Children) > 0 {
-		token.inverseShuntingYard(&buf, &preStack, &postStack, &s, "", 0)
+		err := token.inverseShuntingYard(&buf, &preStack, &postStack, &s, "", 0)
+		if err != nil {
+			return "", errors.NewDicelangError(err.Error(), errors.InvalidAST, err)
+		}
 		for !preStack.Empty() {
 			reverse.Push(preStack.Pop())
 		}
@@ -191,7 +196,7 @@ func (token *AST) String() string {
 			buf.WriteString(reverse.Pop().(*AST).Value + " ")
 		}
 	}
-	return strings.TrimSpace(buf.String())
+	return strings.TrimSpace(buf.String()), nil
 }
 
 // GLWT Public License
@@ -216,10 +221,16 @@ func (token *AST) String() string {
 // CONNECTION WITH THE FUNCTION OR THE USE OR OTHER DEALINGS IN THE FUNCTION.
 //
 // Good luck and Godspeed.
-func (token *AST) inverseShuntingYard(buff *bytes.Buffer, preStack *Stack, postStack *Stack, s *Stack, lastSym string, childNum int) {
+func (token *AST) inverseShuntingYard(buff *bytes.Buffer, preStack *Stack, postStack *Stack, s *Stack, lastSym string, childNum int) error {
 	if len(token.Children) > 0 {
 		for i, c := range token.Children {
-			c.inverseShuntingYard(buff, preStack, postStack, s, token.Sym, i)
+			err := c.inverseShuntingYard(buff, preStack, postStack, s, token.Sym, i)
+			if err != nil {
+				return err
+			}
+			if s.Top() == nil {
+				return errors.New("Invalid AST. Cannot convert to infix expression")
+			}
 			if s.Top().(*AST).Sym == "(COMPOUND)" {
 				for !postStack.Empty() {
 					left := s.Pop().(*AST)
@@ -292,6 +303,7 @@ func (token *AST) inverseShuntingYard(buff *bytes.Buffer, preStack *Stack, postS
 		token.Value = strings.Title(strings.ToLower(token.Value))
 		preStack.Push(token)
 	}
+	return nil
 }
 
 func (t *AST) eval(ds *DiceSet) (float64, *DiceSet, error) {
@@ -571,14 +583,11 @@ func (d *Dice) Roll() (int64, error) {
 func roll(numberOfDice int64, sides int64, H int64, L int64) ([]int64, int64, error) {
 	var faces []int64
 	if numberOfDice > 1000 {
-		err := fmt.Errorf("I can't hold that many dice")
-		return faces, 0, err
+		return faces, 0, errors.NewDicelangError("I can't hold that many dice!", errors.Friendly, nil)
 	} else if sides > 1000 {
-		err := fmt.Errorf("A die with that many sides is basically round")
-		return faces, 0, err
+		return faces, 0, errors.NewDicelangError("A die with that many sides is basically round", errors.Friendly, nil)
 	} else if sides < 1 {
-		err := fmt.Errorf("/me ponders the meaning of a zero sided die")
-		return faces, 0, err
+		return faces, 0, errors.NewDicelangError("/me ponders the meaning of a zero sided die", errors.Friendly, nil)
 	} else {
 		total := int64(0)
 		for i := int64(0); i < numberOfDice; i++ {

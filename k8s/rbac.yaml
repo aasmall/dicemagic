@@ -5,6 +5,8 @@ metadata:
 subjects:
 - kind: User
   name: aaron@smallnet.org
+- kind: User
+  name: gke-alpha-service-account@k8s-dice-magic.iam.gserviceaccount.com
 roleRef:
   kind: ClusterRole
   name: cluster-admin

@@ -18,6 +18,9 @@ func MergeDiceTotalMaps(mapsToMerge ...map[string]float64) map[string]float64 {
 //GetDiceSet returns the sum of an AST, a DiceSet, and an error
 func (t *AST) GetDiceSet() (float64, DiceSet, error) {
 	v, ret, err := t.eval(&DiceSet{})
+	if err != nil {
+		return 0, DiceSet{}, err
+	}
 	return v, *ret, err
 }
 

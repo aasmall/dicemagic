@@ -180,8 +180,7 @@ func SlackSlashRollHandler(e interface{}, w http.ResponseWriter, r *http.Request
 		}
 	}
 
-	initd = dialDiceServer(env)
-	rollerClient := pb.NewRollerClient(conn)
+	rollerClient := pb.NewRollerClient(env.diceServerClient)
 	timeOutCtx, cancel := context.WithTimeout(r.Context(), time.Second)
 	defer cancel()
 	cmd := s.Text

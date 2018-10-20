@@ -8,6 +8,8 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/aasmall/dicemagic/app/dicelang/errors"
+
 	"github.com/aasmall/word2number"
 )
 
@@ -22,17 +24,6 @@ type Lexer struct {
 	cached bool
 	last   *AST
 	c      *word2number.Converter
-}
-
-//LexError represents an error occured during parsing of a dicelang statement.
-type LexError struct {
-	err  string
-	Col  int
-	Line int
-}
-
-func (e LexError) Error() string {
-	return e.err
 }
 
 type tokenRegistry struct {
@@ -161,7 +152,7 @@ func (lex *Lexer) nextOperator() (*AST, error) {
 	// single character operator
 	textStr := strings.ToUpper(text.String())
 	if !lex.tokReg.defined(textStr) {
-		return nil, LexError{fmt.Sprintf("operator not defined: %s", textStr), lex.line, col}
+		return nil, errors.NewLexError(fmt.Sprintf("operator not defined: %s", textStr), lex.line, col)
 	}
 	return lex.tokReg.token(textStr, textStr, lex.line, col), nil
 }
@@ -256,7 +247,7 @@ func (lex *Lexer) next() (*AST, error) {
 			break
 		}
 	}
-	panic(fmt.Sprint("INVALID CHARACTER ", lex.line, lex.col))
+	return nil, errors.NewLexError("INVALID CHARACTER", lex.col, lex.line)
 }
 
 func isSpaceNotNewline(r rune) bool {
@@ -547,11 +538,11 @@ func getTokenRegistry() *tokenRegistry {
 	})
 
 	t.stmt("{", func(t *AST, p *Parser) (*AST, error) {
-		stmts, _, err := p.Statements()
+		root, err := p.Statements()
 		if err != nil {
 			return nil, err
 		}
-		t.Children = append(t.Children, stmts...)
+		t.Children = append(t.Children, root.Children...)
 		p.advance("}")
 		return t, nil
 	})

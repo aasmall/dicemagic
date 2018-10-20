@@ -2,6 +2,8 @@ package dicelang
 
 import (
 	"fmt"
+
+	"github.com/aasmall/dicemagic/app/dicelang/errors"
 )
 
 type nudFn func(*AST, *Parser) (*AST, error)
@@ -45,7 +47,7 @@ func (parse *Parser) expression(rbp int) (*AST, error) {
 	if t.nud != nil {
 		left, _ = t.nud(t, parse)
 	} else {
-		return nil, LexError{err: fmt.Sprintf("token \"%s\" is not prefix", t.Value), Col: parse.lexer.col, Line: parse.lexer.line}
+		return nil, errors.NewLexError(fmt.Sprintf("token \"%s\" is not prefix", t.Value), parse.lexer.col, parse.lexer.line)
 	}
 	t, err = parse.lexer.peek()
 	if err != nil {
@@ -62,7 +64,7 @@ func (parse *Parser) expression(rbp int) (*AST, error) {
 				return nil, err
 			}
 		} else {
-			return nil, LexError{err: fmt.Sprintf("token \"%s\" is not infix", t.Value), Col: parse.lexer.col, Line: parse.lexer.line}
+			return nil, errors.NewLexError(fmt.Sprintf("token \"%s\" is not infix", t.Value), parse.lexer.col, parse.lexer.line)
 		}
 		t, err = parse.lexer.peek()
 		if err != nil {
@@ -74,33 +76,34 @@ func (parse *Parser) expression(rbp int) (*AST, error) {
 }
 
 //Statements returns all statements from the parser as []*AST
-func (parse *Parser) Statements() ([]*AST, *AST, error) {
+func (parse *Parser) Statements() (*AST, error) {
 	root := &AST{Value: "", Sym: "(rootnode)"}
-	stmts := []*AST{}
 	next, err := parse.lexer.peek()
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	for next.Sym != "(EOF)" && next.Sym != "}" {
 		stmt, err := parse.Statement()
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		if stmt.Sym != "(EOF)" {
 			root.Children = append(root.Children, stmt)
-			stmts = append(stmts, stmt)
 		}
 		next, err = parse.lexer.peek()
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 	}
-	return stmts, root, nil
+	return root, nil
 }
 
 //For tests only
 func (parse *Parser) testStatements() *AST {
-	_, root, _ := parse.Statements()
+	root, err := parse.Statements()
+	if err != nil {
+		panic(err)
+	}
 	return root
 }
 
@@ -110,7 +113,7 @@ func (parse *Parser) block() (*AST, error) {
 		return nil, err
 	}
 	if tok.Sym != "{" {
-		return nil, LexError{err: fmt.Sprintf("expected block start not found: %s", tok.Sym), Col: parse.lexer.col, Line: parse.lexer.line}
+		return nil, errors.NewLexError(fmt.Sprintf("expected block start not found: %s", tok.Sym), parse.lexer.col, parse.lexer.line)
 	}
 	return tok.std(tok, parse)
 }
@@ -140,7 +143,7 @@ func (parse *Parser) advance(sym string) (*AST, error) {
 		return nil, err
 	}
 	if token.Sym != sym {
-		return nil, LexError{err: fmt.Sprintf("did not find expected character \"%s\". Found \"%s\"", sym, token.Sym), Col: col, Line: line}
+		return nil, errors.NewLexError(fmt.Sprintf("did not find expected character \"%s\". Found \"%s\"", sym, token.Sym), col, line)
 	}
 	return token, nil
 }

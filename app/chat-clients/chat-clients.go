@@ -17,9 +17,11 @@ import (
 	"github.com/aasmall/dicemagic/app/handler"
 	"github.com/aasmall/dicemagic/app/logger"
 	"github.com/gorilla/mux"
+	"go.opencensus.io/plugin/ocgrpc"
 	"go.opencensus.io/plugin/ochttp"
 	"go.opencensus.io/trace"
 	"go.opencensus.io/trace/propagation"
+	"google.golang.org/grpc"
 )
 
 type envReader struct {
@@ -37,10 +39,11 @@ func (r *envReader) getEnv(key string) string {
 }
 
 type env struct {
-	traceClient *http.Client
-	dsClient    *datastore.Client
-	config      *envConfig
-	log         *logger.Logger
+	traceClient      *http.Client
+	datastoreClient  *datastore.Client
+	config           *envConfig
+	log              *logger.Logger
+	diceServerClient *grpc.ClientConn
 }
 
 type envConfig struct {
@@ -107,21 +110,29 @@ func main() {
 	trace.RegisterExporter(exporter)
 
 	// Stackdriver Trace client
-	p := new(propagation.HTTPFormat)
-	tc := &http.Client{
+	grpc.EnableTracing = true
+	env.traceClient = &http.Client{
 		Transport: &ochttp.Transport{
 			// Use Google Cloud propagation format.
-			Propagation: *p,
+			Propagation: *new(propagation.HTTPFormat),
 		},
 	}
-	env.traceClient = tc
 
 	// Cloud Datastore Client
 	dsClient, err := datastore.NewClient(ctx, env.config.projectID)
 	if err != nil {
 		log.Fatalf("could not configure Datastore Client: %s", err)
 	}
-	env.dsClient = dsClient
+	env.datastoreClient = dsClient
+
+	// Dice Server Client
+	diceServerClient, err := grpc.Dial(env.config.diceServerPort,
+		grpc.WithInsecure(),
+		grpc.WithStatsHandler(&ocgrpc.ClientHandler{}))
+	if err != nil {
+		log.Fatalf("did not connect to dice-server(%s): %v", env.config.diceServerPort, err)
+	}
+	env.diceServerClient = diceServerClient
 
 	// Define inbound Routes
 	r := mux.NewRouter()
@@ -154,6 +165,7 @@ func main() {
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM, syscall.SIGKILL, syscall.SIGQUIT)
 
+	log.Println("chat-clients up.")
 	// Block until we receive our signal.
 	<-c
 
