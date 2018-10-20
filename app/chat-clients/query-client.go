@@ -23,6 +23,7 @@ func QueryStringRollHandler(e interface{}, w http.ResponseWriter, r *http.Reques
 	defer cancel()
 	cmd := r.URL.Query().Get("cmd")
 	prob, _ := strconv.ParseBool(r.URL.Query().Get("p"))
+
 	diceServerResponse, err := rollerClient.Roll(timeOutCtx, &pb.RollRequest{Cmd: cmd, Probabilities: prob})
 	if err != nil {
 		env.log.Errorf("Unexpected error: %+v", err)

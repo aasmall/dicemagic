@@ -5,18 +5,17 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"math/big"
 	"math/rand"
 	"net/http"
 	"net/url"
-	"reflect"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/aasmall/dicemagic/app/dicelang/errors"
 	"github.com/aasmall/dicemagic/app/handler"
 
 	"golang.org/x/net/context"
@@ -156,6 +155,11 @@ func SlackOAuthHandler(e interface{}, w http.ResponseWriter, r *http.Request) er
 	return nil
 }
 
+func returnErrorToSlack(text string, w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(SlackRollJSONResponse{Text: text})
+}
+
 func SlackSlashRollHandler(e interface{}, w http.ResponseWriter, r *http.Request) error {
 	env, _ := e.(*env)
 	log := env.log.WithRequest(r)
@@ -187,8 +191,20 @@ func SlackSlashRollHandler(e interface{}, w http.ResponseWriter, r *http.Request
 	log.Debug(cmd)
 	diceServerResponse, err := rollerClient.Roll(timeOutCtx, &pb.RollRequest{Cmd: cmd})
 	if err != nil {
-		fmt.Fprintf(w, "%+v: %+v", reflect.TypeOf(err), err)
-		return nil
+		env.log.Errorf("Unexpected error: %+v", err)
+		returnErrorToSlack(fmt.Sprintf("Oops! an unexpected error occured: %s", err), w, r)
+		return err
+	}
+
+	if !diceServerResponse.Ok {
+		if diceServerResponse.Error.Code == errors.Friendly {
+			returnErrorToSlack(diceServerResponse.Error.Msg, w, r)
+			return nil
+		} else {
+			returnErrorToSlack(fmt.Sprintf("Oops! an error occured: %s", diceServerResponse.Error.Msg), w, r)
+			return nil
+
+		}
 	}
 
 	slackRollResponse := SlackRollJSONResponse{}
