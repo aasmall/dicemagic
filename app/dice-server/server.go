@@ -4,7 +4,6 @@ package main
 
 import (
 	"net"
-	"os"
 	"reflect"
 
 	"contrib.go.opencensus.io/exporter/stackdriver"
@@ -32,13 +31,9 @@ type envConfig struct {
 	projectID  string
 	logName    string
 	serverPort string
+	debug      bool
+	podName    string
 }
-
-type envReader struct {
-	missingKeys []string
-	errors      bool
-}
-
 type server struct {
 	env *env
 }
@@ -48,15 +43,6 @@ func newServer(e *env) *server {
 	return s
 }
 
-func (r *envReader) getEnv(key string) string {
-	if value, ok := os.LookupEnv(key); ok {
-		return value
-	}
-	r.errors = true
-	r.missingKeys = append(r.missingKeys, key)
-	return ""
-}
-
 func main() {
 	configReader := new(envReader)
 
@@ -64,6 +50,8 @@ func main() {
 		projectID:  configReader.getEnv("PROJECT_ID"),
 		logName:    configReader.getEnv("LOG_NAME"),
 		serverPort: configReader.getEnv("SERVER_PORT"),
+		debug:      configReader.getEnvBool("DEBUG"),
+		podName:    configReader.getEnv("HOSTNAME"),
 	}
 	if configReader.errors {
 		log.Fatalf("could not gather environment variables. Failed variables: %v", configReader.missingKeys)
@@ -78,7 +66,7 @@ func main() {
 	trace.RegisterExporter(exporter)
 
 	// Stackdriver Logger
-	env.log = logger.NewLogger(context.Background(), env.config.projectID, env.config.logName)
+	env.log = logger.NewLogger(context.Background(), env.config.projectID, env.config.logName, env.config.debug)
 	defer env.log.Info("Shutting down logger.")
 	defer env.log.Close()
 
@@ -204,23 +192,29 @@ func (s *server) Roll(ctx context.Context, in *pb.RollRequest) (*pb.RollResponse
 
 	ctx, parseSpan := trace.StartSpan(ctx, "Parse")
 	var p *dicelang.Parser
+	if in.Cmd == "" {
+		return &out, s.handleExposedErrors(errors.NewDicelangError("zero length command is invalid", errors.InvalidCommand, nil), &out)
+	}
 	p = dicelang.NewParser(in.Cmd)
 	tree, err := p.Statements()
 	parseSpan.End()
 
+	ctx, dsSpan := trace.StartSpan(ctx, "AST to Diceset")
+	defer dsSpan.End()
 	diceSets, err := astToPbDiceSets(in.Probabilities, in.Chart, in.RootOnly, tree)
 	if err != nil {
 		return &out, s.handleExposedErrors(err, &out)
 	}
 
-	if len(diceSets) <= 1 {
+	if len(diceSets) == 0 {
+
+	} else if len(diceSets) == 1 {
 		out.DiceSet = diceSets[0]
 	} else {
 		for _, ds := range diceSets {
 			out.DiceSets = append(out.DiceSets, ds)
 		}
 	}
-
 	out.Cmd = in.Cmd
 	return &out, nil
 }

@@ -16,7 +16,9 @@ import (
 	"contrib.go.opencensus.io/exporter/stackdriver"
 	"github.com/aasmall/dicemagic/app/handler"
 	"github.com/aasmall/dicemagic/app/logger"
+	"github.com/go-redis/redis"
 	"github.com/gorilla/mux"
+	"github.com/nlopes/slack"
 	"go.opencensus.io/plugin/ocgrpc"
 	"go.opencensus.io/plugin/ochttp"
 	"go.opencensus.io/trace"
@@ -24,26 +26,14 @@ import (
 	"google.golang.org/grpc"
 )
 
-type envReader struct {
-	missingKeys []string
-	errors      bool
-}
-
-func (r *envReader) getEnv(key string) string {
-	if value, ok := os.LookupEnv(key); ok {
-		return value
-	}
-	r.errors = true
-	r.missingKeys = append(r.missingKeys, key)
-	return ""
-}
-
 type env struct {
-	traceClient      *http.Client
-	datastoreClient  *datastore.Client
-	config           *envConfig
-	log              *logger.Logger
-	diceServerClient *grpc.ClientConn
+	traceClient        *http.Client
+	datastoreClient    *datastore.Client
+	config             *envConfig
+	log                *logger.Logger
+	diceServerClient   *grpc.ClientConn
+	redisClient        *redis.Client
+	openRTMConnections map[string]*slack.RTM
 }
 
 type envConfig struct {
@@ -60,6 +50,10 @@ type envConfig struct {
 	diceServerPort        string
 	slackTokenURL         string
 	slackAppID            string
+	redisPort             string
+	podName               string
+	LocalRedirectUri      string
+	debug                 bool
 	traceProbability      float64
 }
 
@@ -68,7 +62,6 @@ func main() {
 
 	// Gather Environment Variables
 	configReader := new(envReader)
-	traceProbability, ProbErr := strconv.ParseFloat(configReader.getEnv("TRACE_PROBABILITY"), 64)
 	config := &envConfig{
 		projectID:             configReader.getEnv("PROJECT_ID"),
 		kmsKeyring:            configReader.getEnv("KMS_KEYRING"),
@@ -83,18 +76,21 @@ func main() {
 		serverPort:            configReader.getEnv("SERVER_PORT"),
 		slackTokenURL:         configReader.getEnv("SLACK_TOKEN_URL"),
 		diceServerPort:        configReader.getEnv("DICE_SERVER_PORT"),
-		traceProbability:      traceProbability,
+		redisPort:             configReader.getEnv("REDIS_PORT"),
+		podName:               configReader.getEnv("HOSTNAME"),
+		LocalRedirectUri:      configReader.getEnv("REDIRECT_URI"),
+		debug:                 configReader.getEnvBool("DEBUG"),
+		traceProbability:      configReader.getEnvFloat("TRACE_PROBABILITY", 64),
 	}
 	if configReader.errors {
 		log.Fatalf("could not gather environment variables. Failed variables: %v", configReader.missingKeys)
 	}
-	if ProbErr != nil {
-		log.Fatalf("could not convert TRACE_PROBABILITY environment variable to float64: %s", ProbErr)
-	}
+
 	env := &env{config: config}
+	env.openRTMConnections = make(map[string]*slack.RTM)
 
 	// Stackdriver Logger
-	env.log = logger.NewLogger(ctx, env.config.projectID, env.config.logName)
+	env.log = logger.NewLogger(ctx, env.config.projectID, env.config.logName, env.config.debug)
 	env.log.Info("Logger up and running!")
 	defer log.Println("Shutting down logger.")
 	defer env.log.Close()
@@ -134,6 +130,13 @@ func main() {
 	}
 	env.diceServerClient = diceServerClient
 
+	// Redis Client
+	env.redisClient = redis.NewClient(&redis.Options{
+		Addr:     env.config.redisPort,
+		Password: "", // no password set
+		DB:       0,  // use default DB
+	})
+
 	// Define inbound Routes
 	r := mux.NewRouter()
 	r.Handle("/roll", handler.Handler{Env: env, H: QueryStringRollHandler})
@@ -153,19 +156,64 @@ func main() {
 		Handler:      openCensusWrapper, // Pass our instance of gorilla/mux and tracer in.
 	}
 
+	// Call chat-clients init
+	go func() {
+		for {
+			docChan, errc := getAllSlackInstallInstances(ctx, env)
+			select {
+			case err := <-errc:
+				if err != nil {
+					fmt.Printf("new error in channel: %+v\n", err)
+					env.log.Errorf("new error in channel: %+v", err)
+				}
+			case res := <-docChan:
+				if res != nil {
+					if res.doc != nil {
+						fmt.Printf("new instance in channel: %+v\n", res)
+						go SlackRTMInitCtx(ctx, res, env)
+					}
+				}
+			}
+			time.Sleep(time.Second * 10)
+		}
+	}()
+
+	// Rebalance Pods
+	go func() {
+		for {
+			for team, rtm := range env.openRTMConnections {
+				statusDocs, err := getAllStatusForTeamID(ctx, env, team)
+				if err != nil {
+					log.Fatalf("unable to get Slack Install Instance by Team: %s", team)
+					break
+				}
+				if len(statusDocs) != 1 {
+					log.Fatalf("multiple status docs for team: %s", team)
+					break
+				}
+				if statusDocs[0].Pod != env.config.podName {
+					rtm.Disconnect()
+					delete(env.openRTMConnections, team)
+				}
+			}
+			time.Sleep(time.Second * 10)
+		}
+	}()
+
 	// Run our server in a goroutine so that it doesn't block.
 	go func() {
-		if err := srv.ListenAndServe(); err != nil {
+		err := srv.ListenAndServe()
+		if err != nil {
 			log.Fatal(err)
 		}
 	}()
+	log.Println("chat-clients up.")
 
 	// We'll accept graceful shutdowns when quit via SIGINT (Ctrl+C)
 	// SIGKILL, SIGQUIT or SIGTERM (Ctrl+/)
 	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt, syscall.SIGTERM, syscall.SIGKILL, syscall.SIGQUIT)
+	signal.Notify(c, os.Interrupt, syscall.SIGKILL)
 
-	log.Println("chat-clients up.")
 	// Block until we receive our signal.
 	<-c
 
@@ -174,12 +222,20 @@ func main() {
 	defer cancel()
 	// Doesn't block if no connections, but will otherwise wait
 	// until the timeout deadline.
-	srv.Shutdown(ctx)
+	go srv.Shutdown(ctx)
+
+	// find and close all open slack RTM sessions
+	for _, rtm := range env.openRTMConnections {
+		rtm.Disconnect()
+	}
+	fmt.Println("shutting down...")
+	time.Sleep(time.Second * 5)
+	<-ctx.Done()
 	// Optionally, you could run srv.Shutdown in a goroutine and block on
 	// <-ctx.Done() if your application should wait for other services
 	// to finalize based on context cancellation.
-	log.Println("shutting down")
-	//os.Exit(0)
+	log.Println("shut down")
+	os.Exit(0)
 }
 
 func RootHandler(e interface{}, w http.ResponseWriter, r *http.Request) error {

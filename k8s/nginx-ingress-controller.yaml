@@ -7,6 +7,8 @@ metadata:
 
 kind: ConfigMap
 apiVersion: v1
+data:
+  enable-sticky-sessions: 'true'
 metadata:
   name: nginx-configuration
   namespace: ingress-nginx

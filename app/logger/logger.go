@@ -14,9 +14,10 @@ type Logger struct {
 	stackDriverLogger *logging.Logger
 	loggingClient     *logging.Client
 	httpRequest       *logging.HTTPRequest
+	debug             bool
 }
 
-func NewLogger(ctx context.Context, projectID string, logName string) *Logger {
+func NewLogger(ctx context.Context, projectID string, logName string, debug bool) *Logger {
 	logger := &Logger{}
 	loggingClient, err := logging.NewClient(ctx, projectID)
 	if err != nil {
@@ -24,6 +25,7 @@ func NewLogger(ctx context.Context, projectID string, logName string) *Logger {
 	}
 	logger.loggingClient = loggingClient
 	logger.stackDriverLogger = loggingClient.Logger(logName)
+	logger.debug = debug
 	return logger
 }
 
@@ -45,10 +47,12 @@ func (logger *Logger) Info(message interface{}) {
 	})
 }
 func (logger *Logger) Debug(message interface{}) {
-	logger.log(logging.Entry{
-		Payload:  message,
-		Severity: logging.Debug,
-	})
+	if logger.debug {
+		logger.log(logging.Entry{
+			Payload:  message,
+			Severity: logging.Debug,
+		})
+	}
 }
 func (logger *Logger) Error(message interface{}) {
 	logger.log(logging.Entry{

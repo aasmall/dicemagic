@@ -1,6 +1,9 @@
 package errors
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+)
 
 const (
 	InvalidAST = iota
@@ -54,4 +57,9 @@ func NewDicelangError(text string, code int32, inner error) *DicelangError {
 //New creates a new simple error
 func New(text string) error {
 	return errors.New(text)
+}
+
+//Newf creates a new simple error with fmt.Sprintf
+func Newf(text string, a ...interface{}) error {
+	return fmt.Errorf(text, a...)
 }
