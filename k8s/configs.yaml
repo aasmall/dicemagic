@@ -36,6 +36,16 @@ metadata:
 apiVersion: v1
 kind: ConfigMap
 data:
+    LOG_NAME: "dicemagic-logs"
+    GOOGLE_APPLICATION_CREDENTIALS: "/etc/google-default/k8s-dice-magic.json"
+    DEBUG: "false"
+metadata:
+  name: www-config
+  namespace: default
+---
+apiVersion: v1
+kind: ConfigMap
+data:
     GOOGLE_APPLICATION_CREDENTIALS: "/etc/certbot-dns/certbot-dns.json"
     DOMAINS: "www.dicemagic.io,api.dicemagic.io"
     EMAIL: certs@smallnet.org

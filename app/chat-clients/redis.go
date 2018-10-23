@@ -20,7 +20,12 @@ func PingPods(env *env) {
 }
 func DeleteSleepingPods(env *env) {
 	for {
-		hashMap := env.redisClient.HGetAll("pods").Val()
+		var hashMap map[string]string
+		if env.config.debug {
+			hashMap = env.redisClient.HGetAll("pods").Val()
+		} else {
+			hashMap = env.redisClusterClient.HGetAll("pods").Val()
+		}
 		for k, v := range hashMap {
 			fmt.Printf("k: %v\nv: %v\n\n", k, v)
 			lastCheckin, err := time.Parse(TIME_FORMAT, v)
