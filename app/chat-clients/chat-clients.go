@@ -133,11 +133,16 @@ func main() {
 
 	// Redis Client
 	env.redisClient = redis.NewClient(&redis.Options{
-		Addr:     env.config.redisPort,
+		Addr: env.config.redisPort,
+
 		Password: "", // no password set
 		DB:       0,  // use default DB
 	})
-	clusterIPs := []string{"redis-cluster-0.redis-cluster.default.svc.cluster.local:6379", "redis-cluster-1.redis-cluster.default.svc.cluster.local:6379", "redis-cluster-2.redis-cluster.default.svc.cluster.local:6379"}
+	clusterIPs := []string{
+		"redis-cluster-0.redis-cluster.default.svc.cluster.local:6379",
+		"redis-cluster-1.redis-cluster.default.svc.cluster.local:6379",
+		"redis-cluster-2.redis-cluster.default.svc.cluster.local:6379",
+	}
 	env.redisClusterClient = redis.NewClusterClient(&redis.ClusterOptions{
 		Addrs:    clusterIPs,
 		Password: "",

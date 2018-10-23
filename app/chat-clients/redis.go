@@ -11,7 +11,6 @@ func PingPods(env *env) {
 	for {
 		if env.config.debug {
 			env.redisClient.HSet("pods", env.config.podName, time.Now().Format(TIME_FORMAT))
-
 		} else {
 			env.redisClusterClient.HSet("pods", env.config.podName, time.Now().Format(TIME_FORMAT))
 		}
@@ -36,10 +35,10 @@ func DeleteSleepingPods(env *env) {
 			}
 			if time.Now().Sub(lastCheckin).Seconds() >= 10 {
 				if env.config.debug {
-
 					env.redisClient.HDel("pods", k)
 				} else {
-					env.redisClusterClient.HDel("pods", k)
+					res := env.redisClusterClient.HDel("pods", k)
+					fmt.Printf("DelResult: %+v", res)
 				}
 			}
 		}
