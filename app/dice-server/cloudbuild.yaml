@@ -28,9 +28,20 @@ steps:
             '-f', 'slim.dockerfile',
             '.'
         ]
+- name: 'gcr.io/cloud-builders/docker'
+  args: ["push", "gcr.io/k8s-dice-magic/dice-server:$COMMIT_SHA"]
 
+- name: 'gcr.io/cloud-builders/kubectl'
+  args:
+  - set
+  - image
+  - deployment
+  - dice-magic-app
+  - dice-server=gcr.io/k8s-dice-magic/dice-server:$COMMIT_SHA
+  env:
+  - 'CLOUDSDK_COMPUTE_ZONE=us-central1-a'
+  - 'CLOUDSDK_CONTAINER_CLUSTER=dice-magic'
 
 tags: ['$COMMIT_SHA']
 images: 
 - 'gcr.io/$PROJECT_ID/dice-server:latest'
-- 'gcr.io/$PROJECT_ID/dice-server:$COMMIT_SHA'

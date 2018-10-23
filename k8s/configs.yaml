@@ -1,4 +1,5 @@
 apiVersion: v1
+kind: ConfigMap
 data:
     PROJECT_ID: "k8s-dice-magic"
     KMS_KEYRING: "dice-magic"
@@ -14,24 +15,24 @@ data:
     DICE_SERVER_PORT: ":50051"
     GOOGLE_APPLICATION_CREDENTIALS: "/etc/google-default/k8s-dice-magic.json"
     DEBUG: "false"
-kind: ConfigMap
 metadata:
   name: chat-clients-config
   namespace: default
 ---
 apiVersion: v1
+kind: ConfigMap
 data:
     PROJECT_ID: "k8s-dice-magic"
     SERVER_PORT: ":50051"
     LOG_NAME: "dicemagic-logs"
     GOOGLE_APPLICATION_CREDENTIALS: "/etc/google-default/k8s-dice-magic.json"
     DEBUG: "false"
-kind: ConfigMap
 metadata:
   name: dice-server-config
   namespace: default
 ---
 apiVersion: v1
+kind: ConfigMap
 data:
     GOOGLE_APPLICATION_CREDENTIALS: "/etc/certbot-dns/certbot-dns.json"
     DOMAINS: "www.dicemagic.io,api.dicemagic.io"
@@ -39,7 +40,6 @@ data:
     SECRET: letsencrypt-certs
     DEPLOYMENT: basic-ingress
     NAMESPACE: default
-kind: ConfigMap
 metadata:
   name: certbot-config
   namespace: default

@@ -28,7 +28,6 @@ steps:
             '-f', 'slim.dockerfile',
             '.'
         ]
-
 - name: 'gcr.io/cloud-builders/docker'
   args: ["push", "gcr.io/k8s-dice-magic/chat-clients:$COMMIT_SHA"]
 
@@ -46,4 +45,3 @@ steps:
 tags: ['$COMMIT_SHA']
 images: 
 - 'gcr.io/$PROJECT_ID/chat-clients:latest'
-- 'gcr.io/$PROJECT_ID/chat-clients:$COMMIT_SHA'

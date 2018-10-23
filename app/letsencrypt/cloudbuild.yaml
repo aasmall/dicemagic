@@ -11,7 +11,20 @@ steps:
             '-f','dockerfile',
             '.'
         ]
+
+- name: 'gcr.io/cloud-builders/docker'
+  args: ["push", "gcr.io/k8s-dice-magic/letsencrypt:$COMMIT_SHA"]
+
+- name: 'gcr.io/cloud-builders/kubectl'
+  args:
+  - set
+  - image
+  - cronjob
+  - letsencrypt-job
+  - letsencrypt=gcr.io/k8s-dice-magic/letsencrypt:$COMMIT_SHA
+  env:
+  - 'CLOUDSDK_COMPUTE_ZONE=us-central1-a'
+  - 'CLOUDSDK_CONTAINER_CLUSTER=dice-magic'
 tags: ['$COMMIT_SHA']
 images:
 - 'gcr.io/$PROJECT_ID/letsencrypt:latest'
-- 'gcr.io/$PROJECT_ID/letsencrypt:$COMMIT_SHA'
