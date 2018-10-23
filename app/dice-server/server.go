@@ -51,7 +51,7 @@ func main() {
 		logName:    configReader.getEnv("LOG_NAME"),
 		serverPort: configReader.getEnv("SERVER_PORT"),
 		debug:      configReader.getEnvBool("DEBUG"),
-		podName:    configReader.getEnv("HOSTNAME"),
+		podName:    configReader.getEnv("POD_NAME"),
 	}
 	if configReader.errors {
 		log.Fatalf("could not gather environment variables. Failed variables: %v", configReader.missingKeys)

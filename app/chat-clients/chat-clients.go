@@ -77,7 +77,7 @@ func main() {
 		slackTokenURL:         configReader.getEnv("SLACK_TOKEN_URL"),
 		diceServerPort:        configReader.getEnv("DICE_SERVER_PORT"),
 		redisPort:             configReader.getEnv("REDIS_PORT"),
-		podName:               configReader.getEnv("HOSTNAME"),
+		podName:               configReader.getEnv("POD_NAME"),
 		LocalRedirectUri:      configReader.getEnv("REDIRECT_URI"),
 		debug:                 configReader.getEnvBool("DEBUG"),
 		traceProbability:      configReader.getEnvFloat("TRACE_PROBABILITY", 64),
