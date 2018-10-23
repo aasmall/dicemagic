@@ -33,6 +33,7 @@ type env struct {
 	log                *logger.Logger
 	diceServerClient   *grpc.ClientConn
 	redisClient        *redis.Client
+	redisClusterClient *redis.ClusterClient
 	openRTMConnections map[string]*slack.RTM
 }
 
@@ -135,6 +136,11 @@ func main() {
 		Addr:     env.config.redisPort,
 		Password: "", // no password set
 		DB:       0,  // use default DB
+	})
+	clusterIPs := []string{"redis-cluster-0.redis-cluster.default.svc.cluster.local", "redis-cluster-1.redis-cluster.default.svc.cluster.local", "redis-cluster-2.redis-cluster.default.svc.cluster.local"}
+	env.redisClusterClient = redis.NewClusterClient(&redis.ClusterOptions{
+		Addrs:    clusterIPs,
+		Password: "",
 	})
 
 	// Define inbound Routes

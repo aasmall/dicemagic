@@ -78,6 +78,11 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.name
+        - name: HOST_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+
         - name: SLACK_CLIENT_SECRET
           valueFrom:
             secretKeyRef:
