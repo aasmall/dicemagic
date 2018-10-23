@@ -9,7 +9,6 @@ import (
 	"math/rand"
 	"net/http"
 	"strconv"
-	"time"
 
 	"cloud.google.com/go/datastore"
 	pb "github.com/aasmall/dicemagic/app/proto"
@@ -29,17 +28,6 @@ type SlackInstallInstanceDoc struct {
 	TeamID   string `json:"team_id"`
 	TeamName string `json:"team_name"`
 	UserID   string `json:"user_id"`
-}
-type SlackTeam struct {
-	Key      *datastore.Key `datastore:"__key__"`
-	TeamID   string
-	TeamName string
-}
-type SlackInstallInstanceStatusDoc struct {
-	Key      *datastore.Key `datastore:"__key__"`
-	Pod      string
-	LastSeen time.Time
-	Open     bool
 }
 
 //SlackRollJSONResponse is the response format for slack commands

@@ -21,9 +21,14 @@ spec:
       labels:
         app: dice-magic-app
     spec:
-
       containers:
       - name: dice-server
+        securityContext:
+          privileged: false
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          capabilities:
+            drop: ["ALL"]
         image: gcr.io/k8s-dice-magic/dice-server:latest
         resources:
           limits:
@@ -48,6 +53,12 @@ spec:
           name: google-default
           readOnly: true
       - name: chat-clients
+        securityContext:
+          privileged: false
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          capabilities:
+            drop: ["ALL"]
         image: gcr.io/k8s-dice-magic/chat-clients:latest
         resources:
           limits:
@@ -84,12 +95,6 @@ spec:
       dnsPolicy: ClusterFirst
       restartPolicy: Always
       schedulerName: default-scheduler
-      securityContext:
-        privileged: false
-        allowPrivilegeEscalation: false
-        runAsNonRoot: true
-        capabilities:
-          drop: ["ALL"]
       terminationGracePeriodSeconds: 10
       volumes:
       - name: google-default

@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
+
+	"github.com/serialx/hashring"
 
 	"github.com/aasmall/dicemagic/app/dicelang/errors"
 	"github.com/nlopes/slack"
@@ -14,7 +17,7 @@ func SlackRTMInitCtx(ctx context.Context, safeDoc *tsSlackInstallInstanceDoc, en
 	safeDoc.mux.Lock()
 	defer safeDoc.mux.Unlock()
 	installDoc := safeDoc.doc
-	log.Printf("Setting up RTM to Slack for: %s", installDoc.TeamName)
+	env.log.Debugf("Setting up RTM to Slack for: %s", installDoc.TeamName)
 	botAccessToken, err := decrypt(ctx, env, installDoc.Bot.EncBotAccessToken)
 	if err != nil {
 		log.Panic("could not decrypt access token")
@@ -29,7 +32,7 @@ func SlackRTMInitCtx(ctx context.Context, safeDoc *tsSlackInstallInstanceDoc, en
 
 	err = updateSlackInstanceStatusLastSeen(ctx, env, env.config.podName, installDoc.Key.Parent, true)
 	if err != nil {
-		fmt.Printf("Could not set doc to Open: %+v\n", err)
+		env.log.Debugf("Could not set doc to Open: %+v\n", err)
 		return
 	}
 	go rtm.ManageConnection()
@@ -38,7 +41,7 @@ func SlackRTMInitCtx(ctx context.Context, safeDoc *tsSlackInstallInstanceDoc, en
 		fmt.Print("Event Received: ")
 		err := updateSlackInstanceStatusLastSeen(ctx, env, env.config.podName, installDoc.Key.Parent, true)
 		if err != nil {
-			fmt.Printf("Could not set doc to Open: %+v\n", err)
+			env.log.Debugf("Could not set doc to Open: %+v\n", err)
 			return
 		}
 		switch ev := msg.Data.(type) {
@@ -46,22 +49,12 @@ func SlackRTMInitCtx(ctx context.Context, safeDoc *tsSlackInstallInstanceDoc, en
 			// Ignore hello
 
 		case *slack.ConnectedEvent:
-			fmt.Println("Infos:", ev.Info)
-			fmt.Println("Connection counter:", ev.ConnectionCount)
-			// Replace C2147483705 with your Channel ID
-			c, err := slackApi.GetChannelInfoContext(ctx, "CDKK8HPL7")
-			if err != nil {
-				fmt.Printf("error getting channel info: %s\n", err)
-				rtm.Disconnect()
-				return
-			}
-			fmt.Printf("Channel: %v\n", c)
-			rtm.SendMessage(rtm.NewOutgoingMessage("Hello world", c.ID))
-
+			env.log.Debugf("slack.ConnectedEvent Infos: %v", ev.Info)
+			env.log.Debugf("Connection counter: %v", ev.ConnectionCount)
 		case *slack.MessageEvent:
-			fmt.Printf("message: %+v\n", ev)
+			env.log.Debugf("message: %+v\n", ev)
 			if DetectDM(ctx, slackApi, ev.Channel) && ev.SubType != "bot_message" {
-				fmt.Printf("\n\nIS DM: %s\n", ev.Text)
+				env.log.Debugf("\n\nIS DM: %s\n", ev.Text)
 				rollResponse, err := Roll(env.diceServerClient, ev.Text)
 				if err != nil {
 					env.log.Errorf("Unexpected error: %+v", err)
@@ -84,42 +77,96 @@ func SlackRTMInitCtx(ctx context.Context, safeDoc *tsSlackInstallInstanceDoc, en
 				slackApi.PostMessage(ev.Channel, slack.MsgOptionAttachments(attachment))
 			}
 
-		case *slack.PresenceChangeEvent:
-			fmt.Printf("Presence Change: %v\n", ev)
-
-		case *slack.LatencyReport:
-			fmt.Printf("Current latency: %v\n", ev.Value)
-
 		case *slack.RTMError:
-			fmt.Printf("Error: %s\n", ev.Error())
+			env.log.Errorf("RTM Error: %s", ev.Error())
 
 		case *slack.InvalidAuthEvent:
 			rtm.Disconnect()
 			delete(env.openRTMConnections, installDoc.TeamID)
-			fmt.Printf("Invalid credentials\n")
+			env.log.Debug("Invalid credentials\n")
 			err := updateSlackInstanceStatusLastSeen(ctx, env, env.config.podName, installDoc.Key.Parent, false)
 			if err != nil {
-				fmt.Printf("Could not set doc to Closed: %+v\n", err)
+				env.log.Debugf("Could not set doc to Closed: %+v\n", err)
 				return
 			}
 			err = deleteSlackInstallInstance(ctx, env, installDoc.Key)
 			if err != nil {
-				fmt.Printf("error deleting install instance: %s", err)
+				env.log.Debugf("error deleting install instance: %s", err)
 			}
 			break
 
 		default:
-
-			// Ignore other events..
-			// fmt.Printf("Unexpected: %v\n", msg.Data)
 		}
 	}
 	err = updateSlackInstanceStatusLastSeen(ctx, env, env.config.podName, installDoc.Key.Parent, false)
 	if err != nil {
-		fmt.Printf("Could not set status to closed: %+v\n", err)
+		env.log.Debugf("Could not set status to closed: %+v\n", err)
 		return
 	}
 	fmt.Print("done")
+}
+
+func ManageSlackConnections(ctx context.Context, env *env) {
+	for {
+		docChan, errc := getAllSlackInstallInstances(ctx, env)
+		select {
+		case err := <-errc:
+			if err != nil {
+				env.log.Errorf("new error in channel: %+v", err)
+			}
+		case res := <-docChan:
+			if res != nil {
+				if res.doc != nil {
+					env.log.Debugf("new instance in channel: %+v\n", res)
+					go SlackRTMInitCtx(ctx, res, env)
+				}
+			}
+		}
+	}
+	time.Sleep(time.Second * 5)
+}
+func RebalancePods(ctx context.Context, env *env) {
+	for {
+		// Create a ring hash and assign all teams to pods
+		teams, err := getAllTeams(ctx, env)
+		if err != nil {
+			env.log.Criticalf("Failed to get Team Keys: %v", err)
+			continue
+		}
+		pods := GetPods(env)
+		ring := hashring.New(pods)
+
+		for team := range teams {
+			pod, ok := ring.GetNode(team)
+			if !ok {
+				env.log.Criticalf("Failed to get pod(%s) for team(%s) ", pod, team)
+				continue
+			}
+			err := AssignTeamToPod(ctx, env, teams[team], pod)
+			if err != nil {
+				env.log.Criticalf("Failed to assign team(%s) to pod(%s): %v", team, pod, err)
+				continue
+			}
+		}
+
+		// kill connections that aren't on the correct pod.
+		for team, rtm := range env.openRTMConnections {
+			statusDocs, err := getAllStatusForTeamID(ctx, env, team)
+			if err != nil {
+				log.Fatalf("unable to get Slack Install Instance by Team: %s", team)
+				break
+			}
+			if len(statusDocs) != 1 {
+				log.Fatalf("multiple status docs for team: %s", team)
+				break
+			}
+			if statusDocs[0].Pod != env.config.podName {
+				rtm.Disconnect()
+				delete(env.openRTMConnections, team)
+			}
+		}
+		time.Sleep(time.Second * 5)
+	}
 }
 
 func DetectDM(ctx context.Context, slackAPI *slack.Client, channel string) bool {

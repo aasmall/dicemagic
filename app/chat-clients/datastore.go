@@ -12,6 +12,43 @@ import (
 	"google.golang.org/api/iterator"
 )
 
+type SlackTeam struct {
+	Key      *datastore.Key `datastore:"__key__"`
+	TeamID   string
+	TeamName string
+	Pod      string
+}
+type SlackInstallInstanceStatusDoc struct {
+	Key      *datastore.Key `datastore:"__key__"`
+	Pod      string
+	LastSeen time.Time
+	Open     bool
+}
+
+func AssignTeamToPod(ctx context.Context, env *env, teamKey *datastore.Key, pod string) error {
+	var err error
+	_, err = env.datastoreClient.RunInTransaction(ctx, func(tx *datastore.Transaction) error {
+		team := &SlackTeam{}
+		err := env.datastoreClient.Get(ctx, teamKey, team)
+		if err != nil {
+			env.log.Errorf("could not get team to assign to pod: %s", err)
+			return err
+		}
+		team.Pod = pod
+		_, err = env.datastoreClient.Put(ctx, teamKey, team)
+		if err != nil {
+			env.log.Errorf("could not put team to assign to pod: %s", err)
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func upsetSlackTeam(ctx context.Context, env *env, team *SlackTeam) (*datastore.Key, error) {
 	var err error
 	var k *datastore.Key
@@ -117,13 +154,31 @@ func updateSlackInstanceStatusLastSeen(ctx context.Context, env *env, pod string
 	})
 	return err
 }
-func getAllTeamsKeys(ctx context.Context, env *env) (*[]*datastore.Key, error) {
-	q := datastore.NewQuery("SlackTeam").KeysOnly()
-	teamKeys, err := env.datastoreClient.GetAll(ctx, q, nil)
+func getAllTeams(ctx context.Context, env *env) (map[string]*datastore.Key, error) {
+	q := datastore.NewQuery("SlackTeam")
+	var teams []SlackTeam
+	_, err := env.datastoreClient.GetAll(ctx, q, &teams)
 	if err != nil {
 		return nil, err
 	}
-	return &teamKeys, nil
+	retMap := make(map[string]*datastore.Key)
+	for _, team := range teams {
+		retMap[team.TeamID] = team.Key
+	}
+	return retMap, nil
+}
+func getAllTeamsForPod(ctx context.Context, env *env) (map[string]*datastore.Key, error) {
+	q := datastore.NewQuery("SlackTeam").Filter("Pod =", env.config.podName)
+	var teams []SlackTeam
+	_, err := env.datastoreClient.GetAll(ctx, q, &teams)
+	if err != nil {
+		return nil, err
+	}
+	retMap := make(map[string]*datastore.Key)
+	for _, team := range teams {
+		retMap[team.TeamID] = team.Key
+	}
+	return retMap, nil
 }
 
 func getAllStatusForTeamID(ctx context.Context, env *env, teamID string) ([]SlackInstallInstanceStatusDoc, error) {
@@ -174,7 +229,7 @@ type tsSlackInstallInstanceDoc struct {
 func getAllSlackInstallInstances(ctx context.Context, env *env) (<-chan *tsSlackInstallInstanceDoc, <-chan error) {
 	out := make(chan *tsSlackInstallInstanceDoc)
 	outErr := make(chan error)
-	teamKeys, err := getAllTeamsKeys(ctx, env)
+	teams, err := getAllTeamsForPod(ctx, env)
 	if err != nil {
 		env.log.Criticalf("could not get team keys: %s", err)
 		outErr <- err
@@ -184,7 +239,7 @@ func getAllSlackInstallInstances(ctx context.Context, env *env) (<-chan *tsSlack
 	}
 	var wg sync.WaitGroup
 	go func() {
-		for _, key := range *teamKeys {
+		for _, key := range teams {
 			wg.Add(1)
 			q := datastore.NewQuery("SlackInstallInstance").Ancestor(key)
 			go func(q datastore.Query, key *datastore.Key) {

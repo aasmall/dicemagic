@@ -157,57 +157,21 @@ func main() {
 	}
 
 	// Call chat-clients init
-	go func() {
-		for {
-			docChan, errc := getAllSlackInstallInstances(ctx, env)
-			select {
-			case err := <-errc:
-				if err != nil {
-					fmt.Printf("new error in channel: %+v\n", err)
-					env.log.Errorf("new error in channel: %+v", err)
-				}
-			case res := <-docChan:
-				if res != nil {
-					if res.doc != nil {
-						fmt.Printf("new instance in channel: %+v\n", res)
-						go SlackRTMInitCtx(ctx, res, env)
-					}
-				}
-			}
-			time.Sleep(time.Second * 10)
-		}
-	}()
+	go ManageSlackConnections(ctx, env)
+	go RebalancePods(ctx, env)
 
-	// Rebalance Pods
-	go func() {
-		for {
-			for team, rtm := range env.openRTMConnections {
-				statusDocs, err := getAllStatusForTeamID(ctx, env, team)
-				if err != nil {
-					log.Fatalf("unable to get Slack Install Instance by Team: %s", team)
-					break
-				}
-				if len(statusDocs) != 1 {
-					log.Fatalf("multiple status docs for team: %s", team)
-					break
-				}
-				if statusDocs[0].Pod != env.config.podName {
-					rtm.Disconnect()
-					delete(env.openRTMConnections, team)
-				}
-			}
-			time.Sleep(time.Second * 10)
-		}
-	}()
+	// advertise that I'm alive. Delete pods that aren't
+	go PingPods(env)
+	go DeleteSleepingPods(env)
 
 	// Run our server in a goroutine so that it doesn't block.
 	go func() {
 		err := srv.ListenAndServe()
+		log.Println("chat-clients up.")
 		if err != nil {
 			log.Fatal(err)
 		}
 	}()
-	log.Println("chat-clients up.")
 
 	// We'll accept graceful shutdowns when quit via SIGINT (Ctrl+C)
 	// SIGKILL, SIGQUIT or SIGTERM (Ctrl+/)

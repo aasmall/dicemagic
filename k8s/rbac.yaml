@@ -96,3 +96,6 @@ subjects:
 - kind: ServiceAccount # Omit apiGroup
   name: nginx-ingress-serviceaccount
   namespace: ingress-nginx
+- kind: ServiceAccount # Omit apiGroup
+  name: redis-serviceaccount
+  namespace: default
