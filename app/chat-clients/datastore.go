@@ -175,12 +175,12 @@ func getAllTeamsForPod(ctx context.Context, env *env) (map[string]*datastore.Key
 		return nil, err
 	}
 	retMap := make(map[string]*datastore.Key)
-	if env.config.debug {
-		fmt.Printf("keys for pod(%s): %+v", env.config.podName, retMap)
-	}
 	env.log.Infof("keys for pod(%s): %+v", env.config.podName, retMap)
 	for _, team := range teams {
 		retMap[team.TeamID] = team.Key
+	}
+	if env.config.debug {
+		fmt.Printf("keys for pod(%s): %+v", env.config.podName, retMap)
 	}
 	return retMap, nil
 }
