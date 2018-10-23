@@ -82,7 +82,7 @@ func main() {
 		podName:               configReader.getEnv("POD_NAME"),
 		LocalRedirectUri:      configReader.getEnv("REDIRECT_URI"),
 		debug:                 configReader.getEnvBool("DEBUG"),
-		local:                 configReader.getEnvBool("local"),
+		local:                 configReader.getEnvBool("LOCAL"),
 		traceProbability:      configReader.getEnvFloat("TRACE_PROBABILITY", 64),
 	}
 	if configReader.errors {
