@@ -28,7 +28,6 @@ func DeleteSleepingPods(env *env) {
 			if err != nil {
 				env.log.Criticalf("Error parsing time. Deleting offending entry(%s): %v", k, err)
 				if env.config.debug {
-
 					env.redisClient.HDel("pods", k)
 				} else {
 					env.redisClusterClient.HDel("pods", k)
