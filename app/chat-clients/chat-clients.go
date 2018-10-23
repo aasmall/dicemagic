@@ -212,7 +212,7 @@ func main() {
 	// We'll accept graceful shutdowns when quit via SIGINT (Ctrl+C)
 	// SIGKILL, SIGQUIT or SIGTERM (Ctrl+/)
 	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt, syscall.SIGKILL)
+	signal.Notify(c, syscall.SIGINT, syscall.SIGTERM)
 
 	// Block until we receive our signal.
 	<-c
@@ -222,20 +222,17 @@ func main() {
 	defer cancel()
 	// Doesn't block if no connections, but will otherwise wait
 	// until the timeout deadline.
-	go srv.Shutdown(ctx)
-
-	// find and close all open slack RTM sessions
-	for _, rtm := range env.openRTMConnections {
-		rtm.Disconnect()
-	}
-	fmt.Println("shutting down...")
-	time.Sleep(time.Second * 5)
+	go func() {
+		// find and close all open slack RTM sessions
+		for _, rtm := range env.openRTMConnections {
+			rtm.Disconnect()
+		}
+		fmt.Println("shutting down...")
+		srv.Shutdown(ctx)
+	}()
 	<-ctx.Done()
-	// Optionally, you could run srv.Shutdown in a goroutine and block on
-	// <-ctx.Done() if your application should wait for other services
-	// to finalize based on context cancellation.
 	log.Println("shut down")
-	os.Exit(0)
+	//os.Exit(0)
 }
 
 func RootHandler(e interface{}, w http.ResponseWriter, r *http.Request) error {

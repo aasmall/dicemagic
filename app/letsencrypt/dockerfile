@@ -9,21 +9,19 @@ RUN apk add --no-cache shadow \
 RUN apk add --no-cache lighttpd bash python curl python-dev musl-dev libffi-dev openssl-dev gcc ca-certificates
 
 RUN mkdir /certbot
-RUN mkdir /var/www/dicemagic
 COPY . /certbot
 
 WORKDIR /certbot
 
-RUN wget https://bootstrap.pypa.io/get-pip.py
-RUN python get-pip.py
-RUN pip install virtualenv
-RUN pip install certbot
-RUN pip install certbot-dns-google
-RUN rm get-pip.py
-
-#RUN apk del gcc python-dev musl-dev libffi-dev openssl-dev
+RUN wget https://bootstrap.pypa.io/get-pip.py \
+    && python get-pip.py \
+    &&  pip install virtualenv \
+    &&  pip install certbot \
+    &&  pip install certbot-dns-google \
+    &&  rm get-pip.py
 
 RUN chmod a+x renewcerts.sh
+RUN chown 1000:1000 -R /certbot
 
 USER 1000:1000
 ENTRYPOINT [ "/bin/bash", "renewcerts.sh" ]

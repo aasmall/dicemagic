@@ -29,6 +29,7 @@ metadata:
 ---
 apiVersion: v1
 data:
+    GOOGLE_APPLICATION_CREDENTIALS: "/etc/certbot-dns/certbot-dns.json"
     DOMAINS: "www.alpha.dicemagic.io,api.alpha.dicemagic.io"
     EMAIL: certs@smallnet.org
     SECRET: letsencrypt-certs

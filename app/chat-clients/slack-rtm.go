@@ -29,7 +29,7 @@ func SlackRTMInitCtx(ctx context.Context, safeDoc *tsSlackInstallInstanceDoc, en
 
 	err = updateSlackInstanceStatusLastSeen(ctx, env, env.config.podName, installDoc.Key.Parent, true)
 	if err != nil {
-		fmt.Println("Could not set doc to Open: %+v\n", err)
+		fmt.Printf("Could not set doc to Open: %+v\n", err)
 		return
 	}
 	go rtm.ManageConnection()
@@ -102,7 +102,7 @@ func SlackRTMInitCtx(ctx context.Context, safeDoc *tsSlackInstallInstanceDoc, en
 				fmt.Printf("Could not set doc to Closed: %+v\n", err)
 				return
 			}
-			err = deleteSlackInstallInstance(ctx, env, installDoc)
+			err = deleteSlackInstallInstance(ctx, env, installDoc.Key)
 			if err != nil {
 				fmt.Printf("error deleting install instance: %s", err)
 			}

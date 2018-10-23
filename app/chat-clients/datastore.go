@@ -192,7 +192,6 @@ func getAllSlackInstallInstances(ctx context.Context, env *env) (<-chan *tsSlack
 				defer wg.Done()
 				for t := env.datastoreClient.Run(ctx, &q); ; {
 					var doc SlackInstallInstanceDoc
-					fmt.Println("next doc")
 					_, err := t.Next(&doc)
 					if err == iterator.Done {
 						wg.Done()
@@ -217,7 +216,6 @@ func getAllSlackInstallInstances(ctx context.Context, env *env) (<-chan *tsSlack
 			}(*q, key)
 		}
 		wg.Wait()
-		fmt.Println("wg:done")
 		close(outErr)
 		close(out)
 	}()
@@ -245,6 +243,49 @@ func getFirstSlackInstallInstanceByTeamID(ctx context.Context, env *env, teamID 
 	return &docs[0], nil
 }
 
-func deleteSlackInstallInstance(ctx context.Context, env *env, doc *SlackInstallInstanceDoc) error {
-	return env.datastoreClient.Delete(ctx, doc.Key)
+func deleteSlackInstallInstance(ctx context.Context, env *env, key *datastore.Key) error {
+	_, err := env.datastoreClient.RunInTransaction(ctx, func(tx *datastore.Transaction) error {
+
+		err := env.datastoreClient.Delete(ctx, key)
+		if err != nil {
+			return err
+		}
+		// Delete team and all children if this was the last instance
+		q := datastore.NewQuery("SlackInstallInstance").Ancestor(key.Parent).KeysOnly()
+		allKeys, err := env.datastoreClient.GetAll(ctx, q, nil)
+		if err != nil {
+			return err
+		}
+		if len(allKeys) == 0 {
+			err = deleteWithAllChildren(ctx, env, key.Parent)
+		}
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	return nil
+
+}
+
+func deleteWithAllChildren(ctx context.Context, env *env, key *datastore.Key) error {
+	_, err := env.datastoreClient.RunInTransaction(ctx, func(tx *datastore.Transaction) error {
+		q := datastore.NewQuery("").Ancestor(key).KeysOnly()
+		allKeys, err := env.datastoreClient.GetAll(ctx, q, nil)
+		if err != nil {
+			return err
+		}
+		err = env.datastoreClient.DeleteMulti(ctx, append(allKeys, key))
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	return nil
 }

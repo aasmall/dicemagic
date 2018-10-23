@@ -21,6 +21,10 @@ spec:
         ports:
         - name: letsencrypt
           containerPort: 8080
+        volumeMounts:
+        - mountPath: /etc/certbot-dns
+          name: certbot-dns
+          readOnly: true
         envFrom:
         - configMapRef:
             name: certbot-config
@@ -31,4 +35,9 @@ spec:
           capabilities:
             drop: ["ALL"]
       restartPolicy: Never
+      volumes:
+      - name: certbot-dns
+        secret:
+          defaultMode: 420
+          secretName: certbot-dns 
   backoffLimit: 1
