@@ -14,7 +14,8 @@ data:
     SLACK_TOKEN_URL: "https://slack.com/api/oauth.access"
     DICE_SERVER_PORT: ":50051"
     GOOGLE_APPLICATION_CREDENTIALS: "/etc/google-default/k8s-dice-magic.json"
-    DEBUG: "false"
+    DEBUG: "true"
+    LOCAL: "false"
     REDIS_PORT: ":6379" 
     REDIRECT_URI: ""
 metadata:
@@ -29,6 +30,7 @@ data:
     LOG_NAME: "dicemagic-logs"
     GOOGLE_APPLICATION_CREDENTIALS: "/etc/google-default/k8s-dice-magic.json"
     DEBUG: "false"
+    LOCAL: "false"
 metadata:
   name: dice-server-config
   namespace: default
@@ -39,6 +41,7 @@ data:
     LOG_NAME: "dicemagic-logs"
     GOOGLE_APPLICATION_CREDENTIALS: "/etc/google-default/k8s-dice-magic.json"
     DEBUG: "false"
+    LOCAL: "false"
 metadata:
   name: www-config
   namespace: default
@@ -52,6 +55,8 @@ data:
     SECRET: letsencrypt-certs
     DEPLOYMENT: basic-ingress
     NAMESPACE: default
+    DEBUG: "false"
+    LOCAL: "false"
 metadata:
   name: certbot-config
   namespace: default

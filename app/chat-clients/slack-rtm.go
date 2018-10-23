@@ -135,16 +135,16 @@ func RebalancePods(ctx context.Context, env *env) {
 		}
 		pods := GetPods(env)
 		ring := hashring.New(pods)
-
-		for team := range teams {
-			pod, ok := ring.GetNode(team)
+		for k, v := range teams {
+			pod, ok := ring.GetNode(k)
 			if !ok {
-				env.log.Criticalf("Failed to get pod(%s) for team(%s) ", pod, team)
+				env.log.Criticalf("Failed to get pod(%s) for team(%s) ", pod, k)
 				continue
 			}
-			err := AssignTeamToPod(ctx, env, teams[team], pod)
+			env.log.Debugf("assigning pod(%s) to teamID (%s) with key: %+v", pod, k, v)
+			err := AssignTeamToPod(ctx, env, v, pod)
 			if err != nil {
-				env.log.Criticalf("Failed to assign team(%s) to pod(%s): %v", team, pod, err)
+				env.log.Criticalf("Failed to assign team(%s) to pod(%s): %v", k, pod, err)
 				continue
 			}
 		}

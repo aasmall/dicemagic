@@ -55,6 +55,7 @@ type envConfig struct {
 	podName               string
 	LocalRedirectUri      string
 	debug                 bool
+	local                 bool
 	traceProbability      float64
 }
 
@@ -81,6 +82,7 @@ func main() {
 		podName:               configReader.getEnv("POD_NAME"),
 		LocalRedirectUri:      configReader.getEnv("REDIRECT_URI"),
 		debug:                 configReader.getEnvBool("DEBUG"),
+		local:                 configReader.getEnvBool("local"),
 		traceProbability:      configReader.getEnvFloat("TRACE_PROBABILITY", 64),
 	}
 	if configReader.errors {
@@ -132,22 +134,24 @@ func main() {
 	env.diceServerClient = diceServerClient
 
 	// Redis Client
-	env.redisClient = redis.NewClient(&redis.Options{
-		Addr: env.config.redisPort,
+	if env.isLocal() {
+		env.redisClient = redis.NewClient(&redis.Options{
+			Addr: env.config.redisPort,
 
-		Password: "", // no password set
-		DB:       0,  // use default DB
-	})
-	clusterIPs := []string{
-		"redis-cluster-0.redis-cluster.default.svc.cluster.local:6379",
-		"redis-cluster-1.redis-cluster.default.svc.cluster.local:6379",
-		"redis-cluster-2.redis-cluster.default.svc.cluster.local:6379",
+			Password: "", // no password set
+			DB:       0,  // use default DB
+		})
+	} else {
+		clusterIPs := []string{
+			"redis-cluster-0.redis-cluster.default.svc.cluster.local:6379",
+			"redis-cluster-1.redis-cluster.default.svc.cluster.local:6379",
+			"redis-cluster-2.redis-cluster.default.svc.cluster.local:6379",
+		}
+		env.redisClusterClient = redis.NewClusterClient(&redis.ClusterOptions{
+			Addrs:    clusterIPs,
+			Password: "",
+		})
 	}
-	env.redisClusterClient = redis.NewClusterClient(&redis.ClusterOptions{
-		Addrs:    clusterIPs,
-		Password: "",
-	})
-
 	// Define inbound Routes
 	r := mux.NewRouter()
 	r.Handle("/roll", handler.Handler{Env: env, H: QueryStringRollHandler})
@@ -237,4 +241,11 @@ func FacesSliceString(faces []int64) string {
 		b = append(b, []byte(strconv.FormatInt(f, 10)))
 	}
 	return string(bytes.Join(b, []byte(", ")))
+}
+
+func (env *env) isLocalOrDebug() bool {
+	return env.config.debug || env.config.local
+}
+func (env *env) isLocal() bool {
+	return env.config.local
 }

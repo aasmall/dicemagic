@@ -21,19 +21,19 @@ func PingPods(env *env) {
 func DeleteSleepingPods(env *env) {
 	for {
 		var hashMap map[string]string
-		if env.config.debug {
+		if env.isLocal() {
 			hashMap = env.redisClient.HGetAll("pods").Val()
 		} else {
 			hashMap = env.redisClusterClient.HGetAll("pods").Val()
 		}
 		for k, v := range hashMap {
-			if env.config.debug {
+			if env.isLocal() {
 				fmt.Printf("k: %v\nv: %v\n\n", k, v)
 			}
 			lastCheckin, err := time.Parse(TIME_FORMAT, v)
 			if err != nil {
 				env.log.Criticalf("Error parsing time. Deleting offending entry(%s): %v", k, err)
-				if env.config.debug {
+				if env.isLocal() {
 					env.redisClient.HDel("pods", k)
 				} else {
 					env.redisClusterClient.HDel("pods", k)
@@ -41,7 +41,7 @@ func DeleteSleepingPods(env *env) {
 				continue
 			}
 			if time.Now().Sub(lastCheckin).Seconds() >= 10 {
-				if env.config.debug {
+				if env.isLocal() {
 					env.redisClient.HDel("pods", k)
 				} else {
 					res := env.redisClusterClient.HDel("pods", k)
@@ -54,7 +54,7 @@ func DeleteSleepingPods(env *env) {
 }
 
 func GetPods(env *env) []string {
-	if env.config.debug {
+	if env.isLocal() {
 		return env.redisClient.HKeys("pods").Val()
 	} else {
 		return env.redisClusterClient.HKeys("pods").Val()
