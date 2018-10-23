@@ -38,7 +38,7 @@ func SlackRTMInitCtx(ctx context.Context, safeDoc *tsSlackInstallInstanceDoc, en
 		fmt.Print("Event Received: ")
 		err := updateSlackInstanceStatusLastSeen(ctx, env, env.config.podName, installDoc.Key.Parent, true)
 		if err != nil {
-			fmt.Println("Could not set doc to Open: %+v\n", err)
+			fmt.Printf("Could not set doc to Open: %+v\n", err)
 			return
 		}
 		switch ev := msg.Data.(type) {
@@ -116,7 +116,7 @@ func SlackRTMInitCtx(ctx context.Context, safeDoc *tsSlackInstallInstanceDoc, en
 	}
 	err = updateSlackInstanceStatusLastSeen(ctx, env, env.config.podName, installDoc.Key.Parent, false)
 	if err != nil {
-		fmt.Println("Could not set status to closed: %+v\n", err)
+		fmt.Printf("Could not set status to closed: %+v\n", err)
 		return
 	}
 	fmt.Print("done")
