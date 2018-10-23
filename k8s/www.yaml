@@ -23,6 +23,7 @@ spec:
     spec:
       containers:
       - image: gcr.io/k8s-dice-magic/www:latest
+        name: www
         resources:
           limits:
             cpu: 100m
@@ -31,7 +32,6 @@ spec:
             cpu: 100m
             memory: 100Mi
         imagePullPolicy: Always
-        name: www
         envFrom:
         - configMapRef:
             name: www-config

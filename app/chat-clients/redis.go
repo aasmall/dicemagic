@@ -27,7 +27,9 @@ func DeleteSleepingPods(env *env) {
 			hashMap = env.redisClusterClient.HGetAll("pods").Val()
 		}
 		for k, v := range hashMap {
-			fmt.Printf("k: %v\nv: %v\n\n", k, v)
+			if env.config.debug {
+				fmt.Printf("k: %v\nv: %v\n\n", k, v)
+			}
 			lastCheckin, err := time.Parse(TIME_FORMAT, v)
 			if err != nil {
 				env.log.Criticalf("Error parsing time. Deleting offending entry(%s): %v", k, err)

@@ -10,7 +10,20 @@ steps:
             '--cache-from', 'gcr.io/$PROJECT_ID/www:latest',
             '.'
         ]
+- name: 'gcr.io/cloud-builders/docker'
+  args: ["push", "gcr.io/k8s-dice-magic/www:$COMMIT_SHA"]
+
+- name: 'gcr.io/cloud-builders/kubectl'
+  args:
+  - set
+  - image
+  - deployment
+  - www
+  - www=gcr.io/k8s-dice-magic/www:$COMMIT_SHA
+  env:
+  - 'CLOUDSDK_COMPUTE_ZONE=us-central1-a'
+  - 'CLOUDSDK_CONTAINER_CLUSTER=dice-magic'
+  
 tags: ['$COMMIT_SHA']
 images: 
 - 'gcr.io/$PROJECT_ID/www:latest'
-- 'gcr.io/$PROJECT_ID/www:$COMMIT_SHA'
