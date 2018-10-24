@@ -50,7 +50,7 @@ spec:
             secret:
               defaultMode: 420
               secretName: certbot-dns 
-      backoffLimit: 1
+      backoffLimit: 0
 ---
 apiVersion: v1
 kind: Secret

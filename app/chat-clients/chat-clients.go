@@ -204,7 +204,7 @@ func main() {
 			if env.ShuttingDown {
 				return
 			}
-			env.log.Criticalf("Report on open connections for (%s): %+v", env.config.podName, env.openRTMConnections)
+			env.log.Debugf("Report on open connections for (%s): %+v", env.config.podName, env.openRTMConnections)
 		}
 	}()
 

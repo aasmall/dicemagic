@@ -29,6 +29,7 @@ data:
     PROJECT_ID: "k8s-dice-magic"
     SERVER_PORT: ":50051"
     LOG_NAME: "dicemagic-logs"
+    TRACE_PROBABILITY: "100"
     GOOGLE_APPLICATION_CREDENTIALS: "/etc/google-default/k8s-dice-magic.json"
     DEBUG: "false"
     LOCAL: "false"
