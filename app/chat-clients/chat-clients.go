@@ -192,6 +192,15 @@ func main() {
 	go PingTeams(env, time.Second*10)
 	go Reap("pods", env, time.Second*5, time.Second*15)
 	go Reap("teams", env, time.Second*10, time.Second*15)
+
+	go func() {
+		ticker := time.NewTicker(time.Second * 30)
+		defer ticker.Stop()
+		for range ticker.C {
+			env.log.Criticalf("Report on open connections for (%s): %+v", env.config.podName, env.openRTMConnections)
+		}
+	}()
+
 	// Run our server in a goroutine so that it doesn't block.
 	go func() {
 		err := srv.ListenAndServe()
@@ -259,6 +268,7 @@ func (env *env) isLocal() bool {
 }
 func (env *env) Cleanup() {
 	go func() {
+
 		fmt.Println("cleaning up.")
 		env.ShuttingDown = true
 		for team, rtm := range env.openRTMConnections {

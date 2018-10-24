@@ -25,7 +25,7 @@ metadata:
 #         - containerPort: 16379
 #           hostPort: 16379
 ---
-  #
+#
 # Redis Cluster service
 #
 apiVersion: v1
@@ -37,8 +37,8 @@ metadata:
   labels:
     app: redis-cluster
 spec:
-  - port: 6379
   ports:
+  - port: 6379
     targetPort: 6379
     name: client
   - port: 16379
