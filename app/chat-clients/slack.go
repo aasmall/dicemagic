@@ -54,35 +54,34 @@ func returnErrorToSlack(text string, w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(SlackRollJSONResponse{Text: text})
 }
 
-func SlackAttachmentFromRollResponse(ds *pb.DiceSet) slack.Attachment {
-	retSlackAttachment := slack.Attachment{}
-	var faces []interface{}
-	for _, d := range ds.Dice {
-		faces = append(faces, FacesSliceString(d.Faces))
-	}
+func SlackAttachmentsFromRollResponse(rr *pb.RollResponse) []slack.Attachment {
 
-	for k, v := range ds.TotalsByColor {
-		var fieldTitle string
-		if k == "" && len(ds.TotalsByColor) == 1 {
-			fieldTitle = ""
-		} else if k == "" {
-			fieldTitle = "Unspecified"
-		} else {
-			fieldTitle = k
+	var sets []slack.Attachment
+	retSlackAttachment := slack.Attachment{
+		Fallback: TotalsMapString(rr.DiceSet.TotalsByColor),
+		Color:    stringToColor(rr.DiceSet.ReString),
+	}
+	var fields []slack.AttachmentField
+	for _, ds := range rr.DiceSets {
+		var faces []interface{}
+		for _, d := range ds.Dice {
+			faces = append(faces, FacesSliceString(d.Faces))
 		}
-		field := slack.AttachmentField{Title: fieldTitle, Value: strconv.FormatFloat(v, 'f', -1, 64), Short: true}
-		retSlackAttachment.Fields = append(retSlackAttachment.Fields, field)
+		field := slack.AttachmentField{
+			Value: fmt.Sprintf(ds.ReString, faces...),
+			Short: false,
+		}
+		field.Value = fmt.Sprintf("%s = *%s*", field.Value, strconv.FormatInt(ds.Total, 10))
+		fields = append(fields, field)
 	}
-	retSlackAttachment.Fallback = TotalsMapString(ds.TotalsByColor)
-	retSlackAttachment.AuthorName = fmt.Sprintf(ds.ReString, faces...)
-	retSlackAttachment.Color = stringToColor(ds.ReString)
-
-	if len(ds.Dice) > 1 {
-		field := slack.AttachmentField{Title: "Total", Value: strconv.FormatInt(ds.Total, 10), Short: false}
-		retSlackAttachment.Fields = append(retSlackAttachment.Fields, field)
+	if len(rr.DiceSets) > 1 {
+		fields = append(fields, slack.AttachmentField{
+			Title: fmt.Sprintf("Total: %s", strconv.FormatInt(rr.DiceSet.Total, 10)),
+			Short: false})
 	}
-
-	return retSlackAttachment
+	retSlackAttachment.Fields = fields
+	sets = append(sets, retSlackAttachment)
+	return sets
 }
 
 func stringToColor(input string) string {

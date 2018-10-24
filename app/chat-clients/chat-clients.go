@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -13,6 +12,8 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"cloud.google.com/go/logging"
 
 	"cloud.google.com/go/datastore"
 	"contrib.go.opencensus.io/exporter/stackdriver"
@@ -32,7 +33,7 @@ type env struct {
 	traceClient        *http.Client
 	datastoreClient    *datastore.Client
 	config             *envConfig
-	log                *logger.Logger
+	log                *log.Logger
 	diceServerClient   *grpc.ClientConn
 	redisClient        *redis.Client
 	redisClusterClient *redis.ClusterClient
@@ -65,7 +66,7 @@ type envConfig struct {
 }
 
 func main() {
-	fmt.Println("hello.")
+	log.Printf("hello.")
 	ctx := context.Background()
 
 	// Gather Environment Variables
@@ -101,11 +102,14 @@ func main() {
 	env.openRTMConnections = make(map[string]*slack.RTM)
 
 	// Stackdriver Logger
-	if env.isLocal() {
-		env.config.logName = fmt.Sprintf("%s%s", env.config.logName, "-local")
-		fmt.Println("changing logname to: ", env.config.logName)
-	}
-	env.log = logger.NewLogger(ctx, env.config.projectID, env.config.logName, env.config.debug)
+	env.log = log.New(
+		env.config.projectID,
+		log.WithDefaultSeverity(logging.Error),
+		log.WithDebug(env.config.debug),
+		log.WithLocal(env.config.local),
+		log.WithLogName(env.config.logName),
+		log.WithPrefix(env.config.podName+": "),
+	)
 	env.log.Debug("Logger up and running!")
 	defer log.Println("Shutting down logger.")
 	defer env.log.Close()
@@ -197,6 +201,9 @@ func main() {
 		ticker := time.NewTicker(time.Second * 30)
 		defer ticker.Stop()
 		for range ticker.C {
+			if env.ShuttingDown {
+				return
+			}
 			env.log.Criticalf("Report on open connections for (%s): %+v", env.config.podName, env.openRTMConnections)
 		}
 	}()

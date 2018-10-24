@@ -2,8 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
-	"os"
 	"time"
 
 	"github.com/serialx/hashring"
@@ -22,11 +20,12 @@ func SlackRTMInitCtx(ctx context.Context, installDoc *SlackInstallInstanceDoc, e
 	}
 	slackApi := slack.New(
 		botAccessToken,
-		slack.OptionDebug(true),
-		slack.OptionLog(log.New(os.Stdout, "slack-bot: ", log.Lshortfile|log.LstdFlags)),
+		slack.OptionDebug(env.config.debug),
+		slack.OptionLog(env.log),
 	)
 	rtm := slackApi.NewRTM()
 	env.openRTMConnections[installDoc.TeamID] = rtm
+	defer delete(env.openRTMConnections, installDoc.TeamID)
 	go rtm.ManageConnection()
 	for msg := range rtm.IncomingEvents {
 		fmt.Print("Event Received: ")
@@ -58,9 +57,8 @@ func SlackRTMInitCtx(ctx context.Context, installDoc *SlackInstallInstanceDoc, e
 
 					}
 				}
-
-				attachment := SlackAttachmentFromRollResponse(rollResponse.DiceSet)
-				slackApi.PostMessage(ev.Channel, slack.MsgOptionAttachments(attachment))
+				attachments := SlackAttachmentsFromRollResponse(rollResponse)
+				slackApi.PostMessage(ev.Channel, slack.MsgOptionAttachments(attachments...))
 			}
 
 		case *slack.RTMError:
@@ -68,7 +66,6 @@ func SlackRTMInitCtx(ctx context.Context, installDoc *SlackInstallInstanceDoc, e
 
 		case *slack.InvalidAuthEvent:
 			rtm.Disconnect()
-			delete(env.openRTMConnections, installDoc.TeamID)
 			env.log.Debug("Invalid credentials\n")
 			err = deleteSlackInstallInstance(ctx, env, installDoc.Key)
 			if err != nil {
@@ -79,12 +76,6 @@ func SlackRTMInitCtx(ctx context.Context, installDoc *SlackInstallInstanceDoc, e
 		default:
 		}
 	}
-	err = updateSlackInstanceStatusLastSeen(ctx, env, env.config.podName, installDoc.Key.Parent, false)
-	if err != nil {
-		env.log.Debugf("Could not set status to closed: %+v\n", err)
-		return
-	}
-	fmt.Print("done")
 }
 
 func (env *env) ManageSlackConnections(ctx context.Context, freq time.Duration) {
@@ -135,6 +126,9 @@ func (env *env) ManagePods(ctx context.Context, freq time.Duration) {
 		ticker := time.NewTicker(freq)
 		defer ticker.Stop()
 		for range ticker.C {
+			if env.ShuttingDown {
+				return
+			}
 			env.RebalancePods(ctx, freq*2)
 		}
 	}()

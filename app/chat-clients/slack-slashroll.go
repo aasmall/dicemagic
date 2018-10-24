@@ -35,7 +35,7 @@ func SlackSlashRollHandler(e interface{}, w http.ResponseWriter, r *http.Request
 	defer cancel()
 	cmd := s.Text
 	log.Debug(cmd)
-	diceServerResponse, err := rollerClient.Roll(timeOutCtx, &pb.RollRequest{Cmd: cmd})
+	diceServerResponse, err := rollerClient.Roll(timeOutCtx, &pb.RollRequest{Cmd: cmd, RootOnly: true})
 	if err != nil {
 		env.log.Errorf("Unexpected error: %+v", err)
 		returnErrorToSlack(fmt.Sprintf("Oops! an unexpected error occured: %s", err), w, r)
@@ -54,7 +54,7 @@ func SlackSlashRollHandler(e interface{}, w http.ResponseWriter, r *http.Request
 	}
 
 	webhookMessage := slack.WebhookMessage{}
-	webhookMessage.Attachments = append(webhookMessage.Attachments, SlackAttachmentFromRollResponse(diceServerResponse.DiceSet))
+	webhookMessage.Attachments = append(webhookMessage.Attachments, SlackAttachmentsFromRollResponse(diceServerResponse)...)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(webhookMessage)

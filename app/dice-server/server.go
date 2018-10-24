@@ -4,13 +4,11 @@ package main
 
 import (
 	"net"
-	"reflect"
 
+	"cloud.google.com/go/logging"
 	"contrib.go.opencensus.io/exporter/stackdriver"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
-
-	"log"
 
 	"github.com/aasmall/dicemagic/app/dicelang"
 	"github.com/aasmall/dicemagic/app/dicelang/errors"
@@ -23,16 +21,18 @@ import (
 )
 
 type env struct {
-	log    *logger.Logger
+	log    *log.Logger
 	config *envConfig
 }
 
 type envConfig struct {
-	projectID  string
-	logName    string
-	serverPort string
-	debug      bool
-	podName    string
+	projectID        string
+	logName          string
+	serverPort       string
+	debug            bool
+	local            bool
+	podName          string
+	traceProbability float64
 }
 type server struct {
 	env *env
@@ -47,11 +47,13 @@ func main() {
 	configReader := new(envReader)
 
 	config := &envConfig{
-		projectID:  configReader.getEnv("PROJECT_ID"),
-		logName:    configReader.getEnv("LOG_NAME"),
-		serverPort: configReader.getEnv("SERVER_PORT"),
-		debug:      configReader.getEnvBool("DEBUG"),
-		podName:    configReader.getEnv("POD_NAME"),
+		projectID:        configReader.getEnv("PROJECT_ID"),
+		logName:          configReader.getEnv("LOG_NAME"),
+		serverPort:       configReader.getEnv("SERVER_PORT"),
+		debug:            configReader.getEnvBoolOpt("DEBUG"),
+		local:            configReader.getEnvBoolOpt("LOCAL"),
+		traceProbability: configReader.getEnvFloat("TRACE_PROBABILITY"),
+		podName:          configReader.getEnv("POD_NAME"),
 	}
 	if configReader.errors {
 		log.Fatalf("could not gather environment variables. Failed variables: %v", configReader.missingKeys)
@@ -66,8 +68,16 @@ func main() {
 	trace.RegisterExporter(exporter)
 
 	// Stackdriver Logger
-	env.log = logger.NewLogger(context.Background(), env.config.projectID, env.config.logName, env.config.debug)
-	defer env.log.Info("Shutting down logger.")
+	env.log = log.New(
+		env.config.projectID,
+		log.WithDefaultSeverity(logging.Error),
+		log.WithDebug(env.config.debug),
+		log.WithLocal(env.config.local),
+		log.WithLogName(env.config.logName),
+		log.WithPrefix(env.config.podName+": "),
+	)
+	env.log.Debug("Logger up and running!")
+	defer log.Println("Shutting down logger.")
 	defer env.log.Close()
 
 	lis, err := net.Listen("tcp", env.config.serverPort)
@@ -88,11 +98,12 @@ func main() {
 }
 
 func (s *server) handleExposedErrors(e error, response *pb.RollResponse) error {
+	log := s.env.log
 	response.Error = &pb.RollError{}
 	response.Ok = false
 	switch e := e.(type) {
 	case *errors.DicelangError:
-		log.Println("DiceLangError")
+		log.Debugf("DiceLangError: %+v", e)
 		response.Error.Code = e.Code
 		switch response.Error.Code {
 		case errors.InvalidAST:
@@ -109,44 +120,44 @@ func (s *server) handleExposedErrors(e error, response *pb.RollResponse) error {
 		response.Error.Code = errors.Unexpected
 		response.Error.Msg = "An unexpected Error has occured. Please try again later"
 		s.env.log.Criticalf("An unhandled error occured: %+v", e)
-		log.Printf("%+v: An unhandled error occured: %+v", reflect.TypeOf(e).Elem(), e)
 		return e
 	}
 	return nil
 }
 
-func astToPbDiceSets(p bool, c bool, ro bool, tree *dicelang.AST) ([]*pb.DiceSet, error) {
-
+func (s *server) astToPbDiceSets(p bool, c bool, ro bool, tree *dicelang.AST) (*pb.DiceSet, []*pb.DiceSet, error) {
+	log := s.env.log
+	if tree == nil {
+		return nil, nil, errors.NewDicelangError("No dice sets resulted from that command", errors.InvalidCommand, nil)
+	}
+	total, ds, err := tree.GetDiceSet()
+	if err != nil {
+		return nil, nil, err
+	}
+	restring, err := tree.String()
+	if err != nil {
+		return nil, nil, err
+	}
+	pbDiceSet := &pb.DiceSet{
+		Dice:          diceToPbDice(p, c, ds.Dice...),
+		TotalsByColor: ds.TotalsByColor,
+		Total:         int64(total),
+		ReString:      restring,
+	}
 	if ro {
-		total, ds, err := tree.GetDiceSet()
-		if err != nil {
-			return []*pb.DiceSet{}, err
-		}
-		restring, err := tree.String()
-		if err != nil {
-			return []*pb.DiceSet{}, err
-		}
-		pbDiceSet := &pb.DiceSet{
-			Dice:          diceToPbDice(p, c, ds.Dice...),
-			TotalsByColor: ds.TotalsByColor,
-			Total:         int64(total),
-			ReString:      restring,
-		}
-		return append([]*pb.DiceSet{}, pbDiceSet), nil
+		return pbDiceSet, []*pb.DiceSet{}, nil
 	}
 
 	var outDiceSets []*pb.DiceSet
-	if tree == nil {
-		return nil, errors.NewDicelangError("No dice sets resulted from that command", errors.InvalidCommand, nil)
-	}
 	for _, child := range tree.Children {
+		log.Debugf("child: %+v", child)
 		total, ds, err := child.GetDiceSet()
 		if err != nil {
-			return []*pb.DiceSet{}, err
+			return nil, nil, err
 		}
-		restring, err := tree.String()
+		restring, err := child.String()
 		if err != nil {
-			return []*pb.DiceSet{}, err
+			return nil, nil, err
 		}
 		outDiceSets = append(outDiceSets,
 			&pb.DiceSet{
@@ -157,7 +168,7 @@ func astToPbDiceSets(p bool, c bool, ro bool, tree *dicelang.AST) ([]*pb.DiceSet
 			})
 	}
 
-	return outDiceSets, nil
+	return pbDiceSet, outDiceSets, nil
 }
 
 func diceToPbDice(p bool, c bool, dice ...dicelang.Dice) []*pb.Dice {
@@ -201,19 +212,13 @@ func (s *server) Roll(ctx context.Context, in *pb.RollRequest) (*pb.RollResponse
 
 	ctx, dsSpan := trace.StartSpan(ctx, "AST to Diceset")
 	defer dsSpan.End()
-	diceSets, err := astToPbDiceSets(in.Probabilities, in.Chart, in.RootOnly, tree)
+	diceSet, diceSets, err := s.astToPbDiceSets(in.Probabilities, in.Chart, in.RootOnly, tree)
 	if err != nil {
 		return &out, s.handleExposedErrors(err, &out)
 	}
-
-	if len(diceSets) == 0 {
-
-	} else if len(diceSets) == 1 {
-		out.DiceSet = diceSets[0]
-	} else {
-		for _, ds := range diceSets {
-			out.DiceSets = append(out.DiceSets, ds)
-		}
+	out.DiceSet = diceSet
+	for _, ds := range diceSets {
+		out.DiceSets = append(out.DiceSets, ds)
 	}
 	out.Cmd = in.Cmd
 	return &out, nil
