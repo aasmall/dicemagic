@@ -18,7 +18,6 @@ func SlackRTMInitCtx(ctx context.Context, installDoc *SlackInstallInstanceDoc, e
 	botAccessToken, err := decrypt(ctx, env, installDoc.Bot.EncBotAccessToken)
 	if err != nil {
 		env.log.Critical("could not decrypt access token")
-		env.mu.Unlock()
 		return
 	}
 	slackApi := slack.New(
@@ -28,7 +27,6 @@ func SlackRTMInitCtx(ctx context.Context, installDoc *SlackInstallInstanceDoc, e
 	)
 	rtm := slackApi.NewRTM()
 	env.openRTMConnections[installDoc.TeamID] = rtm
-	env.mu.Unlock()
 	go rtm.ManageConnection()
 	for msg := range rtm.IncomingEvents {
 		fmt.Print("Event Received: ")
@@ -104,12 +102,10 @@ func (env *env) ManageSlackConnections(ctx context.Context, freq time.Duration) 
 			}
 			fmt.Println("teams: ", teams)
 			for _, teamID := range teams {
-				env.mu.Lock()
 				if env.openRTMConnections[teamID] == nil {
 					err := env.EstablishSlackRTMSocket(ctx, teamID)
 					if err != nil {
 						env.log.Errorf("could not establish Slack RTM connection for TeamID(%s): %s", teamID, err)
-						env.mu.Unlock()
 						continue
 					}
 				}
