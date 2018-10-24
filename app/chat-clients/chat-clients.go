@@ -9,6 +9,8 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -35,6 +37,8 @@ type env struct {
 	redisClient        *redis.Client
 	redisClusterClient *redis.ClusterClient
 	openRTMConnections map[string]*slack.RTM
+	ShuttingDown       bool
+	mu                 sync.Mutex
 }
 
 type envConfig struct {
@@ -53,16 +57,19 @@ type envConfig struct {
 	slackAppID            string
 	redisPort             string
 	podName               string
-	LocalRedirectUri      string
+	localRedirectURI      string
+	redisClusterHosts     string
 	debug                 bool
 	local                 bool
 	traceProbability      float64
 }
 
 func main() {
+	fmt.Println("hello.")
 	ctx := context.Background()
 
 	// Gather Environment Variables
+	// TODO: run each in a go routine to spped up server init
 	configReader := new(envReader)
 	config := &envConfig{
 		projectID:             configReader.getEnv("PROJECT_ID"),
@@ -80,10 +87,11 @@ func main() {
 		diceServerPort:        configReader.getEnv("DICE_SERVER_PORT"),
 		redisPort:             configReader.getEnv("REDIS_PORT"),
 		podName:               configReader.getEnv("POD_NAME"),
-		LocalRedirectUri:      configReader.getEnv("REDIRECT_URI"),
-		debug:                 configReader.getEnvBool("DEBUG"),
-		local:                 configReader.getEnvBool("LOCAL"),
-		traceProbability:      configReader.getEnvFloat("TRACE_PROBABILITY", 64),
+		localRedirectURI:      configReader.getEnvOpt("REDIRECT_URI"),
+		redisClusterHosts:     configReader.getEnvOpt("REDIS_CLUSTER_HOSTS"),
+		debug:                 configReader.getEnvBoolOpt("DEBUG"),
+		local:                 configReader.getEnvBoolOpt("LOCAL"),
+		traceProbability:      configReader.getEnvFloat("TRACE_PROBABILITY"),
 	}
 	if configReader.errors {
 		log.Fatalf("could not gather environment variables. Failed variables: %v", configReader.missingKeys)
@@ -93,8 +101,12 @@ func main() {
 	env.openRTMConnections = make(map[string]*slack.RTM)
 
 	// Stackdriver Logger
+	if env.isLocal() {
+		env.config.logName = fmt.Sprintf("%s%s", env.config.logName, "-local")
+		fmt.Println("changing logname to: ", env.config.logName)
+	}
 	env.log = logger.NewLogger(ctx, env.config.projectID, env.config.logName, env.config.debug)
-	env.log.Info("Logger up and running!")
+	env.log.Debug("Logger up and running!")
 	defer log.Println("Shutting down logger.")
 	defer env.log.Close()
 
@@ -135,20 +147,20 @@ func main() {
 
 	// Redis Client
 	if env.isLocal() {
+		fmt.Printf("Creating redis client with port: %v\n", env.config.redisPort)
 		env.redisClient = redis.NewClient(&redis.Options{
-			Addr: env.config.redisPort,
-
+			Addr:     env.config.redisPort,
 			Password: "", // no password set
 			DB:       0,  // use default DB
 		})
 	} else {
-		clusterIPs := []string{
-			"redis-cluster-0.redis-cluster.default.svc.cluster.local:6379",
-			"redis-cluster-1.redis-cluster.default.svc.cluster.local:6379",
-			"redis-cluster-2.redis-cluster.default.svc.cluster.local:6379",
+		clusterURIs := strings.Split(env.config.redisClusterHosts, ";")
+		for i, s := range clusterURIs {
+			clusterURIs[i] = fmt.Sprintf("%s%s", strings.TrimSpace(s), env.config.redisPort)
 		}
+		env.log.Debugf("Creating redis cluster client with URIs: %v\n", clusterURIs)
 		env.redisClusterClient = redis.NewClusterClient(&redis.ClusterOptions{
-			Addrs:    clusterIPs,
+			Addrs:    clusterURIs,
 			Password: "",
 		})
 	}
@@ -169,22 +181,22 @@ func main() {
 		ReadTimeout:  time.Second * 15,
 		IdleTimeout:  time.Second * 60,
 		Handler:      openCensusWrapper, // Pass our instance of gorilla/mux and tracer in.
+
 	}
-
+	srv.RegisterOnShutdown(env.Cleanup)
 	// Call chat-clients init
-	go ManageSlackConnections(ctx, env)
-	go RebalancePods(ctx, env)
-
+	env.ManageSlackConnections(ctx, time.Second*2)
+	env.ManagePods(ctx, time.Second*2)
 	// advertise that I'm alive. Delete pods that aren't
-	go PingPods(env)
-	go DeleteSleepingPods(env)
-
+	go PingPods(env, time.Second*5)
+	go PingTeams(env, time.Second*10)
+	go Reap("pods", env, time.Second*5, time.Second*15)
+	go Reap("teams", env, time.Second*10, time.Second*15)
 	// Run our server in a goroutine so that it doesn't block.
 	go func() {
 		err := srv.ListenAndServe()
-		log.Println("chat-clients up.")
 		if err != nil {
-			log.Fatal(err)
+			log.Printf("ListenAndServe error: %+v", err)
 		}
 	}()
 
@@ -199,14 +211,10 @@ func main() {
 	// Create a deadline to wait for.
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
 	defer cancel()
+
 	// Doesn't block if no connections, but will otherwise wait
 	// until the timeout deadline.
 	go func() {
-		// find and close all open slack RTM sessions
-		for _, rtm := range env.openRTMConnections {
-			rtm.Disconnect()
-		}
-		fmt.Println("shutting down...")
 		srv.Shutdown(ctx)
 	}()
 	<-ctx.Done()
@@ -248,4 +256,17 @@ func (env *env) isLocalOrDebug() bool {
 }
 func (env *env) isLocal() bool {
 	return env.config.local
+}
+func (env *env) Cleanup() {
+	go func() {
+		fmt.Println("cleaning up.")
+		env.ShuttingDown = true
+		for team, rtm := range env.openRTMConnections {
+			env.DeletePod()
+			env.RebalancePods(context.Background(), time.Second*5)
+			rtm.Disconnect()
+			fmt.Println("killed connection for ", team)
+		}
+		fmt.Println("all cleaned up.")
+	}()
 }

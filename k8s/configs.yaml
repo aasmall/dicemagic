@@ -16,6 +16,7 @@ data:
     GOOGLE_APPLICATION_CREDENTIALS: "/etc/google-default/k8s-dice-magic.json"
     DEBUG: "true"
     LOCAL: "false"
+    REDIS_CLUSTER_HOSTS: "redis-cluster-0.redis-cluster.default.svc.cluster.local; redis-cluster-1.redis-cluster.default.svc.cluster.local; redis-cluster-2.redis-cluster.default.svc.cluster.local"
     REDIS_PORT: ":6379" 
     REDIRECT_URI: ""
 metadata:

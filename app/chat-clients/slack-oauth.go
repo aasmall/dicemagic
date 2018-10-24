@@ -34,7 +34,7 @@ func SlackOAuthHandler(e interface{}, w http.ResponseWriter, r *http.Request) er
 	form := url.Values{}
 	form.Add("code", r.FormValue("code"))
 	if strings.Contains(strings.ToLower(env.config.podName), "local") {
-		form.Add("redirect_uri", env.config.LocalRedirectUri)
+		form.Add("redirect_uri", env.config.localRedirectURI)
 	}
 
 	req, err := http.NewRequest("POST", env.config.slackTokenURL, strings.NewReader(form.Encode()))

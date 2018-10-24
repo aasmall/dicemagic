@@ -3,13 +3,11 @@ package main
 import (
 	"context"
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/aasmall/dicemagic/app/dicelang/errors"
 
 	"cloud.google.com/go/datastore"
-	"google.golang.org/api/iterator"
 )
 
 type SlackTeam struct {
@@ -25,29 +23,29 @@ type SlackInstallInstanceStatusDoc struct {
 	Open     bool
 }
 
-func AssignTeamToPod(ctx context.Context, env *env, teamKey *datastore.Key, pod string) error {
-	var err error
-	_, err = env.datastoreClient.RunInTransaction(ctx, func(tx *datastore.Transaction) error {
-		team := &SlackTeam{}
-		err := env.datastoreClient.Get(ctx, teamKey, team)
-		if err != nil {
-			env.log.Errorf("could not get team to assign to pod: %s", err)
-			return err
-		}
-		team.Pod = pod
-		_, err = env.datastoreClient.Put(ctx, teamKey, team)
-		if err != nil {
-			env.log.Errorf("could not put team to assign to pod: %s", err)
-			return err
-		}
-		return nil
-	})
-	if err != nil {
-		return err
-	}
+// func AssignTeamToPod(ctx context.Context, env *env, teamKey *datastore.Key, pod string) error {
+// 	var err error
+// 	_, err = env.datastoreClient.RunInTransaction(ctx, func(tx *datastore.Transaction) error {
+// 		team := &SlackTeam{}
+// 		err := env.datastoreClient.Get(ctx, teamKey, team)
+// 		if err != nil {
+// 			env.log.Errorf("could not get team to assign to pod: %s", err)
+// 			return err
+// 		}
+// 		team.Pod = pod
+// 		_, err = env.datastoreClient.Put(ctx, teamKey, team)
+// 		if err != nil {
+// 			env.log.Errorf("could not put team to assign to pod: %s", err)
+// 			return err
+// 		}
+// 		return nil
+// 	})
+// 	if err != nil {
+// 		return err
+// 	}
 
-	return nil
-}
+// 	return nil
+// }
 
 func upsetSlackTeam(ctx context.Context, env *env, team *SlackTeam) (*datastore.Key, error) {
 	var err error
@@ -178,10 +176,10 @@ func getAllTeamsForPod(ctx context.Context, env *env) (map[string]*datastore.Key
 	for _, team := range teams {
 		retMap[team.TeamID] = team.Key
 	}
-	if env.config.debug {
-		fmt.Printf("keys for pod(%s): %+v", env.config.podName, retMap)
-	}
-	env.log.Infof("keys for pod(%s): %+v", env.config.podName, retMap)
+	// if env.isLocal() {
+	// 	fmt.Printf("keys for pod(%s): %+v", env.config.podName, retMap)
+	// }
+	// env.log.Infof("keys for pod(%s): %+v", env.config.podName, retMap)
 	return retMap, nil
 }
 
@@ -224,62 +222,37 @@ func getFirstSlackInstallInstance(ctx context.Context, env *env, teamID string, 
 // 	q := datastore.NewQuery("SlackInstallInstanceStatus").Ancestor(instanceKey)
 // }
 
-// func isSlackInstanceAssigned(ctx context.Context, env *env, instanceKey *datastore.Key)
-type tsSlackInstallInstanceDoc struct {
-	doc *SlackInstallInstanceDoc
-	mux sync.Mutex
-}
+// // func isSlackInstanceAssigned(ctx context.Context, env *env, instanceKey *datastore.Key)
+// type tsSlackInstallInstanceDoc struct {
+// 	doc *SlackInstallInstanceDoc
+// 	mux sync.Mutex
+// }
 
-func getAllSlackInstallInstances(ctx context.Context, env *env) (<-chan *tsSlackInstallInstanceDoc, <-chan error) {
-	out := make(chan *tsSlackInstallInstanceDoc)
-	outErr := make(chan error)
-	teams, err := getAllTeamsForPod(ctx, env)
-	if err != nil {
-		env.log.Criticalf("could not get team keys: %s", err)
-		outErr <- err
-		close(outErr)
-		close(out)
-		return out, outErr
-	}
-	var wg sync.WaitGroup
-	go func() {
-		for _, key := range teams {
-			wg.Add(1)
-			q := datastore.NewQuery("SlackInstallInstance").Ancestor(key)
-			go func(q datastore.Query, key *datastore.Key) {
-				wg.Add(1)
-				defer wg.Done()
-				for t := env.datastoreClient.Run(ctx, &q); ; {
-					var doc SlackInstallInstanceDoc
-					_, err := t.Next(&doc)
-					if err == iterator.Done {
-						wg.Done()
-						break
-					}
-					if err != nil {
-						outErr <- err
-					}
-					key := key
-					sq := datastore.NewQuery("SlackInstallInstanceStatus").Ancestor(key)
-					statusDocs := []SlackInstallInstanceStatusDoc{}
-					_, err = env.datastoreClient.GetAll(ctx, sq, &statusDocs)
-					if err != nil {
-						outErr <- err
-					} else if len(statusDocs) == 0 {
-						out <- &tsSlackInstallInstanceDoc{doc: &doc}
-					} else if !statusDocs[0].Open || time.Now().Sub(statusDocs[0].LastSeen).Seconds() >= 90 {
-						out <- &tsSlackInstallInstanceDoc{doc: &doc}
-					}
-				}
-
-			}(*q, key)
-		}
-		wg.Wait()
-		close(outErr)
-		close(out)
-	}()
-	return out, outErr
-}
+// func getAllSlackInstallInstancesForTeam(ctx context.Context, env *env, teamID string) (<-chan *SlackInstallInstanceDoc, <-chan error) {
+// 	out := make(chan *SlackInstallInstanceDoc)
+// 	outErr := make(chan error)
+// 	go func() {
+// 		q := datastore.NewQuery("SlackTeam").Filter("TeamID =", teamID).KeysOnly()
+// 		teams, err := env.datastoreClient.GetAll(ctx, q, nil)
+// 		for _, key := range teams {
+// 			q := datastore.NewQuery("SlackInstallInstance").Ancestor(key)
+// 			for t := env.datastoreClient.Run(ctx, q); ; {
+// 				var doc SlackInstallInstanceDoc
+// 				_, err := t.Next(&doc)
+// 				if err == iterator.Done {
+// 					break
+// 				}
+// 				if err != nil {
+// 					outErr <- err
+// 				}
+// 				out <- &doc
+// 			}
+// 		}
+// 		close(outErr)
+// 		close(out)
+// 	}()
+// 	return out, outErr
+// }
 
 func getSlackInstallInstanceByKey(ctx context.Context, env *env, k *datastore.Key) (*SlackInstallInstanceDoc, error) {
 	doc := &SlackInstallInstanceDoc{}
@@ -289,7 +262,7 @@ func getSlackInstallInstanceByKey(ctx context.Context, env *env, k *datastore.Ke
 	}
 	return doc, nil
 }
-func getFirstSlackInstallInstanceByTeamID(ctx context.Context, env *env, teamID string) (*SlackInstallInstanceDoc, error) {
+func GetFirstSlackInstallInstanceByTeamID(ctx context.Context, env *env, teamID string) (*SlackInstallInstanceDoc, error) {
 	docs := []SlackInstallInstanceDoc{}
 	q := datastore.NewQuery("SlackInstallInstance").Filter("TeamID = ", teamID).Limit(1)
 	_, err := env.datastoreClient.GetAll(ctx, q, &docs)
