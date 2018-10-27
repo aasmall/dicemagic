@@ -36,8 +36,8 @@ const (
 )
 
 type Logger struct {
-	mu                sync.Mutex // ensures atomic writes; protects the following fields
-	prefix            string     // prefix to write at beginning of each line
+	mu                *sync.Mutex // ensures atomic writes; protects the following fields
+	prefix            string      // prefix to write at beginning of each line
 	debug             bool
 	flag              int // properties
 	stackDriverLogger *logging.Logger
@@ -101,7 +101,7 @@ func New(projectID string, options ...LoggerOption) *Logger {
 		o(&opts)
 	}
 
-	logger := &Logger{prefix: opts.Prefix, debug: opts.Debug, local: opts.Local, flag: Lshortfile | LstdFlags}
+	logger := &Logger{mu: new(sync.Mutex), prefix: opts.Prefix, debug: opts.Debug, local: opts.Local, flag: Lshortfile | LstdFlags}
 	loggingClient, err := logging.NewClient(opts.Context, projectID)
 	if err != nil {
 		log.Fatalf("Failed to create logging client: %v", err)
@@ -114,7 +114,7 @@ func New(projectID string, options ...LoggerOption) *Logger {
 var std = newLocal()
 
 func newLocal() *Logger {
-	return &Logger{prefix: "", local: true}
+	return &Logger{mu: new(sync.Mutex), prefix: "", local: true}
 }
 
 // WithRequest returns a shallow copy of logger with a request present
@@ -157,21 +157,35 @@ func (l *Logger) Critical(message interface{}) {
 	})
 }
 
-func (logger *Logger) Infof(format string, a ...interface{}) {
-	logger.Info(fmt.Sprintf(format, a...))
+func (l *Logger) Infof(format string, a ...interface{}) {
+	l.outputEntry(2, logging.Entry{
+		Payload:  fmt.Sprintf(format, a...),
+		Severity: logging.Info,
+	})
 }
-func (logger *Logger) Debugf(format string, a ...interface{}) {
-	logger.Debug(fmt.Sprintf(format, a...))
+func (l *Logger) Debugf(format string, a ...interface{}) {
+	if l.debug {
+		l.outputEntry(2, logging.Entry{
+			Payload:  fmt.Sprintf(format, a...),
+			Severity: logging.Debug,
+		})
+	}
 }
-func (logger *Logger) Errorf(format string, a ...interface{}) {
-	logger.Error(fmt.Sprintf(format, a...))
+func (l *Logger) Errorf(format string, a ...interface{}) {
+	l.outputEntry(2, logging.Entry{
+		Payload:  fmt.Sprintf(format, a...),
+		Severity: logging.Error,
+	})
 }
-func (logger *Logger) Criticalf(format string, a ...interface{}) {
-	logger.Critical(fmt.Sprintf(format, a...))
+func (l *Logger) Criticalf(format string, a ...interface{}) {
+	l.outputEntry(2, logging.Entry{
+		Payload:  fmt.Sprintf(format, a...),
+		Severity: logging.Critical,
+	})
 }
 
-func (logger *Logger) Close() {
-	logger.loggingClient.Close()
+func (l *Logger) Close() {
+	l.loggingClient.Close()
 }
 
 // Output writes the output for a logging event. The string s contains
@@ -188,7 +202,7 @@ func (l *Logger) Output(calldepth int, s string) error {
 	if l.httpRequest != nil {
 		e.HTTPRequest = l.httpRequest
 	}
-	return l.outputEntry(calldepth, e)
+	return l.outputEntry(calldepth+1, e)
 
 }
 
@@ -301,6 +315,34 @@ func itoa(buf *[]byte, i int, wid int) {
 	*buf = append(*buf, b[bp:]...)
 }
 
+// Flags returns the output flags for the logger.
+func (l *Logger) Flags() int {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.flag
+}
+
+// SetFlags sets the output flags for the logger.
+func (l *Logger) SetFlags(flag int) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.flag = flag
+}
+
+// Prefix returns the output prefix for the logger.
+func (l *Logger) Prefix() string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.prefix
+}
+
+// SetPrefix sets the output prefix for the logger.
+func (l *Logger) SetPrefix(prefix string) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.prefix = prefix
+}
+
 // These functions write to the standard logger.
 
 // Print calls Output to print to the standard logger.
@@ -358,4 +400,15 @@ func Panicln(v ...interface{}) {
 	s := fmt.Sprintln(v...)
 	std.Output(2, s)
 	panic(s)
+}
+
+// Output writes the output for a logging event. The string s contains
+// the text to print after the prefix specified by the flags of the
+// Logger. A newline is appended if the last character of s is not
+// already a newline. Calldepth is the count of the number of
+// frames to skip when computing the file name and line number
+// if Llongfile or Lshortfile is set; a value of 1 will print the details
+// for the caller of Output.
+func Output(calldepth int, s string) error {
+	return std.Output(calldepth+1, s) // +1 for this frame.
 }

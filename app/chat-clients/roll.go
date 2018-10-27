@@ -38,7 +38,7 @@ func RollOptionWithContext(ctx context.Context) RollOption {
 	}
 }
 
-// GetDiceRoll calls supplied grpc client with a freeform text command and returns a dice roll
+// Roll calls supplied grpc client with a freeform text command and returns a dice roll
 func Roll(client *grpc.ClientConn, cmd string, options ...RollOption) (*pb.RollResponse, error) {
 	opts := RollOptions{
 		Chart:       false,

@@ -8,6 +8,7 @@ import (
 	"sort"
 
 	"github.com/aasmall/dicemagic/app/dicelang"
+	"github.com/aasmall/dicemagic/app/dicelang/errors"
 )
 
 func main() {
@@ -43,9 +44,9 @@ func sortProbMap(m map[int64]float64) []int64 {
 func printDiceInfo(cmd string, verbose bool, prob bool) {
 	var p *dicelang.Parser
 	p = dicelang.NewParser(cmd)
-	_, root, err := p.Statements()
+	root, err := p.Statements()
 	if err != nil {
-		fmt.Println(err.Error(), err.(dicelang.LexError).Col, err.(dicelang.LexError).Line)
+		fmt.Println(err.Error(), err.(errors.LexError).Col, err.(errors.LexError).Line)
 		return
 	}
 	//fmt.Printf("Statement %d\n", i+1)
@@ -74,7 +75,7 @@ func printDiceInfo(cmd string, verbose bool, prob bool) {
 	fmt.Printf("Total: %+v\n", total)
 	fmt.Printf("Color Map: %+v\n", diceSet.TotalsByColor)
 	//pre := dicelang.ReStringAST(stmt)
-	pre := root.String()
+	pre, _ := root.String()
 	fmt.Println(pre)
 	fmt.Println("----------")
 

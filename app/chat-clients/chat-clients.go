@@ -9,7 +9,6 @@ import (
 	"os/signal"
 	"strconv"
 	"strings"
-	"sync"
 	"syscall"
 	"time"
 
@@ -21,7 +20,6 @@ import (
 	"github.com/aasmall/dicemagic/app/logger"
 	"github.com/go-redis/redis"
 	"github.com/gorilla/mux"
-	"github.com/nlopes/slack"
 	"go.opencensus.io/plugin/ocgrpc"
 	"go.opencensus.io/plugin/ochttp"
 	"go.opencensus.io/trace"
@@ -30,16 +28,11 @@ import (
 )
 
 type env struct {
-	traceClient        *http.Client
-	datastoreClient    *datastore.Client
-	config             *envConfig
-	log                *log.Logger
-	diceServerClient   *grpc.ClientConn
-	redisClient        *redis.Client
-	redisClusterClient *redis.ClusterClient
-	openRTMConnections map[string]*slack.RTM
-	ShuttingDown       bool
-	mu                 sync.Mutex
+	traceClient      *http.Client
+	config           *envConfig
+	log              *log.Logger
+	diceServerClient *grpc.ClientConn
+	ShuttingDown     bool
 }
 
 type envConfig struct {
@@ -99,7 +92,6 @@ func main() {
 	}
 
 	env := &env{config: config}
-	env.openRTMConnections = make(map[string]*slack.RTM)
 
 	// Stackdriver Logger
 	env.log = log.New(
@@ -133,13 +125,6 @@ func main() {
 		},
 	}
 
-	// Cloud Datastore Client
-	dsClient, err := datastore.NewClient(ctx, env.config.projectID)
-	if err != nil {
-		log.Fatalf("could not configure Datastore Client: %s", err)
-	}
-	env.datastoreClient = dsClient
-
 	// Dice Server Client
 	diceServerClient, err := grpc.Dial(env.config.diceServerPort,
 		grpc.WithInsecure(),
@@ -150,9 +135,10 @@ func main() {
 	env.diceServerClient = diceServerClient
 
 	// Redis Client
+	var redisClient redis.Cmdable
 	if env.isLocal() {
 		fmt.Printf("Creating redis client with port: %v\n", env.config.redisPort)
-		env.redisClient = redis.NewClient(&redis.Options{
+		redisClient = redis.NewClient(&redis.Options{
 			Addr:     env.config.redisPort,
 			Password: "", // no password set
 			DB:       0,  // use default DB
@@ -163,17 +149,27 @@ func main() {
 			clusterURIs[i] = fmt.Sprintf("%s%s", strings.TrimSpace(s), env.config.redisPort)
 		}
 		env.log.Debugf("Creating redis cluster client with URIs: %v\n", clusterURIs)
-		env.redisClusterClient = redis.NewClusterClient(&redis.ClusterOptions{
+		redisClient = redis.NewClusterClient(&redis.ClusterOptions{
 			Addrs:    clusterURIs,
 			Password: "",
 		})
 	}
+
+	// Cloud Datastore Client
+	dsClient, err := datastore.NewClient(ctx, env.config.projectID)
+	if err != nil {
+		log.Fatalf("could not configure Datastore Client: %s", err)
+	}
+
+	// Call chat-clients init
+	slackChatClient := NewSlackChatClient(env.log, redisClient, dsClient, env.traceClient, env.diceServerClient, env.config)
+
 	// Define inbound Routes
 	r := mux.NewRouter()
 	r.Handle("/roll", handler.Handler{Env: env, H: QueryStringRollHandler})
-	r.Handle("/slack/oauth", handler.Handler{Env: env, H: SlackOAuthHandler})
-	r.Handle("/slack/slash/roll", handler.Handler{Env: env, H: SlackSlashRollHandler})
-	r.Handle("/", handler.Handler{Env: env, H: RootHandler})
+	r.Handle("/slack/oauth", handler.Handler{Env: slackChatClient, H: SlackOAuthHandler})
+	r.Handle("/slack/slash/roll", handler.Handler{Env: slackChatClient, H: SlackSlashRollHandler})
+	r.Handle("/", handler.Handler{Env: env, H: rootHandler})
 
 	// Add OpenCensus HTTP Handler Wrapper
 	openCensusWrapper := &ochttp.Handler{Handler: r}
@@ -187,26 +183,7 @@ func main() {
 		Handler:      openCensusWrapper, // Pass our instance of gorilla/mux and tracer in.
 
 	}
-	srv.RegisterOnShutdown(env.Cleanup)
-	// Call chat-clients init
-	env.ManageSlackConnections(ctx, time.Second*2)
-	env.ManagePods(ctx, time.Second*2)
-	// advertise that I'm alive. Delete pods that aren't
-	go PingPods(env, time.Second*5)
-	go PingTeams(env, time.Second*10)
-	go Reap("pods", env, time.Second*5, time.Second*15)
-	go Reap("teams", env, time.Second*10, time.Second*15)
-
-	go func() {
-		ticker := time.NewTicker(time.Second * 30)
-		defer ticker.Stop()
-		for range ticker.C {
-			if env.ShuttingDown {
-				return
-			}
-			env.log.Debugf("Report on open connections for (%s): %+v", env.config.podName, env.openRTMConnections)
-		}
-	}()
+	srv.RegisterOnShutdown(slackChatClient.Init(ctx))
 
 	// Run our server in a goroutine so that it doesn't block.
 	go func() {
@@ -238,12 +215,12 @@ func main() {
 	//os.Exit(0)
 }
 
-func RootHandler(e interface{}, w http.ResponseWriter, r *http.Request) error {
+func rootHandler(e interface{}, w http.ResponseWriter, r *http.Request) error {
 	fmt.Fprint(w, "200")
 	return nil
 }
 
-func TotalsMapString(m map[string]float64) string {
+func totalsMapString(m map[string]float64) string {
 	var b [][]byte
 	if len(m) == 1 && m[""] != 0 {
 		return strconv.FormatFloat(m[""], 'f', 1, 64)
@@ -259,7 +236,7 @@ func TotalsMapString(m map[string]float64) string {
 	}
 	return string(bytes.Join(b, []byte(", ")))
 }
-func FacesSliceString(faces []int64) string {
+func facesSliceString(faces []int64) string {
 	var b [][]byte
 	for _, f := range faces {
 		b = append(b, []byte(strconv.FormatInt(f, 10)))
@@ -267,23 +244,6 @@ func FacesSliceString(faces []int64) string {
 	return string(bytes.Join(b, []byte(", ")))
 }
 
-func (env *env) isLocalOrDebug() bool {
-	return env.config.debug || env.config.local
-}
 func (env *env) isLocal() bool {
 	return env.config.local
-}
-func (env *env) Cleanup() {
-	go func() {
-
-		fmt.Println("cleaning up.")
-		env.ShuttingDown = true
-		for team, rtm := range env.openRTMConnections {
-			env.DeletePod()
-			env.RebalancePods(context.Background(), time.Second*5)
-			rtm.Disconnect()
-			fmt.Println("killed connection for ", team)
-		}
-		fmt.Println("all cleaned up.")
-	}()
 }

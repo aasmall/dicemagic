@@ -15,17 +15,17 @@ import (
 func SlackOAuthHandler(e interface{}, w http.ResponseWriter, r *http.Request) error {
 	r.ParseForm()
 	ctx := r.Context()
-	env, _ := e.(*env)
-	log := env.log.WithRequest(r)
+	c, _ := e.(*SlackChatClient)
+	log := c.log.WithRequest(r)
 
 	oauthError := r.FormValue("error")
 	if oauthError == "access_denied" {
-		http.Redirect(w, r, env.config.slackOAuthDeniedURL, http.StatusSeeOther)
-		log.Infof("OAuth Access Denied, redirecting to: %s", env.config.slackOAuthDeniedURL)
+		http.Redirect(w, r, c.config.slackOAuthDeniedURL, http.StatusSeeOther)
+		log.Infof("OAuth Access Denied, redirecting to: %s", c.config.slackOAuthDeniedURL)
 		return nil
 	}
 
-	clientSecret, err := decrypt(ctx, env, env.config.encSlackClientSecret)
+	clientSecret, err := c.Decrypt(ctx, c.config.kmsSlackKey, c.config.encSlackClientSecret)
 	if err != nil {
 		log.Criticalf("error decrypting secret: %s", err)
 		return err
@@ -33,14 +33,14 @@ func SlackOAuthHandler(e interface{}, w http.ResponseWriter, r *http.Request) er
 
 	form := url.Values{}
 	form.Add("code", r.FormValue("code"))
-	if strings.Contains(strings.ToLower(env.config.podName), "local") {
-		form.Add("redirect_uri", env.config.localRedirectURI)
+	if strings.Contains(strings.ToLower(c.config.podName), "local") {
+		form.Add("redirect_uri", c.config.localRedirectURI)
 	}
 
-	req, err := http.NewRequest("POST", env.config.slackTokenURL, strings.NewReader(form.Encode()))
-	req.SetBasicAuth(env.config.slackClientID, clientSecret)
+	req, err := http.NewRequest("POST", c.config.slackTokenURL, strings.NewReader(form.Encode()))
+	req.SetBasicAuth(c.config.slackClientID, clientSecret)
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-	resp, err := env.traceClient.Do(req)
+	resp, err := c.traceClient.Do(req)
 	if err != nil {
 		log.Criticalf("error getting oAuthToken: %s", err)
 		return err
@@ -68,7 +68,7 @@ func SlackOAuthHandler(e interface{}, w http.ResponseWriter, r *http.Request) er
 	}
 
 	// Encrypt and replace BotAccessToken
-	encBotAccessToken, err := encrypt(ctx, env, oauthResponse.Bot.EncBotAccessToken)
+	encBotAccessToken, err := c.Encrypt(ctx, c.config.kmsSlackKey, oauthResponse.Bot.EncBotAccessToken)
 	if err != nil {
 		log.Criticalf("error encrypting BotAccessToken: %s", err)
 		return err
@@ -76,7 +76,7 @@ func SlackOAuthHandler(e interface{}, w http.ResponseWriter, r *http.Request) er
 	oauthResponse.Bot.EncBotAccessToken = encBotAccessToken
 
 	// Encrypt and replace AccessToken
-	encAccessToken, err := encrypt(ctx, env, oauthResponse.EncAccessToken)
+	encAccessToken, err := c.Encrypt(ctx, c.config.kmsSlackKey, oauthResponse.EncAccessToken)
 	if err != nil {
 		log.Criticalf("error encrypting AccessToken: %s", err)
 		return err
@@ -84,17 +84,17 @@ func SlackOAuthHandler(e interface{}, w http.ResponseWriter, r *http.Request) er
 	oauthResponse.EncAccessToken = encAccessToken
 
 	log.Debugf("upserting SlackTeam: %+v", oauthResponse)
-	k, err := upsetSlackTeam(ctx, env, &SlackTeam{TeamID: oauthResponse.TeamID, TeamName: oauthResponse.TeamName})
+	k, err := c.UpsetSlackTeam(ctx, &SlackTeam{TeamID: oauthResponse.TeamID, TeamName: oauthResponse.TeamName})
 	if err != nil {
 		log.Errorf("error upserting SlackTeam: %s", err)
 		return err
 	}
-	k, err = upsertSlackInstallInstance(ctx, env, oauthResponse, k)
+	k, err = c.UpsertSlackInstallInstance(ctx, oauthResponse, k)
 	if err != nil {
 		log.Errorf("error upserting SlackInstallInstance: %s", err)
 		return err
 	}
-	slackSuccessURL := fmt.Sprintf("https://slack.com/app_redirect?app=%s", env.config.slackAppID)
+	slackSuccessURL := fmt.Sprintf("https://slack.com/app_redirect?app=%s", c.config.slackAppID)
 	http.Redirect(w, r, slackSuccessURL, http.StatusSeeOther)
 
 	return nil

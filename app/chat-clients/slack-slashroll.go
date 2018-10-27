@@ -14,30 +14,30 @@ import (
 )
 
 func SlackSlashRollHandler(e interface{}, w http.ResponseWriter, r *http.Request) error {
-	env, _ := e.(*env)
+	c, _ := e.(*SlackChatClient)
 
 	//r.Body = ioutil.NopCloser(bytes.NewBuffer(body))
-	if !ValidateSlackSignature(env, r) {
+	if !c.ValidateSlackSignature(r) {
 		return handler.StatusError{
 			Code: http.StatusUnauthorized,
 			Err:  errors.New("Invalid Slack Signature"),
 		}
 	}
 
-	log := env.log.WithRequest(r)
+	log := c.log.WithRequest(r)
 	//read body and reset request
 	s, err := slack.SlashCommandParse(r)
 	if err != nil {
 		fmt.Fprintf(w, "could not parse slash command: %s", err)
 	}
-	rollerClient := pb.NewRollerClient(env.diceServerClient)
+	rollerClient := pb.NewRollerClient(c.diceClient)
 	timeOutCtx, cancel := context.WithTimeout(r.Context(), time.Second)
 	defer cancel()
 	cmd := s.Text
 	log.Debug(cmd)
 	diceServerResponse, err := rollerClient.Roll(timeOutCtx, &pb.RollRequest{Cmd: cmd, RootOnly: true})
 	if err != nil {
-		env.log.Errorf("Unexpected error: %+v", err)
+		c.log.Errorf("Unexpected error: %+v", err)
 		returnErrorToSlack(fmt.Sprintf("Oops! an unexpected error occured: %s", err), w, r)
 		return err
 	}
@@ -46,11 +46,9 @@ func SlackSlashRollHandler(e interface{}, w http.ResponseWriter, r *http.Request
 		if diceServerResponse.Error.Code == errors.Friendly {
 			returnErrorToSlack(diceServerResponse.Error.Msg, w, r)
 			return nil
-		} else {
-			returnErrorToSlack(fmt.Sprintf("Oops! an error occured: %s", diceServerResponse.Error.Msg), w, r)
-			return nil
-
 		}
+		returnErrorToSlack(fmt.Sprintf("Oops! an error occured: %s", diceServerResponse.Error.Msg), w, r)
+		return nil
 	}
 
 	webhookMessage := slack.WebhookMessage{}
