@@ -1,0 +1,25 @@
+{
+    "manifest_version": 2,
+    "name": "jQuery DOM",
+    "version": "1",
+    "description": "Manipulate the DOM when the page is done loading",
+    "browser_action": {
+        "name": "Manipulate DOM",
+        "icons": [
+            "icon.png"
+        ],
+        "default_icon": "icon.png"
+    },
+    "content_scripts": [
+        {
+            "js": [
+                "jquery-3.3.1.min.js",
+                "dicemagic.js"
+            ],
+            "matches": [
+                "http://*/*",
+                "https://*/*"
+            ]
+        }
+    ]
+}

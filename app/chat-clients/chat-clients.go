@@ -166,7 +166,7 @@ func main() {
 
 	// Define inbound Routes
 	r := mux.NewRouter()
-	r.Handle("/roll", handler.Handler{Env: env, H: QueryStringRollHandler})
+	r.Handle("/roll", handler.Handler{Env: env, H: RESTRollHandler})
 	r.Handle("/slack/oauth", handler.Handler{Env: slackChatClient, H: SlackOAuthHandler})
 	r.Handle("/slack/slash/roll", handler.Handler{Env: slackChatClient, H: SlackSlashRollHandler})
 	r.Handle("/", handler.Handler{Env: env, H: rootHandler})
@@ -216,6 +216,9 @@ func main() {
 }
 
 func rootHandler(e interface{}, w http.ResponseWriter, r *http.Request) error {
+	env := e.(*env)
+	trace.ApplyConfig(trace.Config{DefaultSampler: trace.NeverSample()})
+	defer trace.ApplyConfig(trace.Config{DefaultSampler: trace.ProbabilitySampler(env.config.traceProbability)})
 	fmt.Fprint(w, "200")
 	return nil
 }
