@@ -15,7 +15,7 @@ type RESTRollResponse struct {
 	Cmd    string `json:"cmd"`
 	Result string `json:"result"`
 	Ok     bool   `json:"ok"`
-	Err    string `json:"err"`
+	Err    string `json:"err,omitempty"`
 }
 type RESTRollRequest struct {
 	Cmd         string `json:"cmd"`
