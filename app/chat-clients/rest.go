@@ -27,13 +27,13 @@ func RESTRollHandler(e interface{}, w http.ResponseWriter, r *http.Request) erro
 	env, _ := e.(*env)
 	log := env.log.WithRequest(r)
 	req := &RESTRollRequest{}
-	resp := &RESTRollResponse{Cmd: req.Cmd}
 
 	err := json.NewDecoder(r.Body).Decode(req)
 	if err != nil {
 		log.Errorf("Unexpected error decoding REST request: %+v", err)
 		return err
 	}
+	resp := &RESTRollResponse{Cmd: req.Cmd}
 	diceServerResponse, err := Roll(env.diceServerClient, req.Cmd, RollOptionWithProbability(req.Probability), RollOptionWithChart(req.Chart))
 	if err != nil {
 		errString := fmt.Sprintf("Unexpected error: %+v", err)
