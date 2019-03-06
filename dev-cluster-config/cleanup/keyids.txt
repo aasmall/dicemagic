@@ -1,5 +1,0 @@
-created key [84954a773e2b351074068fed6253212d794ad835] of type [json] as [./secrets/certbot-dns.json] for [certbot-dns-manager@k8s-dice-magic.iam.gserviceaccount.com]
-created key [bd1de20e2005fc1c5c4ca413174f8b163366f82c] of type [json] as [./secrets/k8s-dice-magic.json] for [dice-magic-app@k8s-dice-magic.iam.gserviceaccount.com]
-created key [db3d2e1fd5c87a23462ca71f5b8430cd883dcd8f] of type [json] as [./secrets/certbot-dns.json] for [certbot-dns-manager@k8s-dice-magic.iam.gserviceaccount.com]
-created key [c3fc46addd9dcbcf762e46bfd20b6a52bf9da0ab] of type [json] as [./secrets/k8s-dice-magic.json] for [dice-magic-app@k8s-dice-magic.iam.gserviceaccount.com]
-created key [a770e4878ca29c03e99605f3379fa22e5f241351] of type [json] as [./secrets/certbot-dns.json] for [certbot-dns-manager@k8s-dice-magic.iam.gserviceaccount.com]
