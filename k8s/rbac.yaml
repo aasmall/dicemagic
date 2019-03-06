@@ -73,11 +73,6 @@ roleRef:
   kind: ClusterRole
   name: psp-user
 subjects:
-# # Example: All service accounts in my-namespace
-# - apiGroup: rbac.authorization.k8s.io
-#   kind: Group
-#   name: system:serviceaccounts
-# Example: A specific service account in my-namespace
 - kind: ServiceAccount # Omit apiGroup
   name: default
   namespace: default
@@ -92,7 +87,6 @@ roleRef:
   kind: ClusterRole
   name: psp-priv-user
 subjects:
-# Example: A specific service account in my-namespace
 - kind: ServiceAccount # Omit apiGroup
   name: nginx-ingress-serviceaccount
   namespace: ingress-nginx

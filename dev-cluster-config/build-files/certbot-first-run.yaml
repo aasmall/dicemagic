@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: letsencrypt-job
+  name: letsencrypt-job-first-run
   labels:
     app: letsencrypt
 spec:
@@ -15,7 +15,7 @@ spec:
     spec:
       serviceAccountName: secret-manager
       containers:
-      - image: gcr.io/k8s-dice-magic/letsencrypt:latest
+      - image: gcr.io/k8s-dice-magic/letsencrypt-dev:latest
         name: letsencrypt
         imagePullPolicy: Always
         ports:
@@ -40,4 +40,4 @@ spec:
         secret:
           defaultMode: 420
           secretName: certbot-dns 
-  backoffLimit: 1
+  backoffLimit: 0

@@ -25,7 +25,7 @@ googleAnalytics = "UA-119339106-2"
   readingTime = true
   useHLJS = true
   socialShare = false
-#  gcse = "012345678901234567890:abcdefghijk" # Get your code from google.com/cse. Make sure to go to "Look and Feel" and change Layout to "Full Width" and Theme to "Classic"
+  slackappid = "42142079431.351057397637"
 
 #[[Params.bigimg]]
 #  src = "img/triangle.jpg"
