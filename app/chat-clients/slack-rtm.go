@@ -56,7 +56,7 @@ func (c *SlackChatClient) OpenConnection(ctx context.Context, teamID string) err
 		}
 	}
 
-	installDoc, err := c.GetFirstSlackInstallInstanceByTeamID(ctx, teamID)
+	installDoc, err := c.GetFirstSlackInstallInstanceByTeamID(ctx, teamID, c.config.slackAppID)
 	if err != nil {
 		c.log.Errorf("Could not get slack install instance for team(%s): %s", teamID, err)
 		defer c.mu.Unlock()

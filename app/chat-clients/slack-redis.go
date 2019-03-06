@@ -51,13 +51,22 @@ func (c *SlackChatClient) GetLastCommand(userID string, teamID string) (string, 
 }
 func (c SlackChatClient) SaveCommand(userID string, teamID string, commandMap map[string]string) error {
 	key := fmt.Sprintf("command:%s:%s:%s", teamID, userID, commandMap["name"])
+	go c.SlackDatastoreClient.UpsetRedisCommand(context.Background(),
+		&RedisCommand{TeamID: teamID, UserID: userID, CommandKey: commandMap["name"], CommandValue: commandMap["cmd"], Expire: time.Now().Add(threeMonths)},
+		c.config.slackAppID)
 	return c.redisClient.Set(key, commandMap["cmd"], threeMonths).Err()
 }
 func (c *SlackChatClient) GetCommand(userID string, teamID string, commandMap map[string]string) (string, error) {
 	key := fmt.Sprintf("command:%s:%s:%s", teamID, userID, commandMap["name"])
 	cmd, err := c.redisClient.Get(key).Result()
+	if err != nil {
+		var dsCmd *RedisCommand
+		dsCmd, err = c.SlackDatastoreClient.GetRedisCommand(context.Background(), teamID, userID, commandMap["name"], c.config.slackAppID)
+		cmd = dsCmd.CommandValue
+	}
 	if err == nil {
 		go c.SetLastCommand(userID, teamID, cmd)
+		go c.SaveCommand(userID, teamID, map[string]string{"name": commandMap["name"], "cmd": cmd})
 	}
 	return cmd, err
 }
@@ -114,7 +123,7 @@ func (c *SlackChatClient) CryPods(tick time.Time) error {
 	return c.redisClient.HSet("pods", c.config.podName, tick.Format(timeFormat)).Err()
 }
 func (c *SlackChatClient) CryTeams(tick time.Time) error {
-	teams, err := c.GetAllTeams(context.Background())
+	teams, err := c.GetAllTeams(context.Background(), c.config.slackAppID)
 	if err != nil {
 		return fmt.Errorf("could not get teams from datastore: %s", err)
 	}

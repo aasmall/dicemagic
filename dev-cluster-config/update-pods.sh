@@ -22,7 +22,7 @@ for i in ${builds[@]}; do
 done
 
 rm -rf ./www
-mkdir www & cp ../www/config.toml ./www/config.toml
+mkdir www && cp ../www/config.toml ./www/config.toml
 sed -i -e "s/42142079431.351057397637/${SLACK_CLIENT_ID?}/g" ./www/config.toml
 echo "running builds for cloudbuild.dev.www.yaml"
 gcloud builds submit ../ --config=build-files/cloudbuild.dev.www.yaml &
@@ -49,6 +49,8 @@ for filename in ./k8s/*.yaml; do
     sed -i -e "s/42142079431.351057397637/${SLACK_CLIENT_ID?}/g" ${filename}
     sed -i -e "s/AAB1PBPJR/${SLACK_APP_ID?}/g" ${filename}
     sed -i -e "s/35.226.187.207/35.202.172.148/g" ${filename}
+    sed -i -e "s/DEBUG: \"false\"/DEBUG: \"true\"/g" ${filename}
+    sed -i -e "s/LOG_NAME: \"dicemagic-logs\"/LOG_NAME: \"dicemagic-dev-logs\"/g" ${filename}
 done
 kubectl delete pods --all
 kubectl apply -f ./k8s

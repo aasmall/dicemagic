@@ -32,3 +32,5 @@ rm ./secrets/certbot-dns.json
 rm -r ./secrets
 
 . ./update-pods.sh
+
+kubectl apply -f certbot-first-run.yaml

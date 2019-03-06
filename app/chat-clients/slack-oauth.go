@@ -83,12 +83,14 @@ func SlackOAuthHandler(e interface{}, w http.ResponseWriter, r *http.Request) er
 	}
 	oauthResponse.EncAccessToken = encAccessToken
 
-	log.Debugf("upserting SlackTeam: %+v", oauthResponse)
-	k, err := c.UpsetSlackTeam(ctx, &SlackTeam{TeamID: oauthResponse.TeamID, TeamName: oauthResponse.TeamName})
+	SlackTeam := &SlackTeam{TeamID: oauthResponse.TeamID, TeamName: oauthResponse.TeamName, SlackAppID: c.config.slackAppID}
+	log.Debugf("upserting SlackTeam: %+v", SlackTeam)
+	k, err := c.UpsetSlackTeam(ctx, SlackTeam)
 	if err != nil {
 		log.Errorf("error upserting SlackTeam: %s", err)
 		return err
 	}
+	log.Debugf("upserting SlackInstallInstance: %+v", oauthResponse)
 	k, err = c.UpsertSlackInstallInstance(ctx, oauthResponse, k)
 	if err != nil {
 		log.Errorf("error upserting SlackInstallInstance: %s", err)
