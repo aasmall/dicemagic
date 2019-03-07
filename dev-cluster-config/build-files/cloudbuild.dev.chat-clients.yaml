@@ -3,20 +3,10 @@ steps:
   id: 'pull-chat-clients'
   args: ['pull', 'gcr.io/$PROJECT_ID/chat-clients:latest']
 
-- name: 'gcr.io/cloud-builders/go'
-  args: ['get', '.']
-  dir: 'chat-clients'
-  env: ['PROJECT_ROOT=chat-clients']
-
-- name: 'gcr.io/cloud-builders/go'
-  args: ['install', '.']
-  dir: 'chat-clients'
-  env: ['PROJECT_ROOT=chat-clients']
-
-- name: 'gcr.io/cloud-builders/go'
-  args: ['test', '.']
-  dir: 'chat-clients'
-  env: ['PROJECT_ROOT=chat-clients']
+- name: golang
+  env: ['GO111MODULE=on']
+  dir: './chat-clients'
+  args: ['go', 'build', '.']
 
 - name: 'gcr.io/cloud-builders/docker'
   dir: 'chat-clients'

@@ -1,0 +1,25 @@
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: basic-ingress
+  namespace: default
+  annotations:
+    kubernetes.io/ingress.global-static-ip-name: "dice-magic"
+spec:
+  tls:
+  - secretName: letsencrypt-certs
+  rules:
+    - host: www.dicemagic.io
+      http:
+        paths:
+        - path: /*
+          backend:
+            serviceName: www-service
+            servicePort: 80
+    - host: api.dicemagic.io
+      http:
+        paths:
+        - path: /*
+          backend:
+            serviceName: dice-magic-app-service
+            servicePort: 80

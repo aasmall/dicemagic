@@ -1,0 +1,7 @@
+github.com/aasmall/dicemagic v0.0.0-20190306205428-6b9ac5ae3d91 h1:IBeDONr7zRKJKEWh5R1jRrIY7dstllG60517FRQXxAQ=
+github.com/aasmall/dicemagic v0.0.0-20190306205428-6b9ac5ae3d91/go.mod h1:rj2DpjtujJ0CzYUAauiO38yTdJyUnkFPAjjIRFIgbig=
+github.com/aasmall/word2number v0.0.0-20180508050052-3e177d961031 h1:/t+JkXjpyhZwemosYoZlzMirtp7CmGWVrm2ORV97ldU=
+github.com/aasmall/word2number v0.0.0-20180508050052-3e177d961031/go.mod h1:FwAGeZlwmNL9rP8ww2ZYs91aI9k3B5Ok0Mmzjejr0Po=
+gopkg.in/check.v1 v0.0.0-20161208181325-20d25e280405/go.mod h1:Co6ibVJAznAaIkqp8huTwlJQCZ016jof/cbN4VW5Yz0=
+gopkg.in/yaml.v2 v2.2.2 h1:ZCJp+EgiOT7lHqUV2J862kp8Qj64Jo6az82+3Td9dZw=
+gopkg.in/yaml.v2 v2.2.2/go.mod h1:hI93XBmqTisBFMUTm0b8Fm+jr3Dg1NNxqwp+5A1VGuI=
