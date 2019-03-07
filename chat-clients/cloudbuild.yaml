@@ -9,7 +9,7 @@ steps:
   args: ['go', 'build', '.']
 
 - name: 'gcr.io/cloud-builders/docker'
-  dir: 'app/chat-clients'
+  dir: './chat-clients'
   args: [
             'build',
             '-t', 'gcr.io/$PROJECT_ID/chat-clients:latest',
