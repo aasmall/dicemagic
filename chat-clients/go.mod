@@ -1,4 +1,4 @@
-module github.com/aasmall/dicemagic
+module github.com/aasmall/dicemagic/chat-clients
 
 go 1.12
 
