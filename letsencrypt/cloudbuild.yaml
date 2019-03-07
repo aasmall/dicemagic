@@ -2,7 +2,7 @@ steps:
 - name: 'gcr.io/cloud-builders/docker'
   args: ['pull', 'gcr.io/$PROJECT_ID/letsencrypt:latest']
 - name: 'gcr.io/cloud-builders/docker'
-  dir: 'app/letsencrypt'
+  dir: 'letsencrypt'
   args: [
             'build',
             '-t', 'gcr.io/$PROJECT_ID/letsencrypt:latest',
