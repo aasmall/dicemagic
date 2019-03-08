@@ -6,6 +6,7 @@ metadata:
   annotations:
     kubernetes.io/ingress.class: nginx
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    kubernetes.io/ingress.global-static-ip-name: "dice-magic"
 spec:
   tls:
     - hosts:
@@ -16,14 +17,14 @@ spec:
   - host: www.dicemagic.io
     http:
       paths:
-      - path: /
+      - path: /*
         backend:
           serviceName: www-service
           servicePort: 80
   - host: api.dicemagic.io
     http:
       paths:
-      - path: / 
+      - path: /*
         backend:
           serviceName: dice-magic-app-service
           servicePort: 80

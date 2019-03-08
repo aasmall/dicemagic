@@ -4,7 +4,7 @@ package main
 
 import (
 	"net"
-	"strconv"
+	"sort"
 
 	"cloud.google.com/go/logging"
 	"contrib.go.opencensus.io/exporter/stackdriver"
@@ -128,6 +128,7 @@ func (s *server) handleExposedErrors(e error, response *pb.RollResponse) error {
 
 func (s *server) astToPbDiceSets(p bool, c bool, ro bool, tree *dicelang.AST) (*pb.DiceSet, []*pb.DiceSet, error) {
 	log := s.env.log
+	var fTotal float64
 	if tree == nil {
 		return nil, nil, errors.NewDicelangError("No dice sets resulted from that command", errors.InvalidCommand, nil)
 	}
@@ -153,9 +154,10 @@ func (s *server) astToPbDiceSets(p bool, c bool, ro bool, tree *dicelang.AST) (*
 	for _, child := range tree.Children {
 		log.Debugf("child: %+v", child)
 		if child.Value == "REP" {
-			reps, _ := strconv.Atoi(child.Children[1].Value)
-			for index := 0; index < reps; index++ {
+			reps, _, _ := child.Children[1].GetDiceSet()
+			for index := 0; index < int(reps); index++ {
 				total, ds, err := child.Children[0].GetDiceSet()
+				fTotal += total
 				if err != nil {
 					return nil, nil, err
 				}
@@ -171,8 +173,12 @@ func (s *server) astToPbDiceSets(p bool, c bool, ro bool, tree *dicelang.AST) (*
 						ReString:      restring,
 					})
 			}
+			sort.Slice(outDiceSets, func(i, j int) bool {
+				return outDiceSets[i].Total < outDiceSets[j].Total
+			})
 		} else {
 			total, ds, err := child.GetDiceSet()
+			fTotal += total
 			if err != nil {
 				return nil, nil, err
 			}
@@ -189,7 +195,7 @@ func (s *server) astToPbDiceSets(p bool, c bool, ro bool, tree *dicelang.AST) (*
 				})
 		}
 	}
-
+	pbDiceSet.Total = int64(fTotal)
 	return pbDiceSet, outDiceSets, nil
 }
 

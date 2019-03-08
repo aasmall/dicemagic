@@ -1,5 +1,5 @@
 #!/bin/bash
-PROJECT_ID=$(gcloud config get-value project)
+export PROJECT_ID=$(gcloud config get-value project)
 
 gcloud beta container --project "${PROJECT_ID?}" clusters create "dice-magic-dev" \
 --zone "us-central1-a" \

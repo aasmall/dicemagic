@@ -1,0 +1,14 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: dice-magic-app
+spec:
+  template:
+    spec:
+      containers:
+      - name: dice-server
+        image: gcr.io/k8s-dice-magic/dice-server-dev:latest
+        imagePullPolicy: Always
+      - name: chat-clients
+        image: gcr.io/k8s-dice-magic/chat-clients-dev:latest
+        imagePullPolicy: Always

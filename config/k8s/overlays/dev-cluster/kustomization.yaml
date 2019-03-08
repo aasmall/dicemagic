@@ -1,0 +1,9 @@
+bases:
+- ../../base
+patches:
+- certbot.yaml
+- configs.yaml
+- dice-magic-app.yaml
+- nginx-ingress-controller.yaml
+- nginx-ingress.yaml
+- www.yaml

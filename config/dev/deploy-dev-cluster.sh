@@ -3,12 +3,6 @@ echo "Provide Slack CLIENT SECRET for development Slack App"
 read CLEAR_SLACK_CLIENT_SECRET
 echo "Provide Slack SIGNING SECRET for development Slack App"
 read CLEAR_SLACK_SIGNING_SECRET
-echo "Provide Slack CLIENT ID for development Slack App"
-read SLACK_CLIENT_ID
-export SLACK_CLIENT_ID=${SLACK_CLIENT_ID}
-echo "Provide Slack APP ID for development Slack App"
-read SLACK_APP_ID
-export SLACK_APP_ID=${SLACK_APP_ID}
 
 rm -rf ./secrets
 mkdir secrets

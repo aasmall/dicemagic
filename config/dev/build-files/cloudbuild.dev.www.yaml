@@ -3,7 +3,7 @@ steps:
   args: ['pull', 'gcr.io/$PROJECT_ID/www:latest']
 
 - name: 'alpine'
-  args: ['cp', 'dev-cluster-config/www/config.toml', 'www/config.toml']
+  args: ['cp', 'config/dev/www/config.yaml', 'www/config.yaml']
 
 - name: 'gcr.io/cloud-builders/docker'
   dir: 'www'

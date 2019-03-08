@@ -1,0 +1,12 @@
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: letsencrypt-job
+spec:
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - image: gcr.io/k8s-dice-magic/letsencrypt-dev:latest
+            name: letsencrypt

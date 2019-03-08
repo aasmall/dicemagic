@@ -1,0 +1,10 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: www
+spec:
+  template:
+    spec:
+      containers:
+      - image: gcr.io/k8s-dice-magic/www-dev:latest
+        name: www
