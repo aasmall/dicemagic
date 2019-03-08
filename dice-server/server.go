@@ -154,6 +154,7 @@ func (s *server) astToPbDiceSets(p bool, c bool, ro bool, tree *dicelang.AST) (*
 	for _, child := range tree.Children {
 		log.Debugf("child: %+v", child)
 		if child.Value == "REP" {
+			var sortabldDiceSets []*pb.DiceSet
 			reps, _, _ := child.Children[1].GetDiceSet()
 			for index := 0; index < int(reps); index++ {
 				total, ds, err := child.Children[0].GetDiceSet()
@@ -165,7 +166,7 @@ func (s *server) astToPbDiceSets(p bool, c bool, ro bool, tree *dicelang.AST) (*
 				if err != nil {
 					return nil, nil, err
 				}
-				outDiceSets = append(outDiceSets,
+				sortabldDiceSets = append(sortabldDiceSets,
 					&pb.DiceSet{
 						Dice:          diceToPbDice(p, c, ds.Dice...),
 						TotalsByColor: ds.TotalsByColor,
@@ -173,9 +174,10 @@ func (s *server) astToPbDiceSets(p bool, c bool, ro bool, tree *dicelang.AST) (*
 						ReString:      restring,
 					})
 			}
-			sort.Slice(outDiceSets, func(i, j int) bool {
-				return outDiceSets[i].Total < outDiceSets[j].Total
+			sort.Slice(sortabldDiceSets, func(i, j int) bool {
+				return sortabldDiceSets[i].Total < sortabldDiceSets[j].Total
 			})
+			outDiceSets = append(outDiceSets, sortabldDiceSets...)
 		} else {
 			total, ds, err := child.GetDiceSet()
 			fTotal += total

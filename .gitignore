@@ -13,3 +13,4 @@ config.log
 *gke-alpha-service-account.json
 dev-cluster-config/cleanup
 app/dicelang/cli/cli
+dice-server/dice-server
