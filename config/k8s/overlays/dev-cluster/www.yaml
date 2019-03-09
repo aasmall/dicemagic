@@ -6,5 +6,5 @@ spec:
   template:
     spec:
       containers:
-      - image: gcr.io/k8s-dice-magic/www-dev:latest
+      - image: gcr.io/dice-magic-test/www-dev:latest
         name: www

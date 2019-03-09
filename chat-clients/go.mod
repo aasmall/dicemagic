@@ -5,6 +5,7 @@ go 1.12
 require (
 	cloud.google.com/go v0.36.0
 	contrib.go.opencensus.io/exporter/stackdriver v0.9.1
+	github.com/aasmall/dicemagic v0.0.0-20190306205428-6b9ac5ae3d91
 	github.com/aasmall/dicemagic/internal/dicelang v0.1.0
 	github.com/aasmall/dicemagic/internal/dicelang/errors v0.1.0
 	github.com/aasmall/dicemagic/internal/handler v0.1.0

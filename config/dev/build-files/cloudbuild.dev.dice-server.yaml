@@ -1,8 +1,4 @@
 steps:
-- name: 'gcr.io/cloud-builders/docker'
-  id: 'pull-dice-server'
-  args: ['pull', 'gcr.io/$PROJECT_ID/dice-server:latest']
-
 - name: golang
   env: ['GO111MODULE=on']
   dir: './dice-server'
@@ -13,7 +9,6 @@ steps:
   args: [
             'build',
             '-t', 'gcr.io/$PROJECT_ID/dice-server-dev:latest',
-            '--cache-from', 'gcr.io/$PROJECT_ID/dice-server:latest',
             '-f', 'slim.dockerfile',
             '.'
         ]

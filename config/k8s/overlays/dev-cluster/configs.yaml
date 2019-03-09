@@ -4,6 +4,7 @@ metadata:
   name: chat-clients-config
   namespace: default
 data:
+    PROJECT_ID: "dice-magic-test"
     SLACK_CLIENT_ID: "42142079431.569702459462"
     SLACK_OAUTH_DENIED_URL: "https://www.dev.dicemagic.io/page/access-denied/"
     SLACK_APP_ID: "AGRLNDHDL"
@@ -16,6 +17,7 @@ metadata:
   name: dice-server-config
   namespace: default
 data:
+    PROJECT_ID: "dice-magic-test"
     LOG_NAME: "dicemagic-dev-logs"
     DEBUG: "true"
 ---

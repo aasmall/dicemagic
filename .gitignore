@@ -14,3 +14,5 @@ config.log
 dev-cluster-config/cleanup
 app/dicelang/cli/cli
 dice-server/dice-server
+config/dev/cleanup/keyids.txt
+config/dev/transaction.yaml

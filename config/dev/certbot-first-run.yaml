@@ -9,13 +9,13 @@ spec:
     metadata:
       name: letsencrypt
       annotations:
-        cloud.google.com/service-account: "certbot-dns-manager@k8s-dice-magic.iam.gserviceaccount.com"
+        cloud.google.com/service-account: "dns-service-account@dice-magic-test.iam.gserviceaccount.com"
       labels:
         app: letsencrypt
     spec:
       serviceAccountName: secret-manager
       containers:
-      - image: gcr.io/k8s-dice-magic/letsencrypt-dev:latest
+      - image: gcr.io/dice-magic-test/letsencrypt-dev:latest
         name: letsencrypt
         imagePullPolicy: Always
         ports:

@@ -6,7 +6,11 @@ spec:
   jobTemplate:
     spec:
       template:
+        metadata:
+          name: letsencrypt
+          annotations:
+            cloud.google.com/service-account: "dns-service-account@dice-magic-test.iam.gserviceaccount.com"
         spec:
           containers:
-          - image: gcr.io/k8s-dice-magic/letsencrypt-dev:latest
+          - image: gcr.io/dice-magic-test/letsencrypt-dev:latest
             name: letsencrypt
