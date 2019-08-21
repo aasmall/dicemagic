@@ -185,37 +185,33 @@ func testRoll(t *testing.T, biasMod int64, biasTo int64, biasFreq float64, loops
 
 func TestMinMaxValues(t *testing.T) {
 	type testCase struct {
-		name string
-		nDice int64
-		nSides int64
-		dropHigh int64
-		dropLow int64
+		cmd string
 		expectedMin int64
 		expectedMax int64
 	}
 	tests := []testCase {
 		{
-			name: "1d4", // one die
+			cmd: "1d4", // one die
 			expectedMin: 1,
 			expectedMax: 4,
 		},
 		{
-			name: "2d4", // two dice
+			cmd: "2d4", // two dice
 			expectedMin: 2,
 			expectedMax: 8,
 		},
 		{
-			name: "2d4-L", // drop lowest
+			cmd: "2d4-L", // drop lowest
 			expectedMin: 1,
 			expectedMax: 4,
 		},
 		{
-			name: "2d4-H", // drop highest
+			cmd: "2d4-H", // drop highest
 			expectedMin: 1,
 			expectedMax: 4,
 		},
 		{
-			name: "20d4-H5", // drop multiple
+			cmd: "20d4-H5", // drop multiple
 			expectedMin: 15,
 			expectedMax: 60,
 		},
