@@ -593,10 +593,11 @@ func (d *Dice) Roll() (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-	d.Min = d.Count
 	if d.DropHighest > 0 || d.DropLowest > 0 {
+		d.Min = d.Count - (d.DropHighest + d.DropLowest)
 		d.Max = (d.Count - (d.DropHighest + d.DropLowest)) * d.Sides
 	} else {
+		d.Min = d.Count
 		d.Max = d.Count * d.Sides
 	}
 	d.Faces = faces

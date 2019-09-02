@@ -182,3 +182,52 @@ func testRoll(t *testing.T, biasMod int64, biasTo int64, biasFreq float64, loops
 	}
 	return false, nil
 }
+
+func TestMinMaxValues(t *testing.T) {
+	type testCase struct {
+		cmd string
+		expectedMin int64
+		expectedMax int64
+	}
+	tests := []testCase {
+		{
+			cmd: "1d4", // one die
+			expectedMin: 1,
+			expectedMax: 4,
+		},
+		{
+			cmd: "2d4", // two dice
+			expectedMin: 2,
+			expectedMax: 8,
+		},
+		{
+			cmd: "2d4-L", // drop lowest
+			expectedMin: 1,
+			expectedMax: 4,
+		},
+		{
+			cmd: "2d4-H", // drop highest
+			expectedMin: 1,
+			expectedMax: 4,
+		},
+		{
+			cmd: "20d4-H5", // drop multiple
+			expectedMin: 15,
+			expectedMax: 60,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := NewParser(tt.name)
+			stmts, err := p.Statements()
+			_ , diceSet, err := stmts.GetDiceSet()
+			if err != nil {
+				t.Errorf("There was an error parsing a test case: %v", tt.name)
+			}
+			dice := diceSet.Dice[0]
+			if dice.Min != tt.expectedMin || dice.Max != tt.expectedMax {
+				t.Errorf("Min or Max does not match. Expected: min == %v, max == %v | got: min == %v max == %v", tt.expectedMin, tt.expectedMax, dice.Min, dice.Max)
+			}
+		})
+	}
+}
