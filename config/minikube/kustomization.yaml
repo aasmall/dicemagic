@@ -1,0 +1,29 @@
+bases:
+- ../base
+- ./base
+patchesStrategicMerge:
+- configs.yaml
+- dice-magic-app.yaml
+- nginx-ingress.yaml
+- nginx-ingress-namespace.yaml
+secretGenerator:
+- name: letsencrypt-certs
+  files:
+  - secrets/letsencrypt-certs/tls.crt
+  - secrets/letsencrypt-certs/tls.key
+- name: mock-tls
+  files:
+  - secrets/mocks/tls.crt
+  - secrets/mocks/tls.key
+- name: google-default
+  files:
+  - secrets/google/k8s-dice-magic.json
+- name: slack-secrets
+  files:
+  - secrets/slack/slack-client-secret
+  - secrets/slack/slack-signing-secret
+- name: default-server-secret
+  namespace: nginx-ingress
+  files:
+  - secrets/nginx-ingress/tls.crt
+  - secrets/nginx-ingress/tls.key

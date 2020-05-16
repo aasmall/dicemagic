@@ -1,0 +1,192 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mock-kms
+  namespace: default
+spec:
+  progressDeadlineSeconds: 600
+  replicas: 1
+  selector:
+    matchLabels:
+      k8s-app: mock-kms
+  template:
+    metadata:
+      labels:
+        k8s-app: mock-kms
+    spec:
+      hostname: mock-kms
+      containers:
+      - name: kms
+        image: localhost:5000/kms:latest
+        resources:
+          limits:
+            cpu: 400m
+            memory: 200Mi
+          requests:
+            cpu: 100m
+            memory: 100Mi
+        imagePullPolicy: IfNotPresent
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        envFrom:
+        - configMapRef:
+            name: chat-clients-config
+        volumeMounts:
+        - mountPath: /etc/mock-tls
+          name: mock-tls
+          readOnly: true
+        securityContext:
+          privileged: false
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          capabilities:
+            drop: ["ALL"]
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      terminationGracePeriodSeconds: 10
+      volumes:
+      - name: mock-tls
+        secret:
+          defaultMode: 420
+          secretName: mock-tls
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mock-datastore
+  namespace: default
+spec:
+  progressDeadlineSeconds: 600
+  replicas: 1
+  selector:
+    matchLabels:
+      k8s-app: mock-datastore
+  template:
+    metadata:
+      labels:
+        k8s-app: mock-datastore
+    spec:
+      hostname: mock-datastore
+      containers:
+      - name: datastore
+        volumeMounts:
+        - mountPath: /etc/google-default
+          name: google-default
+          readOnly: true
+        securityContext:
+          capabilities:
+            drop: ["ALL"]
+        image: localhost:5000/datastore:latest
+        imagePullPolicy: IfNotPresent
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        envFrom:
+        - configMapRef:
+            name: chat-clients-config
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      terminationGracePeriodSeconds: 10
+      volumes:
+      - name: google-default
+        secret:
+          defaultMode: 420
+          secretName: google-default
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mock-slack-server
+  namespace: default
+spec:
+  progressDeadlineSeconds: 600
+  replicas: 1
+  selector:
+    matchLabels:
+      k8s-app: mock-slack-server
+  template:
+    metadata:
+      labels:
+        k8s-app: mock-slack-server
+    spec:
+      hostname: mock-slack-server
+      containers:
+      - name: slack-server
+        volumeMounts:
+        - mountPath: /etc/mock-tls
+          name: mock-tls
+          readOnly: true
+        securityContext:
+          capabilities:
+            drop: ["ALL"]
+        image: localhost:5000/slack-server:latest
+        imagePullPolicy: IfNotPresent
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      terminationGracePeriodSeconds: 10
+      volumes:
+      - name: mock-tls
+        secret:
+          defaultMode: 420
+          secretName: mock-tls
+---
+apiVersion: "v1"
+kind: "Service"
+metadata:
+  name: "mock-kms"
+  namespace: default
+  labels:
+    k8s-app: mock-mks
+spec:
+  selector:
+    k8s-app: "mock-kms"
+  ports:
+  - protocol: "TCP"
+    port: 1080
+    targetPort: 40080
+  selector:
+    k8s-app: mock-kms
+---
+apiVersion: "v1"
+kind: "Service"
+metadata:
+  annotations:
+    service.alpha.kubernetes.io/tolerate-unready-endpoints: "false"
+  name: mock-datastore
+  namespace: default
+  labels:
+    k8s-app: mock-datastore
+spec:
+  ports:
+  - name: socat
+    protocol: TCP
+    port: 1081
+    targetPort: 50081
+  selector:
+    k8s-app: mock-datastore
+---
+apiVersion: "v1"
+kind: "Service"
+metadata:
+  annotations:
+    service.alpha.kubernetes.io/tolerate-unready-endpoints: "false"
+  name: mock-slack-server
+  namespace: default
+  labels:
+    k8s-app: mock-slack-server
+spec:
+  ports:
+  - name: https
+    protocol: TCP
+    port: 1082
+    targetPort: 40082
+  - name: http
+    protocol: TCP
+    port: 2082
+    targetPort: 50082
+  selector:
+    k8s-app: mock-slack-server

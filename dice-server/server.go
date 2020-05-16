@@ -1,8 +1,7 @@
-//go:generate protoc -I ../proto --go_out=plugins=grpc:../proto ../proto/dicemagic.proto
-
 package main
 
 import (
+	"fmt"
 	"net"
 	"sort"
 
@@ -11,10 +10,9 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 
-	"github.com/aasmall/dicemagic/internal/dicelang"
-	"github.com/aasmall/dicemagic/internal/dicelang/errors"
-	log "github.com/aasmall/dicemagic/internal/logger"
-	pb "github.com/aasmall/dicemagic/internal/proto"
+	"github.com/aasmall/dicemagic/lib/dicelang"
+	errors "github.com/aasmall/dicemagic/lib/dicelang-errors"
+	log "github.com/aasmall/dicemagic/lib/logger"
 	"golang.org/x/net/context"
 
 	"go.opencensus.io/plugin/ocgrpc"
@@ -87,7 +85,7 @@ func main() {
 		return
 	}
 	s := grpc.NewServer(grpc.StatsHandler(&ocgrpc.ServerHandler{}))
-	pb.RegisterRollerServer(s, newServer(env))
+	dicelang.RegisterRollerServer(s, newServer(env))
 
 	// Register reflection service on gRPC server.
 	reflection.Register(s)
@@ -98,9 +96,9 @@ func main() {
 	}
 }
 
-func (s *server) handleExposedErrors(e error, response *pb.RollResponse) error {
+func (s *server) handleExposedErrors(e error, response *dicelang.RollResponse) error {
 	log := s.env.log
-	response.Error = &pb.RollError{}
+	response.Error = &dicelang.RollError{}
 	response.Ok = false
 	switch e := e.(type) {
 	case *errors.DicelangError:
@@ -126,49 +124,30 @@ func (s *server) handleExposedErrors(e error, response *pb.RollResponse) error {
 	return nil
 }
 
-func (s *server) astToPbDiceSets(p bool, c bool, ro bool, tree *dicelang.AST) (*pb.DiceSet, []*pb.DiceSet, error) {
+func (s *server) astToDiceSets(p bool, c bool, tree *dicelang.AST) (*dicelang.DiceSets, error) {
+	fmt.Printf("----------PRINTING AST--------\n%s\n++++++++++++++++++++++++++++\n", dicelang.PrintAST(tree, 2))
 	log := s.env.log
-	var fTotal float64
 	if tree == nil {
-		return nil, nil, errors.NewDicelangError("No dice sets resulted from that command", errors.InvalidCommand, nil)
+		return nil, errors.NewDicelangError("No dice sets resulted from that command", errors.InvalidCommand, nil)
 	}
-	total, ds, err := tree.GetDiceSet()
-	if err != nil {
-		return nil, nil, err
-	}
-	restring, err := tree.String()
-	if err != nil {
-		return nil, nil, err
-	}
-	pbDiceSet := &pb.DiceSet{
-		Dice:          diceToPbDice(p, c, ds.Dice...),
-		TotalsByColor: ds.TotalsByColor,
-		Total:         int64(total),
-		ReString:      restring,
-	}
-	if ro {
-		return pbDiceSet, []*pb.DiceSet{}, nil
-	}
-
-	var outDiceSets []*pb.DiceSet
+	var outDiceSets = &dicelang.DiceSets{}
 	for _, child := range tree.Children {
 		log.Debugf("child: %+v", child)
 		if child.Value == "REP" {
-			var sortabldDiceSets []*pb.DiceSet
+			var sortabldDiceSets []*dicelang.DiceSet
 			reps, _, _ := child.Children[1].GetDiceSet()
 			for index := 0; index < int(reps); index++ {
 				total, ds, err := child.Children[0].GetDiceSet()
-				fTotal += total
 				if err != nil {
-					return nil, nil, err
+					return nil, err
 				}
 				restring, err := child.Children[0].String()
 				if err != nil {
-					return nil, nil, err
+					return nil, err
 				}
 				sortabldDiceSets = append(sortabldDiceSets,
-					&pb.DiceSet{
-						Dice:          diceToPbDice(p, c, ds.Dice...),
+					&dicelang.DiceSet{
+						Dice:          ds.Dice,
 						TotalsByColor: ds.TotalsByColor,
 						Total:         int64(total),
 						ReString:      restring,
@@ -177,60 +156,61 @@ func (s *server) astToPbDiceSets(p bool, c bool, ro bool, tree *dicelang.AST) (*
 			sort.Slice(sortabldDiceSets, func(i, j int) bool {
 				return sortabldDiceSets[i].Total < sortabldDiceSets[j].Total
 			})
-			outDiceSets = append(outDiceSets, sortabldDiceSets...)
+			outDiceSets.DiceSet = append(outDiceSets.DiceSet, sortabldDiceSets...)
 		} else {
 			total, ds, err := child.GetDiceSet()
-			fTotal += total
 			if err != nil {
-				return nil, nil, err
+				return nil, err
 			}
 			restring, err := child.String()
 			if err != nil {
-				return nil, nil, err
+				return nil, err
 			}
-			outDiceSets = append(outDiceSets,
-				&pb.DiceSet{
-					Dice:          diceToPbDice(p, c, ds.Dice...),
+			outDiceSets.DiceSet = append(outDiceSets.DiceSet,
+				&dicelang.DiceSet{
+					Dice:          ds.Dice,
 					TotalsByColor: ds.TotalsByColor,
 					Total:         int64(total),
 					ReString:      restring,
 				})
 		}
 	}
-	pbDiceSet.Total = int64(fTotal)
-	return pbDiceSet, outDiceSets, nil
-}
-
-func diceToPbDice(p bool, c bool, dice ...dicelang.Dice) []*pb.Dice {
-	var outDice []*pb.Dice
-	for _, d := range dice {
-		var dice pb.Dice
-		dice.Color = d.Color
-		dice.Count = d.Count
-		dice.DropHighest = d.DropHighest
-		dice.DropLowest = d.DropLowest
-		dice.Faces = d.Faces
-		dice.Max = d.Max
-		dice.Min = d.Min
-		dice.Sides = d.Sides
-		dice.Total = d.Total
-		if p {
-			dice.Probabilities = dicelang.DiceProbability(dice.Count, dice.Sides, dice.DropHighest, dice.DropLowest)
-		}
-		if c {
-			dice.Chart = []byte{}
-		}
-		outDice = append(outDice, &dice)
+	if len(outDiceSets.DiceSet) > 1 {
+		fmt.Printf("------------OMG MORE THAN ONE------------\n%+v\n", outDiceSets)
 	}
-
-	return outDice
+	return outDiceSets, nil
 }
 
-func (s *server) Roll(ctx context.Context, in *pb.RollRequest) (*pb.RollResponse, error) {
+// func diceTodicelangDice(p bool, c bool, dice ...dicelang.Dice) []*dicelang.Dice {
+// 	var outDice []*dicelang.Dice
+// 	for _, d := range dice {
+// 		var dice dicelang.Dice
+// 		dice.Color = d.Color
+// 		dice.Count = d.Count
+// 		dice.DropHighest = d.DropHighest
+// 		dice.DropLowest = d.DropLowest
+// 		dice.Faces = d.Faces
+// 		dice.Max = d.Max
+// 		dice.Min = d.Min
+// 		dice.Sides = d.Sides
+// 		dice.Total = d.Total
+// 		if p {
+// 			dice.Probabilities = dicelang.DiceProbability(dice.Count, dice.Sides, dice.DropHighest, dice.DropLowest)
+// 		}
+// 		if c {
+// 			dice.Chart = []byte{}
+// 		}
+// 		outDice = append(outDice, &dice)
+// 	}
+
+// 	return outDice
+// }
+
+func (s *server) Roll(ctx context.Context, in *dicelang.RollRequest) (*dicelang.RollResponse, error) {
 	log := s.env.log
 	ctx, span := trace.StartSpan(ctx, "Roll")
 	defer span.End()
-	out := pb.RollResponse{Ok: true}
+	out := dicelang.RollResponse{Ok: true}
 
 	ctx, parseSpan := trace.StartSpan(ctx, "Parse")
 	var p *dicelang.Parser
@@ -241,18 +221,17 @@ func (s *server) Roll(ctx context.Context, in *pb.RollRequest) (*pb.RollResponse
 	log.Debugf("Rolling cmd on server: %s", in.Cmd)
 	tree, err := p.Statements()
 	parseSpan.End()
-
+	tree.String()
 	ctx, dsSpan := trace.StartSpan(ctx, "AST to Diceset")
 	defer dsSpan.End()
-	diceSet, diceSets, err := s.astToPbDiceSets(in.Probabilities, in.Chart, in.RootOnly, tree)
+	diceSets, err := s.astToDiceSets(in.Probabilities, in.Chart, tree)
 	if err != nil {
 		return &out, s.handleExposedErrors(err, &out)
 	}
-	out.DiceSet = diceSet
-	for _, ds := range diceSets {
+	for _, ds := range diceSets.DiceSet {
 		out.DiceSets = append(out.DiceSets, ds)
 	}
 	out.Cmd = in.Cmd
-	log.Debugf("roll response from server: %+v", out)
+	log.Debugf("roll response from server: %+v", &out)
 	return &out, nil
 }

@@ -10,26 +10,7 @@ func TestChannelType_String(t *testing.T) {
 		i    ChannelType
 		want string
 	}{
-		{
-			name: "Unknown restring",
-			i:    0,
-			want: "Unknown",
-		},
-		{
-			name: "DM restring",
-			i:    1,
-			want: "DM",
-		},
-		{
-			name: "MultiDM restring",
-			i:    2,
-			want: "MultiDM",
-		},
-		{
-			name: "Standard restring",
-			i:    3,
-			want: "Standard",
-		},
+		// TODO: Add test cases.
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

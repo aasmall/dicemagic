@@ -8,6 +8,8 @@ import (
 	"encoding/hex"
 	"fmt"
 
+	"google.golang.org/api/option"
+
 	"crypto/hmac"
 
 	"golang.org/x/oauth2/google"
@@ -16,15 +18,20 @@ import (
 
 func (c *SlackChatClient) Decrypt(ctx context.Context, keyName string, ciphertext string) (string, error) {
 
-	client, err := google.DefaultClient(ctx, cloudkms.CloudPlatformScope)
+	var kmsService *cloudkms.Service
+	var err error
 
-	if err != nil {
-		return "", err
+	if c.config.local {
+		kmsService, err = cloudkms.NewService(ctx,
+			option.WithEndpoint(c.config.mockKMSURL),
+			option.WithAPIKey("mockAPIKey"),
+			option.WithHTTPClient(c.httpClient))
+	} else {
+		kmsService, err = cloudkms.NewService(ctx,
+			option.WithHTTPClient(c.httpClient))
 	}
-
-	kmsService, err := cloudkms.New(client)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("Error creating cloudKMS.service: %v", err)
 	}
 
 	parentName := fmt.Sprintf("projects/%s/locations/%s/keyRings/%s/cryptoKeys/%s",
@@ -48,6 +55,7 @@ func (c *SlackChatClient) Encrypt(ctx context.Context, keyName string, plaintext
 	}
 
 	kmsService, err := cloudkms.New(client)
+
 	if err != nil {
 		return "", err
 	}

@@ -1,0 +1,48 @@
+apiVersion: skaffold/v2beta2
+kind: Config
+metadata:
+  name: dicemagic
+build:
+  local:
+    push: true
+    concurrency: 0
+  insecureRegistries:
+  - "192.168.39.0/24"
+  - "10.0.0.0/24"
+  artifacts:
+  - image: gcr.io/k8s-dice-magic/chat-clients
+    context: .
+    docker:
+      dockerfile: dockerfiles/chat-clients.dockerfile
+  - image: gcr.io/k8s-dice-magic/dice-server
+    context: .
+    docker:
+      dockerfile: dockerfiles/dice-server.dockerfile
+  - image: gcr.io/k8s-dice-magic/letsencrypt
+    context: .
+    docker:
+      dockerfile: dockerfiles/letsencrypt.dockerfile
+  - image: gcr.io/k8s-dice-magic/www
+    context: .
+    docker:
+      dockerfile: dockerfiles/www.dockerfile
+  - image: localhost:5000/datastore
+    context: .
+    docker:
+      dockerfile: dockerfiles/mock-datastore.dockerfile
+  - image: localhost:5000/kms
+    context: .
+    docker:
+      dockerfile: dockerfiles/mock-kms.dockerfile
+  - image: localhost:5000/slack-server
+    context: .
+    docker:
+      dockerfile: dockerfiles/mock-slack-server.dockerfile
+  - image: gcr.io/k8s-dice-magic/redis
+    context: .
+    docker:
+      dockerfile: dockerfiles/redis.dockerfile
+deploy:
+  kustomize:
+    paths:
+    - config/minikube 

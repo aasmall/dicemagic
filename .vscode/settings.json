@@ -1,0 +1,8 @@
+{
+    "gopls": {
+        "env": {
+            "PATH": "$HOME/go/bin:$PATH",
+        }
+    },
+    "go.inferGopath": false,
+}

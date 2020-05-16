@@ -8,8 +8,8 @@ import (
 
 	"github.com/serialx/hashring"
 
-	"github.com/aasmall/dicemagic/internal/dicelang/errors"
-	pb "github.com/aasmall/dicemagic/internal/proto"
+	"github.com/aasmall/dicemagic/lib/dicelang"
+	errors "github.com/aasmall/dicemagic/lib/dicelang-errors"
 	"github.com/nlopes/slack"
 	"golang.org/x/net/context"
 )
@@ -47,7 +47,6 @@ func (c *SlackChatClient) DisconnectIfUnassigned(assignedTeamIDs []string) error
 }
 func (c *SlackChatClient) OpenConnection(ctx context.Context, teamID string) error {
 	c.mu.Lock()
-	c.log.Debugf("Setting up RTM to Slack for: %s", teamID)
 	for _, conn := range c.slackConnectionPool {
 		if conn.teamID == teamID {
 			// connection already open
@@ -55,6 +54,8 @@ func (c *SlackChatClient) OpenConnection(ctx context.Context, teamID string) err
 			return nil
 		}
 	}
+
+	c.log.Debugf("Setting up RTM to Slack for: %s", teamID)
 
 	installDoc, err := c.GetFirstSlackInstallInstanceByTeamID(ctx, teamID, c.config.slackAppID)
 	if err != nil {
@@ -65,10 +66,11 @@ func (c *SlackChatClient) OpenConnection(ctx context.Context, teamID string) err
 
 	botAccessToken, err := c.Decrypt(ctx, c.config.kmsSlackKey, installDoc.Bot.EncBotAccessToken)
 	if err != nil {
-		c.log.Critical("could not decrypt access token")
+		c.log.Criticalf("could not decrypt access token: %v", err)
 		defer c.mu.Unlock()
 		return err
 	}
+
 	connectionInfo := &SlackConnection{
 		teamID:      teamID,
 		botID:       installDoc.Bot.BotUserID,
@@ -78,9 +80,10 @@ func (c *SlackChatClient) OpenConnection(ctx context.Context, teamID string) err
 			botAccessToken,
 			slack.OptionDebug(c.config.debug),
 			slack.OptionLog(c.log),
+			slack.OptionHTTPClient(c.httpClient),
 		),
 	}
-	connectionInfo.conn = connectionInfo.client.NewRTM()
+	connectionInfo.conn = connectionInfo.client.NewRTM(slack.RTMOptionDialer(c.wssClient))
 
 	c.slackConnectionPool[connectionInfo.ID] = connectionInfo
 	c.mu.Unlock()
@@ -189,7 +192,7 @@ func (c *SlackChatClient) IsMention(text string, botID string) (bool, string) {
 }
 
 func (c *SlackChatClient) Reply(conn *SlackConnection, cmd string, channel string) {
-	var rollResponse *pb.RollResponse
+	var rollResponse *dicelang.RollResponse
 	var err error
 	rollResponse, err = Roll(c.diceClient, cmd)
 	if err != nil {

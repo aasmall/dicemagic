@@ -3,10 +3,9 @@ package main
 import (
 	"time"
 
-	"google.golang.org/grpc"
-
-	pb "github.com/aasmall/dicemagic/internal/proto"
+	"github.com/aasmall/dicemagic/lib/dicelang"
 	"golang.org/x/net/context"
+	"google.golang.org/grpc"
 )
 
 type RollOption func(*RollOptions)
@@ -39,7 +38,7 @@ func RollOptionWithContext(ctx context.Context) RollOption {
 }
 
 // Roll calls supplied grpc client with a freeform text command and returns a dice roll
-func Roll(client *grpc.ClientConn, cmd string, options ...RollOption) (*pb.RollResponse, error) {
+func Roll(client *grpc.ClientConn, cmd string, options ...RollOption) (*dicelang.RollResponse, error) {
 	opts := RollOptions{
 		Chart:       false,
 		Probability: false,
@@ -49,10 +48,10 @@ func Roll(client *grpc.ClientConn, cmd string, options ...RollOption) (*pb.RollR
 	for _, o := range options {
 		o(&opts)
 	}
-	rollerClient := pb.NewRollerClient(client)
+	rollerClient := dicelang.NewRollerClient(client)
 	timeOutCtx, cancel := context.WithTimeout(opts.Context, opts.Timeout)
 	defer cancel()
-	request := &pb.RollRequest{
+	request := &dicelang.RollRequest{
 		Cmd:           cmd,
 		Probabilities: opts.Probability,
 		Chart:         opts.Chart,

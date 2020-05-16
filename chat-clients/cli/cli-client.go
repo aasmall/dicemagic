@@ -5,7 +5,7 @@ import (
 	"os"
 	"time"
 
-	pb "github.com/aasmall/dicemagic/app/proto"
+	"github.com/aasmall/dicemagic/lib/dicelang"
 	"go.opencensus.io/plugin/ocgrpc"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
@@ -42,7 +42,7 @@ func main() {
 		log.Fatalf("did not connect: %v", err)
 	}
 	defer conn.Close()
-	c := pb.NewRollerClient(conn)
+	c := dicelang.NewRollerClient(conn)
 
 	// Contact the server and print out its response.
 	cmd := defaultCmd
@@ -53,7 +53,7 @@ func main() {
 	defer cancel()
 	for index := 0; index < 1000; index++ {
 
-		r, err := c.Roll(ctx, &pb.RollRequest{Cmd: cmd})
+		r, err := c.Roll(ctx, &dicelang.RollRequest{Cmd: cmd})
 		if err != nil {
 			log.Fatalf("could not greet: %v", err)
 		}

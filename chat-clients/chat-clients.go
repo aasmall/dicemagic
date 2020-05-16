@@ -7,17 +7,18 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sort"
 	"strconv"
 	"strings"
 	"syscall"
 	"time"
 
-	"cloud.google.com/go/logging"
-
 	"cloud.google.com/go/datastore"
+	"cloud.google.com/go/logging"
 	"contrib.go.opencensus.io/exporter/stackdriver"
-	"github.com/aasmall/dicemagic/internal/handler"
-	log "github.com/aasmall/dicemagic/internal/logger"
+	"github.com/aasmall/dicemagic/lib/envreader"
+	"github.com/aasmall/dicemagic/lib/handler"
+	log "github.com/aasmall/dicemagic/lib/logger"
 	"github.com/go-redis/redis"
 	"github.com/gorilla/mux"
 	"go.opencensus.io/plugin/ocgrpc"
@@ -27,12 +28,13 @@ import (
 	"google.golang.org/grpc"
 )
 
-type env struct {
+type environment struct {
 	traceClient      *http.Client
 	config           *envConfig
 	log              *log.Logger
 	diceServerClient *grpc.ClientConn
 	ShuttingDown     bool
+	configReloader   func() (*envConfig, error)
 }
 
 type envConfig struct {
@@ -52,47 +54,64 @@ type envConfig struct {
 	redisPort             string
 	podName               string
 	localRedirectURI      string
-	redisClusterHosts     string
+	slackProxyURL         string
+	mockKMSURL            string
+	redisClusterHosts     []string
 	debug                 bool
 	local                 bool
 	traceProbability      float64
 }
 
+func GetEnvironmentalConfig() (*envConfig, error) {
+	// Gather Environment Variables
+	configReader := new(envreader.EnvReader)
+	config := &envConfig{
+		projectID:             configReader.GetEnv("PROJECT_ID"),
+		kmsKeyring:            configReader.GetEnv("KMS_KEYRING"),
+		kmsSlackKey:           configReader.GetEnv("KMS_SLACK_KEY"),
+		kmsSlackKeyLocation:   configReader.GetEnv("KMS_SLACK_KEY_LOCATION"),
+		slackClientID:         configReader.GetEnv("SLACK_CLIENT_ID"),
+		slackAppID:            configReader.GetEnv("SLACK_APP_ID"),
+		slackOAuthDeniedURL:   configReader.GetEnv("SLACK_OAUTH_DENIED_URL"),
+		logName:               configReader.GetEnv("LOG_NAME"),
+		serverPort:            configReader.GetEnv("SERVER_PORT"),
+		slackTokenURL:         configReader.GetEnv("SLACK_TOKEN_URL"),
+		diceServerPort:        configReader.GetEnv("DICE_SERVER_PORT"),
+		redisPort:             configReader.GetEnv("REDIS_PORT"),
+		podName:               configReader.GetEnv("POD_NAME"),
+		localRedirectURI:      configReader.GetEnvOpt("REDIRECT_URI"),
+		slackProxyURL:         configReader.GetEnvOpt("SLACK_PROXY_URL"),
+		mockKMSURL:            configReader.GetEnvOpt("MOCK_KMS_URL"),
+		debug:                 configReader.GetEnvBoolOpt("DEBUG"),
+		local:                 configReader.GetEnvBoolOpt("LOCAL"),
+		traceProbability:      configReader.GetEnvFloat("TRACE_PROBABILITY"),
+		redisClusterHosts:     configReader.GetPodHosts("default", "k8s-app=redis"),
+		encSlackSigningSecret: configReader.GetFromFile("/etc/slack-secrets/slack-signing-secret"),
+		encSlackClientSecret:  configReader.GetFromFile("/etc/slack-secrets/slack-client-secret"),
+	}
+	if configReader.Errors {
+		return nil, fmt.Errorf("Could not gather config. Failed variables: %v", configReader.MissingKeys)
+	}
+	return config, nil
+
+}
+func (env *environment) ReloadConfig() error {
+	config, err := env.configReloader()
+	if err != nil {
+		return err
+	}
+	env.config = config
+	return nil
+}
+
 func main() {
 	log.Printf("hello.")
 	ctx := context.Background()
-
-	// Gather Environment Variables
-	// TODO: run each in a go routine to spped up server init
-	configReader := new(envReader)
-	config := &envConfig{
-		projectID:             configReader.getEnv("PROJECT_ID"),
-		kmsKeyring:            configReader.getEnv("KMS_KEYRING"),
-		kmsSlackKey:           configReader.getEnv("KMS_SLACK_KEY"),
-		kmsSlackKeyLocation:   configReader.getEnv("KMS_SLACK_KEY_LOCATION"),
-		slackClientID:         configReader.getEnv("SLACK_CLIENT_ID"),
-		slackAppID:            configReader.getEnv("SLACK_APP_ID"),
-		encSlackSigningSecret: configReader.getEnv("SLACK_SIGNING_SECRET"),
-		encSlackClientSecret:  configReader.getEnv("SLACK_CLIENT_SECRET"),
-		slackOAuthDeniedURL:   configReader.getEnv("SLACK_OAUTH_DENIED_URL"),
-		logName:               configReader.getEnv("LOG_NAME"),
-		serverPort:            configReader.getEnv("SERVER_PORT"),
-		slackTokenURL:         configReader.getEnv("SLACK_TOKEN_URL"),
-		diceServerPort:        configReader.getEnv("DICE_SERVER_PORT"),
-		redisPort:             configReader.getEnv("REDIS_PORT"),
-		podName:               configReader.getEnv("POD_NAME"),
-		localRedirectURI:      configReader.getEnvOpt("REDIRECT_URI"),
-		redisClusterHosts:     configReader.getEnvOpt("REDIS_CLUSTER_HOSTS"),
-		debug:                 configReader.getEnvBoolOpt("DEBUG"),
-		local:                 configReader.getEnvBoolOpt("LOCAL"),
-		traceProbability:      configReader.getEnvFloat("TRACE_PROBABILITY"),
+	env := &environment{configReloader: func() (*envConfig, error) { return GetEnvironmentalConfig() }}
+	err := env.ReloadConfig()
+	if err != nil {
+		log.Fatalf("ERROR OCCURED BEFORE LOGGING: %s", err)
 	}
-	if configReader.errors {
-		log.Fatalf("could not gather environment variables. Failed variables: %v", configReader.missingKeys)
-	}
-
-	env := &env{config: config}
-
 	// Stackdriver Logger
 	env.log = log.New(
 		env.config.projectID,
@@ -105,6 +124,18 @@ func main() {
 	env.log.Debug("Logger up and running!")
 	defer log.Println("Shutting down logger.")
 	defer env.log.Close()
+
+	//keep config up to date
+	go func() {
+		ticker := time.NewTicker(time.Second * 60)
+		defer ticker.Stop()
+		for range ticker.C {
+			err := env.ReloadConfig()
+			if err != nil {
+				env.log.Criticalf("Could not reload config: %v", err)
+			}
+		}
+	}()
 
 	// Stackdriver Trace exporter
 	exporter, err := stackdriver.NewExporter(stackdriver.Options{
@@ -135,30 +166,47 @@ func main() {
 	env.diceServerClient = diceServerClient
 
 	// Redis Client
-	var redisClient redis.Cmdable
-	if env.isLocal() {
-		fmt.Printf("Creating redis client with port: %v\n", env.config.redisPort)
-		redisClient = redis.NewClient(&redis.Options{
-			Addr:     env.config.redisPort,
-			Password: "", // no password set
-			DB:       0,  // use default DB
-		})
-	} else {
-		clusterURIs := strings.Split(env.config.redisClusterHosts, ";")
-		for i, s := range clusterURIs {
-			clusterURIs[i] = fmt.Sprintf("%s%s", strings.TrimSpace(s), env.config.redisPort)
+
+	// env.log.Debugf("Creating redis cluster client with URIs: %v\n", env.redisClusterAddresses())
+	// redisClient := redis.NewClusterClient(&redis.ClusterOptions{
+	// 	ClusterSlots:  func() ([]redis.ClusterSlot, error) { return env.redisClusterSlots() },
+	// 	RouteRandomly: true,
+	// })
+	env.log.Debugf("Creating redis cluster client with URIs: %v\n", env.redisClusterAddresses())
+	redisClient := redis.NewClusterClient(&redis.ClusterOptions{
+		Addrs:    env.redisClusterAddresses(),
+		Password: "",
+	})
+	go func() {
+		ticker := time.NewTicker(time.Second * 30)
+		defer ticker.Stop()
+		for range ticker.C {
+			err = env.ReloadConfig()
+			env.log.Debugf("Creating redis cluster client with URIs: %v\n", env.redisClusterAddresses())
+			*redisClient = *redis.NewClusterClient(&redis.ClusterOptions{
+				Addrs:    env.redisClusterAddresses(),
+				Password: "",
+			})
 		}
-		env.log.Debugf("Creating redis cluster client with URIs: %v\n", clusterURIs)
-		redisClient = redis.NewClusterClient(&redis.ClusterOptions{
-			Addrs:    clusterURIs,
-			Password: "",
-		})
-	}
+	}()
+	// Keep ClusterIPs up to date if IPs change
+	// go func(env *environment, client *redis.ClusterClient) {
+	// 	ticker := time.NewTicker(time.Second * 30)
+	// 	defer ticker.Stop()
+	// 	for range ticker.C {
+	// 		err = env.ReloadConfig()
+	// 		env.log.Debugf("reloading redisClientState with URIs: %v\n", env.redisClusterAddresses())
+	// 		err = redisClient.ReloadState()
+	// 		if err != nil {
+	// 			env.log.Criticalf("Error updating Redis ClusterClientConfig: %v", err)
+	// 		}
+	// 	}
+	// }(env, redisClient)
 
 	// Cloud Datastore Client
 	dsClient, err := datastore.NewClient(ctx, env.config.projectID)
 	if err != nil {
-		log.Fatalf("could not configure Datastore Client: %s", err)
+		log.Fatalf("Could not configure Datastore Client: %s", err)
 	}
 
 	// Call chat-clients init
@@ -216,7 +264,7 @@ func main() {
 }
 
 func rootHandler(e interface{}, w http.ResponseWriter, r *http.Request) error {
-	env := e.(*env)
+	env := e.(*environment)
 	trace.ApplyConfig(trace.Config{DefaultSampler: trace.NeverSample()})
 	defer trace.ApplyConfig(trace.Config{DefaultSampler: trace.ProbabilitySampler(env.config.traceProbability)})
 	fmt.Fprint(w, "200")
@@ -247,6 +295,60 @@ func facesSliceString(faces []int64) string {
 	return string(bytes.Join(b, []byte(", ")))
 }
 
-func (env *env) isLocal() bool {
+func (env *environment) isLocal() bool {
 	return env.config.local
+}
+func (env *environment) redisClusterAddresses() []string {
+	clusterURIs := make([]string, len(env.config.redisClusterHosts))
+	copy(clusterURIs, env.config.redisClusterHosts)
+	for i, s := range clusterURIs {
+		clusterURIs[i] = fmt.Sprintf("%s:%s", strings.TrimSpace(s), env.config.redisPort)
+	}
+	return clusterURIs
+}
+func (env *environment) redisClusterSlots() ([]redis.ClusterSlot, error) {
+	addresses := env.redisClusterAddresses()
+	sort.Strings(addresses)
+	//client side cluster
+	slots := splitSlots(len(addresses))
+
+	for i := 0; i < len(slots); i++ {
+		slots[i].Nodes = []redis.ClusterNode{{Addr: addresses[i]}}
+	}
+	env.log.Debugf("redisClusterSet = %+v", slots)
+	return slots, nil
+}
+func splitSlots(numberOfHosts int) []redis.ClusterSlot {
+	maxSlots := 16383
+	var slots []redis.ClusterSlot
+	nextSlot := 0
+	if numberOfHosts == 0 {
+		log.Printf("redis hosts not up yet, cannot assign slots.")
+		return nil
+	}
+	if maxSlots < numberOfHosts {
+		// More hosts than slots, can't be divided
+		return []redis.ClusterSlot{{Start: 0}, {End: 0}}
+	} else if (maxSlots % numberOfHosts) == 0 {
+		// slots divide evenly into hosts
+		for i := 0; i < numberOfHosts; i++ {
+			slotsEach := maxSlots / numberOfHosts
+			slots = append(slots, redis.ClusterSlot{Start: nextSlot, End: (i + 1) * slotsEach})
+			nextSlot = ((i + 1) * slotsEach) + 1
+		}
+	} else {
+		// slots do not divide evenly into hosts
+		unevenCount := numberOfHosts - (maxSlots % numberOfHosts)
+		evenAmount := maxSlots / numberOfHosts
+		for i := 0; i < numberOfHosts; i++ {
+			if i >= unevenCount {
+				slots = append(slots, redis.ClusterSlot{Start: nextSlot, End: (i + 1) * (evenAmount + 1)})
+				nextSlot = ((i + 1) * (evenAmount + 1)) + 1
+			} else {
+				slots = append(slots, redis.ClusterSlot{Start: nextSlot, End: (i + 1) * evenAmount})
+				nextSlot = ((i + 1) * evenAmount) + 1
+			}
+		}
+	}
+	return slots
 }

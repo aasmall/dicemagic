@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/aasmall/dicemagic/internal/dicelang/errors"
-	pb "github.com/aasmall/dicemagic/internal/proto"
+	"github.com/aasmall/dicemagic/lib/dicelang"
+	errors "github.com/aasmall/dicemagic/lib/dicelang-errors"
 )
 
 type RESTRollResponse struct {
@@ -24,7 +24,7 @@ type RESTRollRequest struct {
 }
 
 func RESTRollHandler(e interface{}, w http.ResponseWriter, r *http.Request) error {
-	env, _ := e.(*env)
+	env, _ := e.(*environment)
 	log := env.log.WithRequest(r)
 	req := &RESTRollRequest{}
 
@@ -59,17 +59,19 @@ func RESTRollHandler(e interface{}, w http.ResponseWriter, r *http.Request) erro
 	return nil
 }
 
-func StringFromRollResponse(rr *pb.RollResponse) string {
+func StringFromRollResponse(rr *dicelang.RollResponse) string {
 	var s []string
+	var finalTotal int64
 	for _, ds := range rr.DiceSets {
 		var faces []interface{}
 		for _, d := range ds.Dice {
 			faces = append(faces, facesSliceString(d.Faces))
 		}
 		s = append(s, fmt.Sprintf("%s = *%s*", fmt.Sprintf(ds.ReString, faces...), strconv.FormatInt(ds.Total, 10)))
+		finalTotal = finalTotal + ds.Total
 	}
 	if len(rr.DiceSets) > 1 {
-		s = append(s, fmt.Sprintf("Total: %s", strconv.FormatInt(rr.DiceSet.Total, 10)))
+		s = append(s, fmt.Sprintf("Total: %s", strconv.FormatInt(finalTotal, 10)))
 	}
 	return strings.Join(s, "\n")
 }

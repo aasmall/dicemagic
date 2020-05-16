@@ -49,7 +49,7 @@ func (c *SlackChatClient) GetLastCommand(userID string, teamID string) (string, 
 	}
 	return cmd, err
 }
-func (c SlackChatClient) SaveCommand(userID string, teamID string, commandMap map[string]string) error {
+func (c *SlackChatClient) SaveCommand(userID string, teamID string, commandMap map[string]string) error {
 	key := fmt.Sprintf("command:%s:%s:%s", teamID, userID, commandMap["name"])
 	go c.SlackDatastoreClient.UpsetRedisCommand(context.Background(),
 		&RedisCommand{TeamID: teamID, UserID: userID, CommandKey: commandMap["name"], CommandValue: commandMap["cmd"], Expire: time.Now().Add(threeMonths)},
@@ -120,10 +120,14 @@ func (c *SlackChatClient) SpawnTeamsCrier(freq time.Duration) {
 	}
 }
 func (c *SlackChatClient) CryPods(tick time.Time) error {
-	return c.redisClient.HSet("pods", c.config.podName, tick.Format(timeFormat)).Err()
+	err := c.redisClient.HSet("pods", c.config.podName, tick.Format(timeFormat)).Err()
+	pods, _ := c.GetHashKeys("pods")
+	c.log.Debugf("At %s Just cried pod '%v'. Current HSet value: %v", tick.Format(timeFormat), c.config.podName, pods)
+	return err
 }
 func (c *SlackChatClient) CryTeams(tick time.Time) error {
 	teams, err := c.GetAllTeams(context.Background(), c.config.slackAppID)
+	c.log.Debugf("Crying teams: %+v", teams)
 	if err != nil {
 		return fmt.Errorf("could not get teams from datastore: %s", err)
 	}
@@ -151,6 +155,7 @@ func (c *SlackChatClient) SpawnReaper(key string, freq time.Duration, age time.D
 		}
 	}
 }
+
 func (c *SlackChatClient) reap(key string, freq time.Duration, age time.Duration) error {
 	hashMap, err := c.redisClient.HGetAll(key).Result()
 	if err != nil {
@@ -165,6 +170,7 @@ func (c *SlackChatClient) reap(key string, freq time.Duration, age time.Duration
 			continue
 		}
 		if time.Now().Sub(lastCheckin) >= age {
+			c.log.Debugf("Reaping %s: %s. They were %.3f seconds old", key, k, age.Seconds())
 			c.redisClient.HDel(key, k).Err()
 		}
 	}
@@ -186,6 +192,7 @@ func (c *SlackChatClient) GetTeamsAssignedtoPod() ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	c.log.Debugf("Assigning Teams to Pods: Teams: %v, Pods: %v, Me: %v.", teams, pods, c.config.podName)
 	ring := hashring.New(pods)
 	var assignedTeams []string
 	for _, teamID := range teams {

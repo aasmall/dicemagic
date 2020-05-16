@@ -41,7 +41,7 @@ func main() {
 	serve404 := func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html")
 		w.WriteHeader(http.StatusNotFound)
-		http.ServeFile(w, r, "public/404.html")
+		http.ServeFile(w, r, "/srv/404.html")
 	}
 
 	formatSpanName := func(r *http.Request) string {
@@ -49,7 +49,7 @@ func main() {
 	}
 
 	// Define inbound Routes
-	fileHandler := http.StripPrefix("/", CustomFileServer(http.Dir("public"), serve404))
+	fileHandler := http.StripPrefix("/", CustomFileServer(http.Dir("/srv"), serve404))
 	h := &ochttp.Handler{Handler: fileHandler, StartOptions: trace.StartOptions{SpanKind: trace.SpanKindServer}, FormatSpanName: formatSpanName}
 
 	// Define a server with timeouts

@@ -1,0 +1,4 @@
+kind: Service
+apiVersion: v1
+spec:
+  loadBalancerIP: "35.193.52.224"

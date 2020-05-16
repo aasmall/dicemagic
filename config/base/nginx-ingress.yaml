@@ -1,0 +1,31 @@
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: web-ingress
+  namespace: default
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    kubernetes.io/ingress.global-static-ip-name: "dice-magic"
+    nginx.ingress.kubernetes.io/from-to-www-redirect: "true"
+spec:
+  tls:
+    - hosts:
+      - www.dicemagic.io
+      - api.dicemagic.io
+      secretName: letsencrypt-certs
+  rules:
+  - host: www.dicemagic.io
+    http:
+      paths:
+      - path: /
+        backend:
+          serviceName: www-service
+          servicePort: 80
+  - host: api.dicemagic.io
+    http:
+      paths:
+      - path: /
+        backend:
+          serviceName: dicemagic-service
+          servicePort: 80

@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dicemagic
+  namespace: default
+spec:
+  template:
+    spec:
+      containers:
+      - name: chat-clients
+        volumeMounts:
+        - mountPath: /etc/mock-tls
+          name: mock-tls
+          readOnly: true
+      volumes:
+      - name: mock-tls
+        secret:
+          defaultMode: 420
+          secretName: mock-tls

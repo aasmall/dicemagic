@@ -4,24 +4,28 @@ import (
 	"bytes"
 	"crypto/hmac"
 	"crypto/md5"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"math/big"
 	"math/rand"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/aasmall/dicemagic/lib/dicelang"
+	log "github.com/aasmall/dicemagic/lib/logger"
 	"github.com/go-redis/redis"
 	"google.golang.org/grpc"
 
 	"cloud.google.com/go/datastore"
-	log "github.com/aasmall/dicemagic/internal/logger"
-	pb "github.com/aasmall/dicemagic/internal/proto"
+	"github.com/gorilla/websocket"
 	"github.com/nlopes/slack"
 	"golang.org/x/net/context"
 )
@@ -37,6 +41,8 @@ type SlackChatClient struct {
 	idGen               slack.IDGenerator
 	mu                  sync.Mutex
 	ShuttingDown        bool
+	httpClient          *http.Client
+	wssClient           *websocket.Dialer
 }
 
 type SlackDatastoreClient struct {
@@ -52,27 +58,27 @@ type SlackConnection struct {
 	ID          int
 }
 
-//SlackRollJSONResponse is the response format for slack commands
-type SlackRollJSONResponse struct {
-	Text        string            `json:"text"`
-	Attachments []SlackAttachment `json:"attachments"`
-}
+// //SlackRollJSONResponse is the response format for slack commands
+// type SlackRollJSONResponse struct {
+// 	Text        string            `json:"text"`
+// 	Attachments []SlackAttachment `json:"attachments"`
+// }
 
-type SlackAttachment struct {
-	Pretext    string       `json:"pretext"`
-	Fallback   string       `json:"fallback"`
-	Color      string       `json:"color"`
-	AuthorName string       `json:"author_name"`
-	Fields     []SlackField `json:"fields"`
-}
-type SlackField struct {
-	Title string `json:"title"`
-	Value string `json:"value"`
-	Short bool   `json:"short"`
-}
+// type SlackAttachment struct {
+// 	Pretext    string       `json:"pretext"`
+// 	Fallback   string       `json:"fallback"`
+// 	Color      string       `json:"color"`
+// 	AuthorName string       `json:"author_name"`
+// 	Fields     []SlackField `json:"fields"`
+// }
+// type SlackField struct {
+// 	Title string `json:"title"`
+// 	Value string `json:"value"`
+// 	Short bool   `json:"short"`
+// }
 
 func NewSlackChatClient(log *log.Logger, redisClient redis.Cmdable, datastoreClient *datastore.Client, traceClient *http.Client, diceClient *grpc.ClientConn, config *envConfig) *SlackChatClient {
-	return &SlackChatClient{
+	slackClient := &SlackChatClient{
 		SlackDatastoreClient{datastoreClient, log},
 		log,
 		redisClient,
@@ -83,20 +89,67 @@ func NewSlackChatClient(log *log.Logger, redisClient redis.Cmdable, datastoreCli
 		slack.NewSafeID(1000),
 		sync.Mutex{},
 		false,
+		http.DefaultClient,
+		websocket.DefaultDialer,
 	}
+	var netTransport = &http.Transport{
+		Dial: (&net.Dialer{
+			Timeout: 5 * time.Second,
+		}).Dial,
+		TLSHandshakeTimeout: 5 * time.Second,
+	}
+	if config.local {
+		// override URL and HTTP client to force use of self-signed CA and mocks
+		rootCAs, _ := x509.SystemCertPool()
+		if rootCAs == nil {
+			rootCAs = x509.NewCertPool()
+		}
+		certs, err := ioutil.ReadFile("/etc/mock-tls/tls.crt")
+		if err != nil {
+			log.Criticalf("Failed to append mock-server to RootCAs: %v", err)
+		}
+		if ok := rootCAs.AppendCertsFromPEM(certs); !ok {
+			log.Debugf("No certs appended, using system certs only")
+		}
+		tlsConfig := &tls.Config{
+			InsecureSkipVerify: false,
+			RootCAs:            rootCAs,
+		}
+		netTransport.TLSClientConfig = tlsConfig
+
+		// detect calls to slack API and redirect to mock slack-server
+		netTransport.DialTLSContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+			log.Debugf("rewriting address: network: %s. address: %s", network, addr)
+			if strings.HasPrefix(addr, "slack.com") {
+				return tls.Dial(network, config.slackProxyURL, tlsConfig)
+			}
+			return tls.Dial(network, addr, tlsConfig)
+		}
+
+		// override WSS dialer to use self-signed CA
+		slackClient.wssClient = &websocket.Dialer{TLSClientConfig: tlsConfig}
+	}
+	slackClient.httpClient = &http.Client{Transport: netTransport}
+
+	return slackClient
 }
 
 func returnErrorToSlack(text string, w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(SlackRollJSONResponse{Text: text})
+	json.NewEncoder(w).Encode(slack.Msg{Text: text})
 }
 
-func SlackAttachmentsFromRollResponse(rr *pb.RollResponse) []slack.Attachment {
+func SlackAttachmentsFromRollResponse(rr *dicelang.RollResponse) []slack.Attachment {
 	var sets []slack.Attachment
-	retSlackAttachment := slack.Attachment{
-		Fallback: totalsMapString(rr.DiceSet.TotalsByColor),
-		Color:    stringToColor(rr.DiceSet.ReString),
-	}
+	// retSlackAttachment := slack.Attachment{
+	// 	Fallback: totalsMapString(rr.DiceSet.TotalsByColor),
+	// 	Color:    stringToColor(rr.DiceSet.ReString),
+	// }
+	dSets := dicelang.DiceSetsFromSlice(rr.DiceSets)
+	retSlackAttachment := slack.Attachment{}
+	retSlackAttachment.Fallback = totalsMapString(dSets.MergeDiceTotalMaps())
+	retSlackAttachment.Color = stringToColor(dSets.String())
+
 	var fields []slack.AttachmentField
 	for _, ds := range rr.DiceSets {
 		var faces []interface{}
@@ -111,8 +164,9 @@ func SlackAttachmentsFromRollResponse(rr *pb.RollResponse) []slack.Attachment {
 		fields = append(fields, field)
 	}
 	if len(rr.DiceSets) > 1 {
+		total, _ := dSets.GetTotal()
 		fields = append(fields, slack.AttachmentField{
-			Title: fmt.Sprintf("Total: %s", strconv.FormatInt(rr.DiceSet.Total, 10)),
+			Title: fmt.Sprintf("Total: %s", strconv.FormatInt(total, 10)),
 			Short: false})
 	}
 	retSlackAttachment.Fields = fields
@@ -186,9 +240,9 @@ func (c *SlackChatClient) Init(ctx context.Context) func() {
 	// advertise that I'm alive. Delete pods that aren't
 	go c.ManageSlackConnections(ctx, time.Second*2)
 	go c.SpawnPodCrier(time.Second * 5)
-	go c.SpawnTeamsCrier(time.Second * 10)
-	go c.SpawnReaper("pods", time.Second*5, time.Second*15)
-	go c.SpawnReaper("teams", time.Second*10, time.Second*15)
+	go c.SpawnTeamsCrier(time.Second * 5)
+	go c.SpawnReaper("pods", time.Second*10, time.Second*30)
+	go c.SpawnReaper("teams", time.Second*10, time.Second*30)
 	return func() { c.Cleanup() }
 }
 

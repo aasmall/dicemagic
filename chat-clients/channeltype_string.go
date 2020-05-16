@@ -4,6 +4,16 @@ package main
 
 import "strconv"
 
+func _() {
+	// An "invalid array index" compiler error signifies that the constant values have changed.
+	// Re-run the stringer command to generate them again.
+	var x [1]struct{}
+	_ = x[Unknown-0]
+	_ = x[DM-1]
+	_ = x[MultiDM-2]
+	_ = x[Standard-3]
+}
+
 const _ChannelType_name = "UnknownDMMultiDMStandard"
 
 var _ChannelType_index = [...]uint8{0, 7, 9, 16, 24}

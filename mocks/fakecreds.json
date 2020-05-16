@@ -1,0 +1,12 @@
+{
+    "type": "service_account",
+    "project_id": "dicemagic-minikube",
+    "private_key_id": "5a8360505481884f49afa7e268a8b4a93ab58c40",
+    "private_key": "-----BEGIN RSA PRIVATE KEY-----\nMIICWwIBAAKBgQCau8+0W5XL3Rz378EBpqEnvKq3oh1Y2nYXaZBoibERgZt+PBie\n+p0jMqB2iLZXWWq+SIJ7+r0NAmF/da38llBx1WRhg8scurcXrqNJ8a6uINMNIbQL\npsxH5NERAJAL27lV00Rj/Fb6grXr2qe60V74BI/04maBaHf+euBH1yGOvQIDAQAB\nAoGAQ67hhPgGxzz6He3u1AUKOzKIzniIM8SjoUwY0dFg9dJmrMomzuu67pmHnTHh\n6MWBLqjTAt5D8bvX4AQezf0GRIYutJ6hDxPj4BuUNh5AxN+pcYUxo8C0WK6tXbtd\nm6wfPYytkQPLE2ChktNGQSzn0PckgQ6Keh5itAywGzB/EBUCQQDXwPAoaj1c1o8s\n1QtLM7JxoDajwhJmUfZk4saDPwxXiaY3ah+oyhx+UIk6qHeMySSl8s9LlJNkxPpR\nv2Lli0xjAkEAt5jvDfBvlre/1YXS93f/1UGGuzahApvmr64Gr3lROrybONfeEHLO\nv9AmWRUOpCfTU0b/AGxH+Ad5OOOHDk3SXwJAIyw0+qG3NzdTR//DQ5M9+AAiaDfv\nP/cEsBW4PxU8Mdki283VM3MfiggfFwz30F/KNbOLz8p87OSf2kvVF47J+QJARy/q\nSQpYCiV3IVCBS2jg7ow4tHBrH7rZSHb+qp0sjMzCltjEhrYtShxoMhRDGA1FGD4n\n878IbLhhHVjDbh1omwJAbzTXkt5aAlczAj7aKjuoyyjzuZjM3aURTUJsbmT5yD8K\nKc+ACBUC1ogQkTc7F9I9+t6YRTKB9FIvO7cTmZQrhg==\n-----END RSA PRIVATE KEY-----",
+    "client_email": "gke-node-sa@dicemagic-minikube.iam.gserviceaccount.com",
+    "client_id": "100000000000000000000",
+    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+    "token_uri": "https://oauth2.googleapis.com/token",
+    "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+    "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/gke-node-sa%40dicemagic-minikube.iam.gserviceaccount.com"
+  }
