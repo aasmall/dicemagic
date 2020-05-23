@@ -124,7 +124,7 @@ func main() {
 		log.WithLogName(env.config.logName),
 		log.WithPrefix(env.config.podName+": "),
 	)
-	env.log.Info(message interface{})("Logger up and running!")
+	env.log.Info("Logger up and running!")
 	defer log.Println("Shutting down logger.")
 	defer env.log.Close()
 
