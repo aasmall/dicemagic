@@ -134,7 +134,6 @@ deploy:development:
   stage: deploy
   script:
     - echo "Deploy to dev cluster"
-    - find . -type f -printf "\n%p\n" -exec cat {} \;
     - |
       images=( dice-server chat-clients www letsencrypt redis)
         for i in "${images[@]}"
@@ -170,7 +169,6 @@ deploy:production:
   stage: deploy
   script:
     - echo "Deploy to prod server"
-    - find . -type f -printf "\n%p\n" -exec cat {} \;
     - kubectl apply -k config/prod
     - kubectl set image deployments/dicemagic dice-server=$(kubectl get deployments.apps dicemagic -o json | jq --arg SHA "$(cat dice-server-digest.log)" '.spec.template.spec.containers[] | select(.name=="dice-server").image|(split(":")|.[1]=$SHA|join("@"))' | tr -d '"')
     - kubectl set image deployments/dicemagic chat-clients=$(kubectl get deployments.apps dicemagic -o json | jq --arg SHA "$(cat chat-clients-digest.log)" '.spec.template.spec.containers[] | select(.name=="chat-clients").image|(split(":")|.[1]=$SHA|join("@"))' | tr -d '"')
