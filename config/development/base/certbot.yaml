@@ -2,6 +2,7 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: certbot-ksa
+  namespace: default
   annotations:
     iam.gke.io/gcp-service-account: certbot-ksa@dicemagic-dev.iam.gserviceaccount.com
 ---
@@ -9,6 +10,7 @@ apiVersion: batch/v1beta1
 kind: CronJob
 metadata:
   name: letsencrypt-job
+  namespace: default
   labels:
     app: letsencrypt
 spec:

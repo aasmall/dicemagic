@@ -40,7 +40,7 @@ build:image:builder:
     entrypoint: [""]
   script:
     - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
-    - /kaniko/executor --digest-file builder-digest.log --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/dockerfiles/builder.dockerfile --destination $CI_REGISTRY_IMAGE/builder:latest
+    - /kaniko/executor --digest-file builder-digest.log --cache=true --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/dockerfiles/builder.dockerfile --destination $CI_REGISTRY_IMAGE/builder:latest
   artifacts:
     paths:
      - ./builder-digest.log
@@ -52,7 +52,7 @@ build:image:kubectl:
     entrypoint: [""]
   script:
     - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
-    - /kaniko/executor --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/dockerfiles/kubectl.dockerfile --destination $CI_REGISTRY_IMAGE/kubectl:latest
+    - /kaniko/executor --context $CI_PROJECT_DIR --cache=true --dockerfile $CI_PROJECT_DIR/dockerfiles/kubectl.dockerfile --destination $CI_REGISTRY_IMAGE/kubectl:latest
 
 build:image:dice_server:
   needs: ["test:go","build:go_make"]
@@ -62,7 +62,7 @@ build:image:dice_server:
     entrypoint: [""]
   script:
     - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
-    - /kaniko/executor --digest-file dice-server-digest.log --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/dockerfiles/dice-server.dockerfile --destination $CI_REGISTRY_IMAGE/dice-server:latest
+    - /kaniko/executor --digest-file dice-server-digest.log --cache=true --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/dockerfiles/dice-server.dockerfile --destination $CI_REGISTRY_IMAGE/dice-server:latest
   dependencies:
     - build:go_make
   artifacts:
@@ -77,7 +77,7 @@ build:image:chat_clients:
     entrypoint: [""]
   script:
     - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
-    - /kaniko/executor --digest-file chat-clients-digest.log --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/dockerfiles/chat-clients.dockerfile --destination $CI_REGISTRY_IMAGE/chat-clients:latest
+    - /kaniko/executor --digest-file chat-clients-digest.log --cache=true --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/dockerfiles/chat-clients.dockerfile --destination $CI_REGISTRY_IMAGE/chat-clients:latest
   dependencies:
     - build:go_make
   artifacts:
@@ -92,7 +92,7 @@ build:image:letsencrypt:
     entrypoint: [""]
   script:
     - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
-    - /kaniko/executor --digest-file letsencrypt-digest.log --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/dockerfiles/letsencrypt.dockerfile --destination $CI_REGISTRY_IMAGE/letsencrypt:latest
+    - /kaniko/executor --digest-file letsencrypt-digest.log --cache=true --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/dockerfiles/letsencrypt.dockerfile --destination $CI_REGISTRY_IMAGE/letsencrypt:latest
   dependencies:
     - build:go_make
   artifacts:
@@ -107,7 +107,7 @@ build:image:redis:
     entrypoint: [""]
   script:
     - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
-    - /kaniko/executor --digest-file redis-digest.log --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/dockerfiles/redis.dockerfile --destination $CI_REGISTRY_IMAGE/redis:latest
+    - /kaniko/executor --digest-file redis-digest.log --cache=true --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/dockerfiles/redis.dockerfile --destination $CI_REGISTRY_IMAGE/redis:latest
   dependencies:
     - build:go_make
   artifacts:
@@ -122,7 +122,7 @@ build:image:www:
     entrypoint: [""]
   script:
     - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
-    - /kaniko/executor --digest-file www-digest.log --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/dockerfiles/www.dockerfile --destination $CI_REGISTRY_IMAGE/www:latest
+    - /kaniko/executor --digest-file www-digest.log --cache=true --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/dockerfiles/www.dockerfile --destination $CI_REGISTRY_IMAGE/www:latest
   dependencies:
     - build:go_make
   artifacts:
