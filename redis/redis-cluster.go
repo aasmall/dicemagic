@@ -98,7 +98,6 @@ func main() {
 		clusterConfigurator.config.projectID,
 		log.WithDefaultSeverity(logging.Error),
 		log.WithDebug(clusterConfigurator.config.debug),
-		log.WithLocal(clusterConfigurator.config.local),
 		log.WithLogName(clusterConfigurator.config.logname),
 		log.WithPrefix(clusterConfigurator.config.podname+": "),
 	)

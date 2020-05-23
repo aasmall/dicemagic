@@ -7,7 +7,7 @@ import (
 
 	errors "github.com/aasmall/dicemagic/lib/dicelang-errors"
 	"github.com/aasmall/dicemagic/lib/handler"
-	"github.com/nlopes/slack"
+	"github.com/slack-go/slack"
 )
 
 func SlackSlashRollHandler(e interface{}, w http.ResponseWriter, r *http.Request) error {

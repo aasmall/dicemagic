@@ -1,4 +1,4 @@
-FROM alpine:3.8
+FROM certbot/dns-google:latest
 
 RUN apk add --no-cache shadow \
     && sed -i 's/^CREATE_MAIL_SPOOL=yes/CREATE_MAIL_SPOOL=no/' /etc/default/useradd \
@@ -13,17 +13,19 @@ COPY ./out/include/letsencrypt/renewcerts.sh ./out/include/letsencrypt/deploymen
 
 WORKDIR /certbot
 
-RUN wget https://bootstrap.pypa.io/get-pip.py \
-    && python get-pip.py \
-    &&  pip install virtualenv \
-    &&  pip install certbot \
-    &&  pip install certbot-dns-google \
-    &&  rm get-pip.py
+# RUN wget https://bootstrap.pypa.io/get-pip.py \
+#     && python get-pip.py \
+#     &&  pip install virtualenv \
+#     &&  pip install certbot \
+#     &&  pip install certbot-dns-google \
+#     &&  rm get-pip.py
+RUN pip install --upgrade pip && pip install pyasn1 google-api-python-client --upgrade
 
 RUN chmod a+x renewcerts.sh
 RUN chown 1000:1000 -R /certbot
 
 USER 1000:1000
 ENTRYPOINT [ "/bin/bash", "renewcerts.sh" ]
-
+# ENTRYPOINT [ "/bin/bash" ]
+# CMD ["-c","sleep 3000"]
 EXPOSE 8080

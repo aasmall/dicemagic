@@ -10,7 +10,7 @@ import (
 
 	"github.com/aasmall/dicemagic/lib/dicelang"
 	errors "github.com/aasmall/dicemagic/lib/dicelang-errors"
-	"github.com/nlopes/slack"
+	"github.com/slack-go/slack"
 	"golang.org/x/net/context"
 )
 
@@ -112,7 +112,7 @@ func (c *SlackChatClient) listen(ctx context.Context, connectionInfo *SlackConne
 
 		case *slack.MessageEvent:
 			mention, cmd := c.IsMention(ev.Text, connectionInfo.botID)
-			c.log.Debugf("message: %+v\nmention: %+v\ncmd: %+v\n", ev, mention, cmd)
+			c.log.Infof("message: %+v\nmention: %+v\ncmd: %+v\n", ev, mention, cmd)
 			// Don't respond to self or other bots
 			if ev.SubType == "bot_message" {
 				continue

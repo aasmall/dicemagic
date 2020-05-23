@@ -3,7 +3,6 @@ package log
 import (
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"runtime"
@@ -45,14 +44,12 @@ type Logger struct {
 	httpRequest       *logging.HTTPRequest
 	buf               []byte // for accumulating text to write
 	defaultSeverity   logging.Severity
-	local             bool
 }
 type LoggerOption func(*LoggerOptions)
 type LoggerOptions struct {
 	LogName         string
 	Prefix          string
 	Debug           bool
-	Local           bool
 	DefaultSeverity logging.Severity
 	Context         context.Context
 }
@@ -60,11 +57,6 @@ type LoggerOptions struct {
 func WithLogName(logname string) LoggerOption {
 	return func(o *LoggerOptions) {
 		o.LogName = logname
-	}
-}
-func WithLocal(local bool) LoggerOption {
-	return func(o *LoggerOptions) {
-		o.Local = local
 	}
 }
 func WithPrefix(prefix string) LoggerOption {
@@ -93,30 +85,21 @@ func New(projectID string, options ...LoggerOption) *Logger {
 		Prefix:          os.Args[0] + ": ",
 		DefaultSeverity: logging.Error,
 		Debug:           false,
-		Local:           false,
 		Context:         context.Background(),
 	}
 	for _, o := range options {
 		o(&opts)
 	}
 
-	logger := &Logger{mu: new(sync.Mutex), prefix: opts.Prefix, debug: opts.Debug, local: opts.Local, flag: Lshortfile | LstdFlags}
-	loggingClient, err := logging.NewClient(opts.Context, projectID)
-	if opts.Local {
-		loggingClient = &logging.Client{}
-	}
-	if err != nil {
-		log.Fatalf("Failed to create logging client: %v", err)
-	}
-	logger.loggingClient = loggingClient
-	logger.stackDriverLogger = loggingClient.Logger(opts.LogName)
+	logger := &Logger{mu: new(sync.Mutex), prefix: opts.Prefix, debug: opts.Debug, flag: Lshortfile | LstdFlags}
+	logger.loggingClient = &logging.Client{}
 	return logger
 }
 
 var std = newLocal()
 
 func newLocal() *Logger {
-	return &Logger{mu: new(sync.Mutex), prefix: "", local: true}
+	return &Logger{mu: new(sync.Mutex), prefix: ""}
 }
 
 // WithRequest returns a shallow copy of logger with a request present
@@ -237,15 +220,7 @@ func (l *Logger) outputEntry(calldepth int, entry logging.Entry) error {
 	if len(s) == 0 || s[len(s)-1] != '\n' {
 		l.buf = append(l.buf, '\n')
 	}
-	if l.local {
-		os.Stdout.Write(l.buf)
-	} else {
-		entry.Payload = string(l.buf[:])
-		if l.httpRequest != nil && entry.HTTPRequest == nil {
-			entry.HTTPRequest = l.httpRequest
-		}
-		l.stackDriverLogger.Log(entry)
-	}
+	os.Stdout.Write(l.buf)
 	return nil
 }
 

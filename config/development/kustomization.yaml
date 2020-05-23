@@ -1,0 +1,20 @@
+bases:
+- ../base
+- ./base
+patchesStrategicMerge:
+- nginx-ingress.yaml
+- dicemagic-ksa.yaml
+- nginx-loadbalancer.yaml
+- www.yaml
+secretGenerator:
+- name: slack-secrets
+  files:
+  - secrets/slack/slack-client-secret
+  - secrets/slack/slack-signing-secret
+- name: default-ingress-certs
+  namespace: nginx-ingress
+  files:
+  - secrets/letsencrypt-certs/tls.crt
+  - secrets/letsencrypt-certs/tls.key
+generatorOptions:
+ disableNameSuffixHash: true

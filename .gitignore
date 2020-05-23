@@ -12,4 +12,5 @@ www/www
 out/
 out/*
 config/minikube/secrets/*
+config/development/secrets/*
 /chat-clients/cli/cli

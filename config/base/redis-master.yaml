@@ -25,10 +25,6 @@ spec:
       volumes:
       - name: data
         emptyDir: {}
-      - name: google-default
-        secret:
-          defaultMode: 420
-          secretName: google-default
       - name: podinfo
         downwardAPI:
           items:
@@ -46,7 +42,7 @@ spec:
                 fieldPath: metadata.namespace
       containers:
       - name: redis
-        image: gcr.io/k8s-dice-magic/redis
+        image: registry.gitlab.com/aasmall/dicemagic/redis:latest
         ports:
         # - containerPort: 6379
         #   hostPort: 6379
@@ -59,9 +55,6 @@ spec:
         - name: podinfo
           mountPath: /etc/podinfo
           readOnly: false
-        - mountPath: /etc/google-default
-          name: google-default
-          readOnly: true
         env:
         - name: LOCAL_POD_IP
           valueFrom:

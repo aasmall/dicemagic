@@ -27,14 +27,14 @@ func (r *EnvReader) GetEnv(key string) string {
 	r.MissingKeys = append(r.MissingKeys, key)
 	return ""
 }
-func (r *EnvReader) GetFromFile(path string) string {
+func (r *EnvReader) GetFromFile(path string) []byte {
 	content, err := ioutil.ReadFile(path)
 	if err != nil {
 		r.Errors = true
 		r.MissingKeys = append(r.MissingKeys, "file at: "+path)
-		return ""
+		return []byte{}
 	}
-	return string(content)
+	return content
 }
 func (r *EnvReader) getKubernetesClient() error {
 	// creates the in-cluster config

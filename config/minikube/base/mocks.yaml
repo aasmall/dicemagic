@@ -17,7 +17,7 @@ spec:
       hostname: mock-kms
       containers:
       - name: kms
-        image: localhost:5000/kms:latest
+        image: registry.gitlab.com/aasmall/dicemagic/mock-kms:latest
         resources:
           limits:
             cpu: 400m
@@ -70,14 +70,10 @@ spec:
       hostname: mock-datastore
       containers:
       - name: datastore
-        volumeMounts:
-        - mountPath: /etc/google-default
-          name: google-default
-          readOnly: true
         securityContext:
           capabilities:
             drop: ["ALL"]
-        image: localhost:5000/datastore:latest
+        image: registry.gitlab.com/aasmall/dicemagic/mock-datastore:latest
         imagePullPolicy: IfNotPresent
         terminationMessagePath: /dev/termination-log
         terminationMessagePolicy: File
@@ -88,11 +84,6 @@ spec:
       restartPolicy: Always
       schedulerName: default-scheduler
       terminationGracePeriodSeconds: 10
-      volumes:
-      - name: google-default
-        secret:
-          defaultMode: 420
-          secretName: google-default
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -120,7 +111,7 @@ spec:
         securityContext:
           capabilities:
             drop: ["ALL"]
-        image: localhost:5000/slack-server:latest
+        image: registry.gitlab.com/aasmall/dicemagic/redis:latest
         imagePullPolicy: IfNotPresent
         terminationMessagePath: /dev/termination-log
         terminationMessagePolicy: File

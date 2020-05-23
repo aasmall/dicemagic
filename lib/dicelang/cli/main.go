@@ -8,7 +8,7 @@ import (
 	"sort"
 
 	"github.com/aasmall/dicemagic/lib/dicelang"
-	"github.com/aasmall/dicemagic/lib/dicelang/errors"
+	errors "github.com/aasmall/dicemagic/lib/dicelang-errors"
 )
 
 func main() {

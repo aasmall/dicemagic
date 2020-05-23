@@ -10,7 +10,6 @@ NAMESPACE=$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)
 
 certbot certonly \
   --dns-google \
-  --dns-google-credentials ${GOOGLE_APPLICATION_CREDENTIALS} \
   --dns-google-propagation-seconds 120 \
   --email ${EMAIL} \
   --agree-tos \
@@ -18,7 +17,7 @@ certbot certonly \
   --config-dir /home/certbot/config \
   --work-dir /home/certbot/work \
   --logs-dir /home/certbot/logs \
-  -d ${DOMAINS}
+  -d ${DOMAINS} || exit 1
 
 CERTPATH=/home/certbot/config/live/$(echo $DOMAINS | cut -f1 -d',')
 

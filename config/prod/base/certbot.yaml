@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: secret-manager
+  name: certbot-ksa
 ---
 apiVersion: batch/v1beta1
 kind: CronJob
@@ -18,12 +18,10 @@ spec:
       template:
         metadata:
           name: letsencrypt
-          annotations:
-            cloud.google.com/service-account: "certbot-dns-manager@k8s-dice-magic.iam.gserviceaccount.com"
           labels:
             app: letsencrypt
         spec:
-          serviceAccountName: secret-manager
+          serviceAccountName: certbot-ksa
           containers:
           - image: gcr.io/k8s-dice-magic/letsencrypt:latest
             name: letsencrypt
@@ -31,10 +29,6 @@ spec:
             ports:
             - name: letsencrypt
               containerPort: 8080
-            volumeMounts:
-            - mountPath: /etc/certbot-dns
-              name: certbot-dns
-              readOnly: true
             envFrom:
             - configMapRef:
                 name: certbot-config
@@ -45,15 +39,4 @@ spec:
               capabilities:
                 drop: ["ALL"]
           restartPolicy: Never
-          volumes:
-          - name: certbot-dns
-            secret:
-              defaultMode: 420
-              secretName: certbot-dns 
       backoffLimit: 0
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: letsencrypt-certs
-type: Opaque

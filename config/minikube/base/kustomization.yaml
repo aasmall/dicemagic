@@ -1,2 +1,3 @@
 resources:
 - mocks.yaml
+- config.yaml

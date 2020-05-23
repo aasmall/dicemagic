@@ -27,7 +27,7 @@ $(shell mkdir -p $(BUILD_DIR))
 ci: gen core letsencrypt out/bin/www
 
 .PHONY: local
-local: gen core out/bin/www mocks secrets
+local: gen core out/bin/www mocks secrets bootstrapsecrets
 
 .PHONY: gen
 gen: $(GENDEPS)
@@ -77,11 +77,28 @@ letsencrypt: $(shell find "letsencrypt" -maxdepth 1 -type f | grep -E '.*\.(json
 	@mkdir -p out/include/letsencrypt
 	cp letsencrypt/deployment-patch-template.json letsencrypt/renewcerts.sh letsencrypt/secret-patch-template.json out/include/letsencrypt
 
-out/bin/www: 
-	@mkdir -p out/include/www
+.PHONY: www
+www: out/bin/www
+out/bin/www: $(shell find "www" -type f)
+	@mkdir -p out/include/www/local out/include/www/dev out/include/www/prod
 	go build -o out/bin github.com/aasmall/dicemagic/www
 	go install github.com/gohugoio/hugo
-	hugo -s www/ -d ../out/include/www/
+	hugo -s www/ -d ../out/include/www/local --config config-local.yaml
+	hugo -s www/ -d ../out/include/www/dev --config config-dev.yaml
+	hugo -s www/ -d ../out/include/www/prod --config config.yaml
+
+.PHONY: bootstrapsecrets
+bootstrapsecrets: config/development/secrets/letsencrypt-certs/tls.key config/development/secrets/letsencrypt-certs/tls.crt
+
+config/development/secrets/letsencrypt-certs/tls.key config/development/secrets/letsencrypt-certs/tls.crt: config/development/openssl-letsencrypt.cnf
+	@mkdir -p config/development/secrets/letsencrypt-certs
+	@openssl ecparam -name secp521r1 -genkey -out ./config/development/secrets/letsencrypt-certs/tls.key      
+	@openssl req -new -x509 -key ./config/development/secrets/letsencrypt-certs/tls.key -out ./config/development/secrets/letsencrypt-certs/tls.crt -days 3652 -config ./config/development/openssl-letsencrypt.cnf
+
+config/development/secrets/nginx-ingress/tls.key config/development/secrets/nginx-ingress/tls.crt: config/development/openssl-nginx.cnf
+	@mkdir -p config/development/secrets/nginx-ingress
+	@openssl ecparam -name secp521r1 -genkey -out ./config/development/secrets/nginx-ingress/tls.key
+	@openssl req -new -x509 -key ./config/development/secrets/nginx-ingress/tls.key -out ./config/development/secrets/nginx-ingress/tls.crt -days 3652 -config ./config/development/openssl-nginx.cnf
 
 config/minikube/secrets/letsencrypt-certs/tls.key config/minikube/secrets/letsencrypt-certs/tls.crt: config/minikube/openssl-letsencrypt.cnf
 	@mkdir -p config/minikube/secrets/letsencrypt-certs

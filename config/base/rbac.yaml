@@ -15,7 +15,7 @@ roleRef:
 kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  name: secret-manager
+  name: certbot
 rules:
 - apiGroups: ["extensions",""]
   resources: ["secrets","ingresses"]
@@ -24,15 +24,15 @@ rules:
 kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  name: manage-secrets
+  name: certbot
 subjects:
 - kind: ServiceAccount
-  name: secret-manager
+  name: certbot-ksa
   namespace: default
   apiGroup: ""
 roleRef:
   kind: ClusterRole
-  name: secret-manager
+  name: certbot
   apiGroup: ""
 ---
 kind: ClusterRole

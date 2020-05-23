@@ -1,0 +1,13 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: www
+  namespace: default
+spec:
+  template:
+    spec:
+      containers:
+      - image: registry.gitlab.com/aasmall/dicemagic/www:latest
+        command: ["/usr/bin/www"]
+        args: ["--environment","dev"]
+        name: www

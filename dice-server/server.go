@@ -71,7 +71,6 @@ func main() {
 		env.config.projectID,
 		log.WithDefaultSeverity(logging.Error),
 		log.WithDebug(env.config.debug),
-		log.WithLocal(env.config.local),
 		log.WithLogName(env.config.logName),
 		log.WithPrefix(env.config.podName+": "),
 	)
@@ -102,7 +101,7 @@ func (s *server) handleExposedErrors(e error, response *dicelang.RollResponse) e
 	response.Ok = false
 	switch e := e.(type) {
 	case *errors.DicelangError:
-		log.Debugf("DiceLangError: %+v", e)
+		log.Errorf("DiceLangError: %+v", e)
 		response.Error.Code = e.Code
 		switch response.Error.Code {
 		case errors.InvalidAST:

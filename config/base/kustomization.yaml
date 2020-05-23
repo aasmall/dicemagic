@@ -1,5 +1,4 @@
 resources:
-- configs.yaml
 - dice-magic-app.yaml
 - nginx-ingress-controller.yaml
 - nginx-ingress.yaml

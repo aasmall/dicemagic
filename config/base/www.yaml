@@ -22,7 +22,7 @@ spec:
         app: www
     spec:
       containers:
-      - image: gcr.io/k8s-dice-magic/www:latest
+      - image: registry.gitlab.com/aasmall/dicemagic/www:latest
         ports:
         - containerPort: 8080
         name: www
@@ -31,28 +31,19 @@ spec:
             cpu: 100m
             memory: 200Mi
           requests:
-            cpu: 100m
-            memory: 100Mi
+            cpu: 50m
+            memory: 75Mi
         imagePullPolicy: IfNotPresent
         envFrom:
         - configMapRef:
             name: www-config
         terminationMessagePath: /dev/termination-log
         terminationMessagePolicy: File
-        volumeMounts:
-        - mountPath: /etc/google-default
-          name: google-default
-          readOnly: true
       dnsPolicy: ClusterFirst
       restartPolicy: Always
       schedulerName: default-scheduler
       securityContext: {}
       terminationGracePeriodSeconds: 10
-      volumes:
-      - name: google-default
-        secret:
-          defaultMode: 420
-          secretName: google-default
 ---
 apiVersion: "v1"
 kind: "Service"

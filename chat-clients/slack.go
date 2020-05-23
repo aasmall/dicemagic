@@ -26,7 +26,7 @@ import (
 
 	"cloud.google.com/go/datastore"
 	"github.com/gorilla/websocket"
-	"github.com/nlopes/slack"
+	"github.com/slack-go/slack"
 	"golang.org/x/net/context"
 )
 

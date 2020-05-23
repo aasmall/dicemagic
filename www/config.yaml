@@ -27,7 +27,9 @@ Params:
       position: center
 Author:
   name: Aaron Small
-  website: 'https://smallnet.org'
+  website: "https://smallnet.org"
+  github: "aasmall"
+  gitlab: "aasmall"
   twitter: Atlas_Hugged
   linkedin: aaron-small
   paypal: dicemagic
@@ -44,3 +46,7 @@ menu:
     - name: Install
       url: page/install/
       weight: 1
+markup:
+  goldmark:
+    renderer:
+      unsafe: true

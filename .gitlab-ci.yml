@@ -3,6 +3,7 @@ stages:
   - build
   - test
   - build-docker
+  - deploy-development
   
 variables:
   GO111MODULE: "on"
@@ -15,7 +16,6 @@ vet:
     - go vet ./...
 
 build_go:
-  needs: ["vet"]
   stage: build
   script:
     - make -j4 ci
@@ -41,7 +41,7 @@ build_image_builder:
     entrypoint: [""]
   script:
     - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
-    - /kaniko/executor --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/dockerfiles/builder.dockerfile --destination $CI_REGISTRY_IMAGE/builder:$CI_COMMIT_TAG
+    - /kaniko/executor --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/dockerfiles/builder.dockerfile --destination $CI_REGISTRY_IMAGE/builder:${CI_COMMIT_SHORT_SHA}
 
 build_image_dice_server:
   needs: ["build_go"]
@@ -51,7 +51,7 @@ build_image_dice_server:
     entrypoint: [""]
   script:
     - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
-    - /kaniko/executor --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/dockerfiles/dice-server.dockerfile --destination $CI_REGISTRY_IMAGE/dice-server:$CI_COMMIT_TAG
+    - /kaniko/executor --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/dockerfiles/dice-server.dockerfile --destination $CI_REGISTRY_IMAGE/dice-server:${CI_COMMIT_SHORT_SHA}
   dependencies:
     - build_go
 
@@ -63,7 +63,7 @@ build_image_chat_clients:
     entrypoint: [""]
   script:
     - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
-    - /kaniko/executor --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/dockerfiles/chat-clients.dockerfile --destination $CI_REGISTRY_IMAGE/chat-clients:$CI_COMMIT_TAG
+    - /kaniko/executor --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/dockerfiles/chat-clients.dockerfile --destination $CI_REGISTRY_IMAGE/chat-clients:${CI_COMMIT_SHORT_SHA}
   dependencies:
     - build_go
 
@@ -75,7 +75,7 @@ build_image_letsencrypt:
     entrypoint: [""]
   script:
     - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
-    - /kaniko/executor --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/dockerfiles/letsencrypt.dockerfile --destination $CI_REGISTRY_IMAGE/letsencrypt:$CI_COMMIT_TAG
+    - /kaniko/executor --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/dockerfiles/letsencrypt.dockerfile --destination $CI_REGISTRY_IMAGE/letsencrypt:${CI_COMMIT_SHORT_SHA}
   dependencies:
     - build_go
 
@@ -87,7 +87,7 @@ build_image_redis:
     entrypoint: [""]
   script:
     - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
-    - /kaniko/executor --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/dockerfiles/redis.dockerfile --destination $CI_REGISTRY_IMAGE/redis:$CI_COMMIT_TAG
+    - /kaniko/executor --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/dockerfiles/redis.dockerfile --destination $CI_REGISTRY_IMAGE/redis:${CI_COMMIT_SHORT_SHA}
   dependencies:
     - build_go
 
@@ -99,6 +99,26 @@ build_image_www:
     entrypoint: [""]
   script:
     - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
-    - /kaniko/executor --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/dockerfiles/www.dockerfile --destination $CI_REGISTRY_IMAGE/www:$CI_COMMIT_TAG
+    - /kaniko/executor --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/dockerfiles/www.dockerfile --destination $CI_REGISTRY_IMAGE/www:${CI_COMMIT_SHORT_SHA}
   dependencies:
     - build_go
+
+deploy_development:
+  stage: deploy
+  script:
+    - echo "Deploy to dev cluster"
+  environment:
+    name: staging
+    url: https://dev.dicemagic.io
+  only:
+  - development
+
+deploy_production:
+  stage: deploy
+  script:
+    - echo "Deploy to prod server"
+  environment:
+    name: staging
+    url: https://dicemagic.io
+  only:
+  - master

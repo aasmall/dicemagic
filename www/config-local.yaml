@@ -1,0 +1,52 @@
+baseurl: /
+DefaultContentLanguage: en
+title: Dice Magic
+theme: beautifulhugo
+metaDataFormat: yaml
+pygmentsStyle: trac
+pygmentsUseClasses: true
+pygmentsCodeFences: true
+pygmentsCodefencesGuessSyntax: true
+disqusShortname: dicemagic/5
+googleAnalytics: UA-119339106-2
+Params:
+  subtitle: Friendly dice rolling chatbot
+  logo: img/DiceMagic_Big-01.png
+  favicon: img/favicon.ico
+  dateFormat: 'January 2, 2006'
+  commit: true
+  rss: true
+  comments: true
+  readingTime: true
+  useHLJS: true
+  socialShare: false
+  slackappid: '42142079431.569702459462'
+  bigimg:
+    - src: /img/bigimg1.jpg
+      desc: ''
+      position: center
+Author:
+  name: Aaron Small
+  website: "https://smallnet.org"
+  github: "aasmall"
+  gitlab: "aasmall"
+  twitter: Atlas_Hugged
+  linkedin: aaron-small
+  paypal: dicemagic
+menu:
+  main:
+    - identifier: features
+      name: Features
+      url: /page/features
+      weight: 2
+    - identifier: donate
+      name: Donate
+      url: 'https://paypal.me/dicemagic/5'
+      weight: 4
+    - name: Install
+      url: page/install/
+      weight: 1
+markup:
+  goldmark:
+    renderer:
+      unsafe: true

@@ -30,6 +30,7 @@ func SlackOAuthHandler(e interface{}, w http.ResponseWriter, r *http.Request) er
 		log.Criticalf("error decrypting secret: %s", err)
 		return err
 	}
+	// log.Debugf("oAuth: ClientSecret is: '%s'", clientSecret)
 
 	form := url.Values{}
 	form.Add("code", r.FormValue("code"))
@@ -90,7 +91,7 @@ func SlackOAuthHandler(e interface{}, w http.ResponseWriter, r *http.Request) er
 		log.Errorf("error upserting SlackTeam: %s", err)
 		return err
 	}
-	log.Debugf("upserting SlackInstallInstance: %+v", oauthResponse)
+	// log.Debugf("upserting SlackInstallInstance: %+v", oauthResponse)
 	k, err = c.UpsertSlackInstallInstance(ctx, oauthResponse, k)
 	if err != nil {
 		log.Errorf("error upserting SlackInstallInstance: %s", err)

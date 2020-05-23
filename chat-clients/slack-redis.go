@@ -135,7 +135,7 @@ func (c *SlackChatClient) CryTeams(tick time.Time) error {
 		go func(teamID string, tick time.Time) {
 			err := c.redisClient.HSet("teams", teamID, tick.Format(timeFormat)).Err()
 			if err != nil {
-				c.log.Debugf("Could not cry team (%s): %s", teamID, err)
+				c.log.Errorf("Could not cry team (%s): %s", teamID, err)
 			}
 		}(teamID, time.Now())
 	}
@@ -151,7 +151,7 @@ func (c *SlackChatClient) SpawnReaper(key string, freq time.Duration, age time.D
 		}
 		err := c.reap(key, freq, age)
 		if err != nil {
-			c.log.Debugf("Error Reaping %s: %s", key, err)
+			c.log.Errorf("Error Reaping %s: %s", key, err)
 		}
 	}
 }

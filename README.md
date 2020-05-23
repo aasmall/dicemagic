@@ -7,8 +7,8 @@
 
 |Branch|Build Status |
 |--|--|
-| master | [![Build Status](https://semaphoreci.com/api/v1/smallnet/dicemagic/branches/master/badge.svg)](https://semaphoreci.com/smallnet/dicemagic) |
-| development |  [![Build Status](https://semaphoreci.com/api/v1/smallnet/dicemagic/branches/vdev/badge.svg)](https://semaphoreci.com/smallnet/dicemagic)|
+| master | [![Build Status](https://gitlab.com/aasmall/dicemagic/badges/master/pipeline.svg?style=flat-square)](https://gitlab.com/aasmall/dicemagic)|
+| development |  [![Build Status](https://gitlab.com/aasmall/dicemagic/badges/development/pipeline.svg?style=flat-square)](https://gitlab.com/aasmall/dicemagic)|
 
 ## Set up a development environment
 

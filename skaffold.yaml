@@ -10,35 +10,35 @@ build:
   - "192.168.39.0/24"
   - "10.0.0.0/24"
   artifacts:
-  - image: gcr.io/k8s-dice-magic/chat-clients
+  - image: registry.gitlab.com/aasmall/dicemagic/chat-clients
     context: .
     docker:
       dockerfile: dockerfiles/chat-clients.dockerfile
-  - image: gcr.io/k8s-dice-magic/dice-server
+  - image: registry.gitlab.com/aasmall/dicemagic/dice-server
     context: .
     docker:
       dockerfile: dockerfiles/dice-server.dockerfile
-  - image: gcr.io/k8s-dice-magic/letsencrypt
+  - image: registry.gitlab.com/aasmall/dicemagic/letsencrypt
     context: .
     docker:
       dockerfile: dockerfiles/letsencrypt.dockerfile
-  - image: gcr.io/k8s-dice-magic/www
+  - image: registry.gitlab.com/aasmall/dicemagic/www
     context: .
     docker:
       dockerfile: dockerfiles/www.dockerfile
-  - image: localhost:5000/datastore
+  - image: registry.gitlab.com/aasmall/dicemagic/mock-datastore
     context: .
     docker:
       dockerfile: dockerfiles/mock-datastore.dockerfile
-  - image: localhost:5000/kms
+  - image: registry.gitlab.com/aasmall/dicemagic/mock-kms
     context: .
     docker:
       dockerfile: dockerfiles/mock-kms.dockerfile
-  - image: localhost:5000/slack-server
+  - image: registry.gitlab.com/aasmall/dicemagic/mock-slack-server
     context: .
     docker:
       dockerfile: dockerfiles/mock-slack-server.dockerfile
-  - image: gcr.io/k8s-dice-magic/redis
+  - image: registry.gitlab.com/aasmall/dicemagic/redis
     context: .
     docker:
       dockerfile: dockerfiles/redis.dockerfile
@@ -46,3 +46,23 @@ deploy:
   kustomize:
     paths:
     - config/minikube 
+profiles:
+- name: minikube
+  build:
+    local:
+      push: true
+      concurrency: 0
+    insecureRegistries:
+    - "192.168.39.0/24"
+    - "10.0.0.0/24"
+  deploy:
+    kubeContext: minikube
+    kustomize:
+      paths:
+      - config/minikube 
+- name: development
+  deploy:
+    kubeContext: gke_dicemagic-dev_us-central1-a_dicemagic-dev
+    kustomize:
+      paths:
+      - config/development 

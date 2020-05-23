@@ -12,10 +12,6 @@ import (
 	"strings"
 	"syscall"
 	"time"
-
-	"contrib.go.opencensus.io/exporter/stackdriver"
-	"go.opencensus.io/plugin/ochttp"
-	"go.opencensus.io/trace"
 )
 
 const (
@@ -24,19 +20,12 @@ const (
 )
 
 func main() {
+	var env string
+	flag.StringVar(&env, "environment", "prod", "Can be either 'local', 'dev', or 'prod'. Controls which directory to load from.")
+
 	var wait time.Duration
 	flag.DurationVar(&wait, "graceful-timeout", time.Second*15, "the duration for which the server gracefully wait for existing connections to finish - e.g. 15s or 1m")
 	flag.Parse()
-
-	// Stackdriver Trace exporter
-	exporter, err := stackdriver.NewExporter(stackdriver.Options{
-		ProjectID: projectID,
-	})
-	if err != nil {
-		log.Fatal(err)
-	}
-	trace.RegisterExporter(exporter)
-	trace.ApplyConfig(trace.Config{DefaultSampler: trace.AlwaysSample()})
 
 	serve404 := func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html")
@@ -44,13 +33,22 @@ func main() {
 		http.ServeFile(w, r, "/srv/404.html")
 	}
 
-	formatSpanName := func(r *http.Request) string {
-		return "www" + r.URL.Path
+	// Define inbound Routes
+	var srvDir http.Dir
+	switch env {
+	case "local":
+		srvDir = http.Dir("/srv/local")
+	case "dev":
+		srvDir = http.Dir("/srv/dev")
+	case "prod":
+		srvDir = http.Dir("/srv/prod")
+	default:
+		log.Fatalln("env not supplied as arg and I didn't use the default for some dumb reason.")
 	}
 
-	// Define inbound Routes
-	fileHandler := http.StripPrefix("/", CustomFileServer(http.Dir("/srv"), serve404))
-	h := &ochttp.Handler{Handler: fileHandler, StartOptions: trace.StartOptions{SpanKind: trace.SpanKindServer}, FormatSpanName: formatSpanName}
+	fileHandler := http.StripPrefix("/", CustomFileServer(srvDir, serve404))
+	log.Printf("serving from: %v\n", env)
+	// h := &ochttp.Handler{Handler: fileHandler, StartOptions: trace.StartOptions{SpanKind: trace.SpanKindServer}, FormatSpanName: formatSpanName}
 
 	// Define a server with timeouts
 	srv := &http.Server{
@@ -58,8 +56,8 @@ func main() {
 		WriteTimeout: time.Second * 15,
 		ReadTimeout:  time.Second * 15,
 		IdleTimeout:  time.Second * 60,
-		Handler:      ochttp.WithRouteTag(h, "www/"), // Pass our instance of gorilla/mux and tracer in.
-
+		Handler:      fileHandler,
+		// Handler:      ochttp.WithRouteTag(h, "www/"), // Pass our instance of gorilla/mux and tracer in.
 	}
 	// Run our server in a goroutine so that it doesn't block.
 	go func() {
