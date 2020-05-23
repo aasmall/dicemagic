@@ -7,7 +7,6 @@ spec:
   template:
     spec:
       containers:
-      - image: registry.gitlab.com/aasmall/dicemagic/www:latest
+      - name: www
         command: ["/usr/bin/www"]
         args: ["--environment","dev"]
-        name: www

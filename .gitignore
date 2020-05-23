@@ -14,3 +14,8 @@ out/*
 config/minikube/secrets/*
 config/development/secrets/*
 /chat-clients/cli/cli
+chat-clients-digest.log
+dice-server-digest.log
+letsencrypt-digest.log
+redis-digest.log
+www-digest.log
