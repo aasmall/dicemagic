@@ -1,30 +1,30 @@
 stages:
-  - build
-  - test
-  - build-docker
+  - build:go
+  - test:go
+  - build:docker
   - deploy
   
 variables:
   GO111MODULE: "on"
 
 image: registry.gitlab.com/aasmall/dicemagic/builder:latest
-# image: golang
-vet:
-  stage: build
+
+build:go_vet:
+  stage: build:go
   script:
     - go vet ./...
 
-build_go:
-  stage: build
+build:go_make:
+  stage: build:go
   script:
     - make -j4 ci
   artifacts:
     paths:
      - ./out/
 
-test_go:
-  needs: ["build_go"]
-  stage: test
+test:go:
+  needs: ["build:go_make"]
+  stage: test:go
   script:
     - go test ./... -v -coverprofile cover.out | tee test-results.txt
   artifacts:
@@ -32,126 +32,148 @@ test_go:
      - ./cover.out
      - ./test-results.txt
 
-build_image_builder:
-  needs: ["build_go"]
-  stage: build-docker
+build:image:builder:
+  stage: build:docker
   image:
     name: gcr.io/kaniko-project/executor:debug
     entrypoint: [""]
   script:
     - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
-    - /kaniko/executor --digest-file builder-digest.log --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/dockerfiles/builder.dockerfile --destination $CI_REGISTRY_IMAGE/builder:${CI_COMMIT_SHORT_SHA}
+    - /kaniko/executor --digest-file builder-digest.log --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/dockerfiles/builder.dockerfile --destination $CI_REGISTRY_IMAGE/builder:latest
   artifacts:
     paths:
      - ./builder-digest.log
 
-build_image_dice_server:
-  needs: ["test_go","build_go"]
-  stage: build-docker
+build:image:kubectl:
+  stage: build:docker
   image:
     name: gcr.io/kaniko-project/executor:debug
     entrypoint: [""]
   script:
     - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
-    - /kaniko/executor --digest-file dice-server-digest.log --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/dockerfiles/dice-server.dockerfile --destination $CI_REGISTRY_IMAGE/dice-server:${CI_COMMIT_SHORT_SHA}
+    - /kaniko/executor builder-digest.log --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/dockerfiles/kubectl.dockerfile --destination $CI_REGISTRY_IMAGE/kubectl:latest
+
+build:image:dice_server:
+  needs: ["test:go","build:go_make"]
+  stage: build:docker
+  image:
+    name: gcr.io/kaniko-project/executor:debug
+    entrypoint: [""]
+  script:
+    - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
+    - /kaniko/executor --digest-file dice-server-digest.log --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/dockerfiles/dice-server.dockerfile --destination $CI_REGISTRY_IMAGE/dice-server:latest
   dependencies:
-    - build_go
+    - build:go_make
   artifacts:
     paths:
      - ./dice-server-digest.log
 
-build_image_chat_clients:
-  needs: ["test_go","build_go"]
-  stage: build-docker
+build:image:chat_clients:
+  needs: ["test:go","build:go_make"]
+  stage: build:docker
   image:
     name: gcr.io/kaniko-project/executor:debug
     entrypoint: [""]
   script:
     - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
-    - /kaniko/executor --digest-file chat-clients-digest.log --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/dockerfiles/chat-clients.dockerfile --destination $CI_REGISTRY_IMAGE/chat-clients:${CI_COMMIT_SHORT_SHA}
+    - /kaniko/executor --digest-file chat-clients-digest.log --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/dockerfiles/chat-clients.dockerfile --destination $CI_REGISTRY_IMAGE/chat-clients:latest
   dependencies:
-    - build_go
+    - build:go_make
   artifacts:
     paths:
      - ./chat-clients-digest.log
 
-build_image_letsencrypt:
-  needs: ["test_go","build_go"]
-  stage: build-docker
+build:image:letsencrypt:
+  needs: ["test:go","build:go_make"]
+  stage: build:docker
   image:
     name: gcr.io/kaniko-project/executor:debug
     entrypoint: [""]
   script:
     - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
-    - /kaniko/executor --digest-file letsencrypt-digest.log --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/dockerfiles/letsencrypt.dockerfile --destination $CI_REGISTRY_IMAGE/letsencrypt:${CI_COMMIT_SHORT_SHA}
+    - /kaniko/executor --digest-file letsencrypt-digest.log --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/dockerfiles/letsencrypt.dockerfile --destination $CI_REGISTRY_IMAGE/letsencrypt:latest
   dependencies:
-    - build_go
+    - build:go_make
   artifacts:
     paths:
      - ./letsencrypt-digest.log
 
-build_image_redis:
-  needs: ["test_go","build_go"]
-  stage: build-docker
+build:image:redis:
+  needs: ["test:go","build:go_make"]
+  stage: build:docker
   image:
     name: gcr.io/kaniko-project/executor:debug
     entrypoint: [""]
   script:
     - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
-    - /kaniko/executor --digest-file redis-digest.log --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/dockerfiles/redis.dockerfile --destination $CI_REGISTRY_IMAGE/redis:${CI_COMMIT_SHORT_SHA}
+    - /kaniko/executor --digest-file redis-digest.log --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/dockerfiles/redis.dockerfile --destination $CI_REGISTRY_IMAGE/redis:latest
   dependencies:
-    - build_go
+    - build:go_make
   artifacts:
     paths:
      - ./redis-digest.log
 
-build_image_www:
-  needs: ["test_go","build_go"]
-  stage: build-docker
+build:image:www:
+  needs: ["test:go","build:go_make"]
+  stage: build:docker
   image:
     name: gcr.io/kaniko-project/executor:debug
     entrypoint: [""]
   script:
     - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
-    - /kaniko/executor --digest-file www-digest.log --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/dockerfiles/www.dockerfile --destination $CI_REGISTRY_IMAGE/www:${CI_COMMIT_SHORT_SHA}
+    - /kaniko/executor --digest-file www-digest.log --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/dockerfiles/www.dockerfile --destination $CI_REGISTRY_IMAGE/www:latest
   dependencies:
-    - build_go
+    - build:go_make
   artifacts:
     paths:
      - ./www-digest.log
 
-deploy_development:
-  needs: ["build_image_www","build_image_redis","build_image_letsencrypt","build_image_chat_clients","build_image_dice_server"]
+deploy:development:
+  needs: ["build:image:www","build:image:redis","build:image:letsencrypt","build:image:chat_clients","build:image:dice_server","build:image:kubectl"]
+  image: registry.gitlab.com/aasmall/dicemagic/kubectl:latest
   stage: deploy
   script:
     - echo "Deploy to dev cluster"
     - find . -type f -printf "\n%p\n" -exec cat {} \;
+    - kubectl apply -k config/development
+    - kubectl set image deployments/dicemagic dice-server=$(kubectl get deployments.apps dicemagic -o json | jq --arg SHA "$(cat dice-server-digest.log)" '.spec.template.spec.containers[] | select(.name=="dice-server").image|(split(":")|.[1]=$SHA|join("@"))' | tr -d '"')
+    - kubectl set image deployments/dicemagic chat-clients=$(kubectl get deployments.apps dicemagic -o json | jq --arg SHA "$(cat chat-clients-digest.log)" '.spec.template.spec.containers[] | select(.name=="chat-clients").image|(split(":")|.[1]=$SHA|join("@"))' | tr -d '"')
+    - kubectl set image deployments/www www=$(kubectl get deployments.apps www -o json | jq --arg SHA "$(cat www-digest.log)" '.spec.template.spec.containers[] | select(.name=="www").image|(split(":")|.[1]=$SHA|join("@"))' | tr -d '"')
+    - kubectl set image cronjob/letsencrypt-job letsencrypt=$(kubectl get cronjobs.batch letsencrypt-job -o json | jq --arg SHA "$(cat letsencrypt-digest.log)" '.spec.jobTemplate.spec.template.spec.containers[] | select(.name=="letsencrypt").image|(split(":")|.[1]=$SHA|join("@"))' | tr -d '"')
+    - kubectl set image statefulset/redis redis=$(kubectl get statefulsets.apps redis -o json | jq --arg SHA "$(cat redis-digest.log)" '.spec.template.spec.containers[] | select(.name=="redis").image|(split(":")|.[1]=$SHA|join("@"))' | tr -d '"')
   environment:
     name: development
     url: https://dev.dicemagic.io
   only:
   - development
   dependencies:
-    - build_image_www
-    - build_image_redis
-    - build_image_letsencrypt
-    - build_image_chat_clients
-    - build_image_dice_server
+    - build:image:www
+    - build:image:redis
+    - build:image:letsencrypt
+    - build:image:chat_clients
+    - build:image:dice_server
 
-deploy_production:
-  needs: ["build_image_www","build_image_redis","build_image_letsencrypt","build_image_chat_clients","build_image_dice_server"]
+deploy:production:
+  needs: ["build:image:www","build:image:redis","build:image:letsencrypt","build:image:chat_clients","build:image:dice_server","build:image:kubectl"]
+  image: registry.gitlab.com/aasmall/dicemagic/kubectl:latest
   stage: deploy
   script:
     - echo "Deploy to prod server"
     - find . -type f -printf "\n%p\n" -exec cat {} \;
+    - kubectl apply -k config/prod
+    - kubectl set image deployments/dicemagic dice-server=$(kubectl get deployments.apps dicemagic -o json | jq --arg SHA "$(cat dice-server-digest.log)" '.spec.template.spec.containers[] | select(.name=="dice-server").image|(split(":")|.[1]=$SHA|join("@"))' | tr -d '"')
+    - kubectl set image deployments/dicemagic chat-clients=$(kubectl get deployments.apps dicemagic -o json | jq --arg SHA "$(cat chat-clients-digest.log)" '.spec.template.spec.containers[] | select(.name=="chat-clients").image|(split(":")|.[1]=$SHA|join("@"))' | tr -d '"')
+    - kubectl set image deployments/www www=$(kubectl get deployments.apps www -o json | jq --arg SHA "$(cat www-digest.log)" '.spec.template.spec.containers[] | select(.name=="www").image|(split(":")|.[1]=$SHA|join("@"))' | tr -d '"')
+    - kubectl set image cronjob/letsencrypt-job letsencrypt=$(kubectl get cronjobs.batch letsencrypt-job -o json | jq --arg SHA "$(cat letsencrypt-digest.log)" '.spec.jobTemplate.spec.template.spec.containers[] | select(.name=="letsencrypt").image|(split(":")|.[1]=$SHA|join("@"))' | tr -d '"')
+    - kubectl set image statefulset/redis redis=$(kubectl get statefulsets.apps redis -o json | jq --arg SHA "$(cat redis-digest.log)" '.spec.template.spec.containers[] | select(.name=="redis").image|(split(":")|.[1]=$SHA|join("@"))' | tr -d '"')
   environment:
     name: production
     url: https://dicemagic.io
   only:
   - master
   dependencies:
-    - build_image_www
-    - build_image_redis
-    - build_image_letsencrypt
-    - build_image_chat_clients
-    - build_image_dice_server
+    - build:image:www
+    - build:image:redis
+    - build:image:letsencrypt
+    - build:image:chat_clients
+    - build:image:dice_server
