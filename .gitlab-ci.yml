@@ -1,5 +1,4 @@
 stages:
-  - vet
   - build
   - test
   - build-docker
@@ -11,7 +10,7 @@ variables:
 image: registry.gitlab.com/aasmall/dicemagic/builder:latest
 # image: golang
 vet:
-  stage: vet
+  stage: build
   script:
     - go vet ./...
 
@@ -41,7 +40,10 @@ build_image_builder:
     entrypoint: [""]
   script:
     - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
-    - /kaniko/executor --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/dockerfiles/builder.dockerfile --destination $CI_REGISTRY_IMAGE/builder:${CI_COMMIT_SHORT_SHA}
+    - /kaniko/executor --digest-file builder-digest.log --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/dockerfiles/builder.dockerfile --destination $CI_REGISTRY_IMAGE/builder:${CI_COMMIT_SHORT_SHA}
+  artifacts:
+    paths:
+     - ./builder-digest.log
 
 build_image_dice_server:
   needs: ["build_go"]
@@ -51,9 +53,12 @@ build_image_dice_server:
     entrypoint: [""]
   script:
     - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
-    - /kaniko/executor --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/dockerfiles/dice-server.dockerfile --destination $CI_REGISTRY_IMAGE/dice-server:${CI_COMMIT_SHORT_SHA}
+    - /kaniko/executor --digest-file dice-server-digest.log --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/dockerfiles/dice-server.dockerfile --destination $CI_REGISTRY_IMAGE/dice-server:${CI_COMMIT_SHORT_SHA}
   dependencies:
     - build_go
+  artifacts:
+    paths:
+     - ./dice-server-digest.log
 
 build_image_chat_clients:
   needs: ["build_go"]
@@ -63,9 +68,12 @@ build_image_chat_clients:
     entrypoint: [""]
   script:
     - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
-    - /kaniko/executor --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/dockerfiles/chat-clients.dockerfile --destination $CI_REGISTRY_IMAGE/chat-clients:${CI_COMMIT_SHORT_SHA}
+    - /kaniko/executor --digest-file chat-clients-digest.log --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/dockerfiles/chat-clients.dockerfile --destination $CI_REGISTRY_IMAGE/chat-clients:${CI_COMMIT_SHORT_SHA}
   dependencies:
     - build_go
+  artifacts:
+    paths:
+     - ./chat-clients-digest.log
 
 build_image_letsencrypt:
   needs: ["build_go"]
@@ -75,9 +83,12 @@ build_image_letsencrypt:
     entrypoint: [""]
   script:
     - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
-    - /kaniko/executor --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/dockerfiles/letsencrypt.dockerfile --destination $CI_REGISTRY_IMAGE/letsencrypt:${CI_COMMIT_SHORT_SHA}
+    - /kaniko/executor --digest-file letsencrypt-digest.log --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/dockerfiles/letsencrypt.dockerfile --destination $CI_REGISTRY_IMAGE/letsencrypt:${CI_COMMIT_SHORT_SHA}
   dependencies:
     - build_go
+  artifacts:
+    paths:
+     - ./letsencrypt-digest.log
 
 build_image_redis:
   needs: ["build_go"]
@@ -87,9 +98,12 @@ build_image_redis:
     entrypoint: [""]
   script:
     - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
-    - /kaniko/executor --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/dockerfiles/redis.dockerfile --destination $CI_REGISTRY_IMAGE/redis:${CI_COMMIT_SHORT_SHA}
+    - /kaniko/executor --digest-file redis-digest.log --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/dockerfiles/redis.dockerfile --destination $CI_REGISTRY_IMAGE/redis:${CI_COMMIT_SHORT_SHA}
   dependencies:
     - build_go
+  artifacts:
+    paths:
+     - ./redis-digest.log
 
 build_image_www:
   needs: ["build_go"]
@@ -99,26 +113,37 @@ build_image_www:
     entrypoint: [""]
   script:
     - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
-    - /kaniko/executor --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/dockerfiles/www.dockerfile --destination $CI_REGISTRY_IMAGE/www:${CI_COMMIT_SHORT_SHA}
+    - /kaniko/executor --digest-file www-digest.log --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/dockerfiles/www.dockerfile --destination $CI_REGISTRY_IMAGE/www:${CI_COMMIT_SHORT_SHA}
   dependencies:
     - build_go
+  artifacts:
+    paths:
+     - ./www-digest.log
 
 deploy_development:
   stage: deploy
   script:
     - echo "Deploy to dev cluster"
   environment:
-    name: staging
+    name: development
     url: https://dev.dicemagic.io
   only:
   - development
+  dependencies:
+    - build_image_www
+    - build_image_redis
+    - build_image_letsencrypt
+    - build_image_chat_clients
+    - build_image_dice_server
+    - build_image_builder
 
 deploy_production:
   stage: deploy
   script:
     - echo "Deploy to prod server"
+    - find . -type f -printf "\n%p\n" -exec cat {} \;
   environment:
-    name: staging
+    name: production
     url: https://dicemagic.io
   only:
   - master
