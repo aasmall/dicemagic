@@ -87,7 +87,7 @@ func TestRoll(t *testing.T) {
 			wantErr: false},
 		{
 			name:    "2d6",
-			args:    args{biasMod: 0, biasTo: 0, biasFreq: 0, loops: 100000, minPValue: .01, numberOfDice: 2, sides: 6},
+			args:    args{biasMod: 0, biasTo: 0, biasFreq: 0, loops: 200000, minPValue: .01, numberOfDice: 2, sides: 6},
 			want:    true,
 			wantErr: false},
 		{
