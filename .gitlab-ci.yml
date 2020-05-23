@@ -125,6 +125,7 @@ deploy_development:
   stage: deploy
   script:
     - echo "Deploy to dev cluster"
+    - find . -type f -printf "\n%p\n" -exec cat {} \;
   environment:
     name: development
     url: https://dev.dicemagic.io
@@ -149,3 +150,10 @@ deploy_production:
     url: https://dicemagic.io
   only:
   - master
+  dependencies:
+    - build_image_www
+    - build_image_redis
+    - build_image_letsencrypt
+    - build_image_chat_clients
+    - build_image_dice_server
+    - build_image_builder
