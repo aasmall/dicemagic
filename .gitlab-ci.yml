@@ -46,7 +46,7 @@ build_image_builder:
      - ./builder-digest.log
 
 build_image_dice_server:
-  needs: ["test_go"]
+  needs: ["test_go","build_go"]
   stage: build-docker
   image:
     name: gcr.io/kaniko-project/executor:debug
@@ -61,7 +61,7 @@ build_image_dice_server:
      - ./dice-server-digest.log
 
 build_image_chat_clients:
-  needs: ["test_go"]
+  needs: ["test_go","build_go"]
   stage: build-docker
   image:
     name: gcr.io/kaniko-project/executor:debug
@@ -76,7 +76,7 @@ build_image_chat_clients:
      - ./chat-clients-digest.log
 
 build_image_letsencrypt:
-  needs: ["test_go"]
+  needs: ["test_go","build_go"]
   stage: build-docker
   image:
     name: gcr.io/kaniko-project/executor:debug
@@ -91,7 +91,7 @@ build_image_letsencrypt:
      - ./letsencrypt-digest.log
 
 build_image_redis:
-  needs: ["test_go"]
+  needs: ["test_go","build_go"]
   stage: build-docker
   image:
     name: gcr.io/kaniko-project/executor:debug
@@ -106,7 +106,7 @@ build_image_redis:
      - ./redis-digest.log
 
 build_image_www:
-  needs: ["test_go"]
+  needs: ["test_go","build_go"]
   stage: build-docker
   image:
     name: gcr.io/kaniko-project/executor:debug
@@ -137,7 +137,6 @@ deploy_development:
     - build_image_letsencrypt
     - build_image_chat_clients
     - build_image_dice_server
-    - build_image_builder
 
 deploy_production:
   needs: ["build_image_www","build_image_redis","build_image_letsencrypt","build_image_chat_clients","build_image_dice_server"]
@@ -156,4 +155,3 @@ deploy_production:
     - build_image_letsencrypt
     - build_image_chat_clients
     - build_image_dice_server
-    - build_image_builder
