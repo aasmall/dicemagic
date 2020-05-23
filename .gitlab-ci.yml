@@ -134,12 +134,7 @@ deploy:development:
   stage: deploy
   script:
     - echo "Deploy to dev cluster"
-    - |
-      images=( dice-server chat-clients www letsencrypt redis)
-        for i in "${images[@]}"
-        do
-          (cd config/development;kustomize edit set image registry.gitlab.com/aasmall/dicemagic/$i@$(cat ../../$i-digest.log))
-        done
+    - IMAGES=( dice-server chat-clients www letsencrypt redis ); for i in "${IMAGES[@]}"; do (cd config/development;kustomize edit set image registry.gitlab.com/aasmall/dicemagic/$i@$(cat ../../$i-digest.log)); done
     - kubectl apply -k config/development
     # - (cd config/development;kustomize edit set image registry.gitlab.com/aasmall/dicemagic/dice-server@$(cat ../../dice-server-digest.log))
     # - (cd config/development;kustomize edit set image registry.gitlab.com/aasmall/dicemagic/chat-clients@$(cat ../../chat-clients-digest.log))
