@@ -133,11 +133,16 @@ deploy:development:
   needs: ["build:image:www","build:image:redis","build:image:letsencrypt","build:image:chat_clients","build:image:dice_server","build:image:kubectl"]
   image: registry.gitlab.com/aasmall/dicemagic/kubectl:latest
   stage: deploy
+  # variables:
+  #   SLACK_CLIENT_SECRET: "dGVzdA=="
+  #   SLACK_SIGNING_SECRET: "dGVzdA=="
   script:
     - echo "Deploy to dev cluster"
-    - mkdir -p config/development/secrets/slack
+    - mkdir -p config/development/secrets/slack config/development/secrets/letsencrypt-certs
     - printf $SLACK_CLIENT_SECRET | base64 -d > config/development/secrets/slack/slack-client-secret
     - printf $SLACK_SIGNING_SECRET | base64 -d > config/development/secrets/slack/slack-signing-secret
+    - printf $SELF_CERT | base64 -d > config/development/secrets/letsencrypt-certs/tls.crt
+    - printf $SELF_KEY | base64 -d > config/development/secrets/letsencrypt-certs/tls.key
     - for i in "dice-server" "chat-clients" "www" "letsencrypt" "redis"; do (cd config/base;kustomize edit set image registry.gitlab.com/aasmall/dicemagic/$i@$(cat ../../$i-digest.log)); done
     - kubectl apply -k config/development
     # - (cd config/development;kustomize edit set image registry.gitlab.com/aasmall/dicemagic/dice-server@$(cat ../../dice-server-digest.log))
