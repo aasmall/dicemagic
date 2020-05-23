@@ -124,3 +124,17 @@ gcloud projects add-iam-policy-binding ${PROJECT_ID} \
   --role roles/cloudkms.cryptoKeyEncrypter \
   --member serviceAccount:dicemagic-ksa@${PROJECT_ID}.iam.gserviceaccount.com
 ```
+
+## base64 encrypted slack secrets and add to CI config 
+
+
+```bash
+base64 config/development/secrets/slack/slack-client-secret -w 0 | xclip -sel clip
+```
+
+```bash
+base64 config/development/secrets/slack/slack-signing-secret -w 0 | xclip -sel clip
+```
+for example:
+
+![screenshot of git-lab CI variables config](ci-screenshot.png "add a variable")

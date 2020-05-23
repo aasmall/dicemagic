@@ -27,9 +27,10 @@ test:go:
   stage: test:go
   script:
     - go test ./... -v -coverprofile cover.out | tee test-results.txt
+    - go tool cover -func=cover.out | tee coverage-report.txt
   artifacts:
     paths:
-     - ./cover.out
+     - ./coverage-report.txt
      - ./test-results.txt
 
 build:image:builder:
@@ -134,6 +135,9 @@ deploy:development:
   stage: deploy
   script:
     - echo "Deploy to dev cluster"
+    - mkdir -p config/development/secrets/slack
+    - printf $SLACK_CLIENT_SECRET | base64 -d > config/development/secrets/slack/slack-client-secret
+    - printf $SLACK_SIGNING_SECRET | base64 -d > config/development/secrets/slack/slack-signing-secret
     - for i in "dice-server" "chat-clients" "www" "letsencrypt" "redis"; do (cd config/base;kustomize edit set image registry.gitlab.com/aasmall/dicemagic/$i@$(cat ../../$i-digest.log)); done
     - kubectl apply -k config/development
     # - (cd config/development;kustomize edit set image registry.gitlab.com/aasmall/dicemagic/dice-server@$(cat ../../dice-server-digest.log))
