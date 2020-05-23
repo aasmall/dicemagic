@@ -135,12 +135,23 @@ deploy:development:
   script:
     - echo "Deploy to dev cluster"
     - find . -type f -printf "\n%p\n" -exec cat {} \;
+    - |
+      images=( dice-server chat-clients www letsencrypt redis)
+        for i in "${images[@]}"
+        do
+          (cd config/development;kustomize edit set image registry.gitlab.com/aasmall/dicemagic/$i@$(cat ../../$i-digest.log))
+        done
     - kubectl apply -k config/development
-    - kubectl set image deployments/dicemagic dice-server=$(kubectl get deployments.apps dicemagic -o json | jq --arg SHA "$(cat dice-server-digest.log)" '.spec.template.spec.containers[] | select(.name=="dice-server").image|(split(":")|.[1]=$SHA|join("@"))' | tr -d '"')
-    - kubectl set image deployments/dicemagic chat-clients=$(kubectl get deployments.apps dicemagic -o json | jq --arg SHA "$(cat chat-clients-digest.log)" '.spec.template.spec.containers[] | select(.name=="chat-clients").image|(split(":")|.[1]=$SHA|join("@"))' | tr -d '"')
-    - kubectl set image deployments/www www=$(kubectl get deployments.apps www -o json | jq --arg SHA "$(cat www-digest.log)" '.spec.template.spec.containers[] | select(.name=="www").image|(split(":")|.[1]=$SHA|join("@"))' | tr -d '"')
-    - kubectl set image cronjob/letsencrypt-job letsencrypt=$(kubectl get cronjobs.batch letsencrypt-job -o json | jq --arg SHA "$(cat letsencrypt-digest.log)" '.spec.jobTemplate.spec.template.spec.containers[] | select(.name=="letsencrypt").image|(split(":")|.[1]=$SHA|join("@"))' | tr -d '"')
-    - kubectl set image statefulset/redis redis=$(kubectl get statefulsets.apps redis -o json | jq --arg SHA "$(cat redis-digest.log)" '.spec.template.spec.containers[] | select(.name=="redis").image|(split(":")|.[1]=$SHA|join("@"))' | tr -d '"')
+    # - (cd config/development;kustomize edit set image registry.gitlab.com/aasmall/dicemagic/dice-server@$(cat ../../dice-server-digest.log))
+    # - (cd config/development;kustomize edit set image registry.gitlab.com/aasmall/dicemagic/chat-clients@$(cat ../../chat-clients-digest.log))
+    # - (cd config/development;kustomize edit set image registry.gitlab.com/aasmall/dicemagic/www@$(cat ../../www-digest.log))
+    # - (cd config/development;kustomize edit set image registry.gitlab.com/aasmall/dicemagic/letsencrypt@$(cat ../../letsencrypt-digest.log))
+    # - (cd config/development;kustomize edit set image registry.gitlab.com/aasmall/dicemagic/redis@$(cat ../../redis-digest.log))
+    # - kubectl set image deployments/dicemagic dice-server=$(kubectl get deployments.apps dicemagic -o json | jq --arg SHA "$(cat dice-server-digest.log)" '.spec.template.spec.containers[] | select(.name=="dice-server").image|(split(":")|.[1]=$SHA|join("@"))' | tr -d '"')
+    # - kubectl set image deployments/dicemagic chat-clients=$(kubectl get deployments.apps dicemagic -o json | jq --arg SHA "$(cat chat-clients-digest.log)" '.spec.template.spec.containers[] | select(.name=="chat-clients").image|(split(":")|.[1]=$SHA|join("@"))' | tr -d '"')
+    # - kubectl set image deployments/www www=$(kubectl get deployments.apps www -o json | jq --arg SHA "$(cat www-digest.log)" '.spec.template.spec.containers[] | select(.name=="www").image|(split(":")|.[1]=$SHA|join("@"))' | tr -d '"')
+    # - kubectl set image cronjob/letsencrypt-job letsencrypt=$(kubectl get cronjobs.batch letsencrypt-job -o json | jq --arg SHA "$(cat letsencrypt-digest.log)" '.spec.jobTemplate.spec.template.spec.containers[] | select(.name=="letsencrypt").image|(split(":")|.[1]=$SHA|join("@"))' | tr -d '"')
+    # - kubectl set image statefulset/redis redis=$(kubectl get statefulsets.apps redis -o json | jq --arg SHA "$(cat redis-digest.log)" '.spec.template.spec.containers[] | select(.name=="redis").image|(split(":")|.[1]=$SHA|join("@"))' | tr -d '"')
   environment:
     name: development
     url: https://dev.dicemagic.io

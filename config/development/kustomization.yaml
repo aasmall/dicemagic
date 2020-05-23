@@ -1,20 +1,22 @@
-bases:
-- ../base
-- ./base
 patchesStrategicMerge:
 - nginx-ingress.yaml
 - dicemagic-ksa.yaml
 - nginx-loadbalancer.yaml
 - www.yaml
 secretGenerator:
-- name: slack-secrets
-  files:
+- files:
   - secrets/slack/slack-client-secret
   - secrets/slack/slack-signing-secret
-- name: default-ingress-certs
-  namespace: nginx-ingress
-  files:
+  name: slack-secrets
+- files:
   - secrets/letsencrypt-certs/tls.crt
   - secrets/letsencrypt-certs/tls.key
+  name: default-ingress-certs
+  namespace: nginx-ingress
 generatorOptions:
- disableNameSuffixHash: true
+  disableNameSuffixHash: true
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- ../base
+- ./base
