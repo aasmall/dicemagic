@@ -3,7 +3,7 @@ stages:
   - build
   - test
   - build-docker
-  - deploy-development
+  - deploy
   
 variables:
   GO111MODULE: "on"
