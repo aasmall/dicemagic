@@ -60,11 +60,11 @@ gcloud iam service-accounts create dicemagic-ksa
 gcloud iam service-accounts create certbot-ksa 
 gcloud iam service-accounts add-iam-policy-binding \
   --role roles/iam.workloadIdentityUser \
-  --member "serviceAccount:${PROJECT_ID}.svc.id.goog[default/dicemagic-serviceaccount]" \
+  --member "serviceAccount:${PROJECT_ID}.svc.id.goog[*/dicemagic-serviceaccount]" \
   dicemagic-ksa@${PROJECT_ID}.iam.gserviceaccount.com
 gcloud iam service-accounts add-iam-policy-binding \
   --role roles/iam.workloadIdentityUser \
-  --member "serviceAccount:${PROJECT_ID}.svc.id.goog[default/certbot-ksa]" \
+  --member "serviceAccount:${PROJECT_ID}.svc.id.goog[*/certbot-ksa]" \
   certbot-ksa@${PROJECT_ID}.iam.gserviceaccount.com
 
 ```
