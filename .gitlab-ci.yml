@@ -144,7 +144,7 @@ deploy:development:
     - printf $SELF_CERT | base64 -d > config/development/secrets/letsencrypt-certs/tls.crt
     - printf $SELF_KEY | base64 -d > config/development/secrets/letsencrypt-certs/tls.key
     - for i in "dice-server" "chat-clients" "www" "letsencrypt" "redis"; do (cd config/base;kustomize edit set image registry.gitlab.com/aasmall/dicemagic/$i@$(cat ../../$i-digest.log)); done
-      kustomize build config/development > cluster.yaml
+    - kustomize build config/development > cluster.yaml
     - kubectl apply -k config/development
     # - (cd config/development;kustomize edit set image registry.gitlab.com/aasmall/dicemagic/dice-server@$(cat ../../dice-server-digest.log))
     # - (cd config/development;kustomize edit set image registry.gitlab.com/aasmall/dicemagic/chat-clients@$(cat ../../chat-clients-digest.log))
