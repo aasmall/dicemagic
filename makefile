@@ -29,6 +29,9 @@ ci: gen core letsencrypt out/bin/www
 .PHONY: local
 local: gen core out/bin/www mocks secrets bootstrapsecrets
 
+.PHONY: quick
+quick: core out/bin/www mocks
+
 .PHONY: gen
 gen: $(GENDEPS)
 	@mkdir -p ${HOME}/.local

@@ -52,7 +52,11 @@ func main() {
 	flag.Parse()
 
 	log.SetFlags(0)
+	if kubePortFwd.String() == "" {
+		kubePortFwd.Set("8080:2082")
+	}
 
+	println("args ...Type")
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt)
 

@@ -8,7 +8,10 @@ import (
 	"google.golang.org/grpc"
 )
 
+// RollOption type to apply RollOptions
 type RollOption func(*RollOptions)
+
+// RollOptions contains options when calling dice-server
 type RollOptions struct {
 	Chart       bool
 	Probability bool
@@ -16,21 +19,28 @@ type RollOptions struct {
 	Context     context.Context
 }
 
+// RollOptionWithChart asks dice-server to generate a chart
 func RollOptionWithChart(withChart bool) RollOption {
 	return func(o *RollOptions) {
 		o.Chart = withChart
 	}
 }
+
+// RollOptionWithProbability asks dice-server to return probability map
 func RollOptionWithProbability(withProb bool) RollOption {
 	return func(o *RollOptions) {
 		o.Probability = withProb
 	}
 }
+
+// RollOptionWithTimeout specify a timeout
 func RollOptionWithTimeout(timeout time.Duration) RollOption {
 	return func(o *RollOptions) {
 		o.Timeout = timeout
 	}
 }
+
+// RollOptionWithContext specify a context
 func RollOptionWithContext(ctx context.Context) RollOption {
 	return func(o *RollOptions) {
 		o.Context = ctx

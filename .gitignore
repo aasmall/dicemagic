@@ -20,3 +20,4 @@ letsencrypt-digest.log
 redis-digest.log
 www-digest.log
 cover.out
+sample-new-json.json

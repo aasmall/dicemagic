@@ -80,10 +80,10 @@ func (c *SlackChatClient) OpenConnection(ctx context.Context, teamID string) err
 			botAccessToken,
 			slack.OptionDebug(c.config.debug),
 			slack.OptionLog(c.log),
-			slack.OptionHTTPClient(c.httpClient),
+			slack.OptionHTTPClient(c.ecm.httpClient),
 		),
 	}
-	connectionInfo.conn = connectionInfo.client.NewRTM(slack.RTMOptionDialer(c.wssClient))
+	connectionInfo.conn = connectionInfo.client.NewRTM(slack.RTMOptionDialer(c.ecm.webSocketClient))
 
 	c.slackConnectionPool[connectionInfo.ID] = connectionInfo
 	c.mu.Unlock()
@@ -194,7 +194,7 @@ func (c *SlackChatClient) IsMention(text string, botID string) (bool, string) {
 func (c *SlackChatClient) Reply(conn *SlackConnection, cmd string, channel string) {
 	var rollResponse *dicelang.RollResponse
 	var err error
-	rollResponse, err = Roll(c.diceClient, cmd)
+	rollResponse, err = Roll(c.ecm.diceServerClient, cmd)
 	if err != nil {
 		c.log.Errorf("Unexpected error: %+v", err)
 		conn.client.PostMessage(channel, slack.MsgOptionText(fmt.Sprintf("Oops! an unexpected error occured: %s", err), false))

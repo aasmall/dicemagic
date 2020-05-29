@@ -32,7 +32,7 @@ type SlackInstallInstanceDoc struct {
 
 func main() {
 	ctx := context.Background()
-	ds, err := datastore.NewClient(ctx, "mocks")
+	ds, err := datastore.NewClient(ctx, "dice-magic-minikube")
 	if err != nil {
 		log.Printf("could not configure Datastore Client: %s", err)
 		return
@@ -91,7 +91,7 @@ func UpsetSlackTeam(ctx context.Context, ds datastore.Client, team *SlackTeam) (
 		if err != nil {
 			return k, err
 		}
-		log.Printf("successfully upserted team: %v", k)
+		log.Printf("successfully upserted team: %+v", k)
 		return k, nil
 	}
 }

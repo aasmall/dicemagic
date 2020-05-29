@@ -39,11 +39,11 @@ func (cType *ChannelType) UnmarshalBinary(data []byte) error {
 
 func (c *SlackChatClient) SetLastCommand(userID string, teamID string, cmd string) error {
 	key := fmt.Sprintf("command:%s:%s:!!", teamID, userID)
-	return c.redisClient.Set(key, cmd, threeMonths).Err()
+	return c.ecm.redisClient.Set(key, cmd, threeMonths).Err()
 }
 func (c *SlackChatClient) GetLastCommand(userID string, teamID string) (string, error) {
 	key := fmt.Sprintf("command:%s:%s:!!", teamID, userID)
-	cmd, err := c.redisClient.Get(key).Result()
+	cmd, err := c.ecm.redisClient.Get(key).Result()
 	if err == nil {
 		go c.SetLastCommand(userID, teamID, cmd)
 	}
@@ -54,11 +54,11 @@ func (c *SlackChatClient) SaveCommand(userID string, teamID string, commandMap m
 	go c.SlackDatastoreClient.UpsetRedisCommand(context.Background(),
 		&RedisCommand{TeamID: teamID, UserID: userID, CommandKey: commandMap["name"], CommandValue: commandMap["cmd"], Expire: time.Now().Add(threeMonths)},
 		c.config.slackAppID)
-	return c.redisClient.Set(key, commandMap["cmd"], threeMonths).Err()
+	return c.ecm.redisClient.Set(key, commandMap["cmd"], threeMonths).Err()
 }
 func (c *SlackChatClient) GetCommand(userID string, teamID string, commandMap map[string]string) (string, error) {
 	key := fmt.Sprintf("command:%s:%s:%s", teamID, userID, commandMap["name"])
-	cmd, err := c.redisClient.Get(key).Result()
+	cmd, err := c.ecm.redisClient.Get(key).Result()
 	if err != nil {
 		var dsCmd *RedisCommand
 		dsCmd, err = c.SlackDatastoreClient.GetRedisCommand(context.Background(), teamID, userID, commandMap["name"], c.config.slackAppID)
@@ -73,7 +73,7 @@ func (c *SlackChatClient) GetCommand(userID string, teamID string, commandMap ma
 
 func (c *SlackChatClient) GetCachedChannelType(teamID string, channel string) (ChannelType, error) {
 	key := fmt.Sprintf("channel:%s:%s", teamID, channel)
-	b, err := c.redisClient.Get(key).Bytes()
+	b, err := c.ecm.redisClient.Get(key).Bytes()
 	if err != nil {
 		return Unknown, nil
 	}
@@ -84,11 +84,11 @@ func (c *SlackChatClient) GetCachedChannelType(teamID string, channel string) (C
 }
 func (c *SlackChatClient) SetCachedChannelType(teamID string, channel string, cType *ChannelType) error {
 	key := fmt.Sprintf("channel:%s:%s", teamID, channel)
-	return c.redisClient.Set(key, cType, time.Minute*120).Err()
+	return c.ecm.redisClient.Set(key, cType, time.Minute*120).Err()
 }
 func (c *SlackChatClient) SilentSetCachedChannelType(teamID string, channel string, cType *ChannelType) {
 	key := fmt.Sprintf("channel:%s:%s", teamID, channel)
-	c.redisClient.Set(key, cType, time.Minute*120)
+	c.ecm.redisClient.Set(key, cType, time.Minute*120)
 }
 
 func (c *SlackChatClient) SpawnPodCrier(freq time.Duration) {
@@ -120,9 +120,9 @@ func (c *SlackChatClient) SpawnTeamsCrier(freq time.Duration) {
 	}
 }
 func (c *SlackChatClient) CryPods(tick time.Time) error {
-	err := c.redisClient.HSet("pods", c.config.podName, tick.Format(timeFormat)).Err()
+	err := c.ecm.redisClient.HSet("pods", c.config.podName, tick.Format(timeFormat)).Err()
 	pods, _ := c.GetHashKeys("pods")
-	c.log.Debugf("At %s Just cried pod '%v'. Current HSet value: %v", tick.Format(timeFormat), c.config.podName, pods)
+	c.log.Debugf("Just cried pod '%v'. Current HSet value: %v", c.config.podName, pods)
 	return err
 }
 func (c *SlackChatClient) CryTeams(tick time.Time) error {
@@ -133,7 +133,7 @@ func (c *SlackChatClient) CryTeams(tick time.Time) error {
 	}
 	for teamID := range teams {
 		go func(teamID string, tick time.Time) {
-			err := c.redisClient.HSet("teams", teamID, tick.Format(timeFormat)).Err()
+			err := c.ecm.redisClient.HSet("teams", teamID, tick.Format(timeFormat)).Err()
 			if err != nil {
 				c.log.Errorf("Could not cry team (%s): %s", teamID, err)
 			}
@@ -157,7 +157,7 @@ func (c *SlackChatClient) SpawnReaper(key string, freq time.Duration, age time.D
 }
 
 func (c *SlackChatClient) reap(key string, freq time.Duration, age time.Duration) error {
-	hashMap, err := c.redisClient.HGetAll(key).Result()
+	hashMap, err := c.ecm.redisClient.HGetAll(key).Result()
 	if err != nil {
 		return fmt.Errorf("Could not get hash for key '%s' for reap: %s", key, err)
 	}
@@ -166,22 +166,22 @@ func (c *SlackChatClient) reap(key string, freq time.Duration, age time.Duration
 		lastCheckin, err := time.Parse(timeFormat, v)
 		if err != nil {
 			c.log.Criticalf("Error parsing time. Deleting offending entry(%s): %v\n", k, err)
-			c.redisClient.HDel(key, k)
+			c.ecm.redisClient.HDel(key, k)
 			continue
 		}
 		if time.Now().Sub(lastCheckin) >= age {
 			c.log.Debugf("Reaping %s: %s. They were %.3f seconds old", key, k, age.Seconds())
-			c.redisClient.HDel(key, k).Err()
+			c.ecm.redisClient.HDel(key, k).Err()
 		}
 	}
 	return nil
 }
 func (c *SlackChatClient) GetHashKeys(key string) ([]string, error) {
-	return c.redisClient.HKeys(key).Result()
+	return c.ecm.redisClient.HKeys(key).Result()
 }
 func (c *SlackChatClient) AssignTeamToPod(teamID string, podName string, expirey time.Duration) error {
 	key := fmt.Sprintf("team-assignment:%s", teamID)
-	return c.redisClient.Set(key, podName, expirey).Err()
+	return c.ecm.redisClient.Set(key, podName, expirey).Err()
 }
 func (c *SlackChatClient) GetTeamsAssignedtoPod() ([]string, error) {
 	teams, err := c.GetHashKeys("teams")
@@ -208,5 +208,5 @@ func (c *SlackChatClient) GetTeamsAssignedtoPod() ([]string, error) {
 }
 
 func (c *SlackChatClient) DeletePod() error {
-	return c.redisClient.HDel("pods", c.config.podName).Err()
+	return c.ecm.redisClient.HDel("pods", c.config.podName).Err()
 }

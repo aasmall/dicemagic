@@ -169,6 +169,14 @@ func (l *Logger) Criticalf(format string, a ...interface{}) {
 	})
 }
 
+func (l *Logger) Fatalf(format string, a ...interface{}) {
+	l.outputEntry(2, logging.Entry{
+		Payload:  fmt.Sprintf(format, a...),
+		Severity: logging.Critical,
+	})
+	panic(nil)
+}
+
 func (l *Logger) Close() {
 	l.loggingClient.Close()
 }

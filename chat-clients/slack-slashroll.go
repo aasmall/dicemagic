@@ -26,7 +26,7 @@ func SlackSlashRollHandler(e interface{}, w http.ResponseWriter, r *http.Request
 	if err != nil {
 		fmt.Fprintf(w, "could not parse slash command: %s", err)
 	}
-	rollResponse, err := Roll(c.diceClient, s.Text)
+	rollResponse, err := Roll(c.ecm.diceServerClient, s.Text)
 	if err != nil {
 		c.log.Errorf("Unexpected error: %+v", err)
 		returnErrorToSlack(fmt.Sprintf("Oops! an unexpected error occured: %s", err), w, r)

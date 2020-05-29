@@ -11,21 +11,25 @@ import (
 	errors "github.com/aasmall/dicemagic/lib/dicelang-errors"
 )
 
+// RESTRollResponse is the Go representation of the response JSON
 type RESTRollResponse struct {
 	Cmd    string `json:"cmd"`
 	Result string `json:"result"`
 	Ok     bool   `json:"ok"`
 	Err    string `json:"err,omitempty"`
 }
+
+// RESTRollRequest is the Go representation of the request JSON
 type RESTRollRequest struct {
 	Cmd         string `json:"cmd"`
 	Chart       bool   `json:"with_chart,omitempty"`
 	Probability bool   `json:"with_probability,omitempty"`
 }
 
+// RESTRollHandler handles requests to /roll
 func RESTRollHandler(e interface{}, w http.ResponseWriter, r *http.Request) error {
-	env, _ := e.(*environment)
-	log := env.log.WithRequest(r)
+	ecm, _ := e.(*externalClientsManager)
+	log := ecm.loggingClient.WithRequest(r)
 	req := &RESTRollRequest{}
 
 	err := json.NewDecoder(r.Body).Decode(req)
@@ -34,12 +38,12 @@ func RESTRollHandler(e interface{}, w http.ResponseWriter, r *http.Request) erro
 		return err
 	}
 	resp := &RESTRollResponse{Cmd: req.Cmd}
-	diceServerResponse, err := Roll(env.diceServerClient, req.Cmd, RollOptionWithProbability(req.Probability), RollOptionWithChart(req.Chart))
+	diceServerResponse, err := Roll(ecm.diceServerClient, req.Cmd, RollOptionWithProbability(req.Probability), RollOptionWithChart(req.Chart))
 	if err != nil {
 		errString := fmt.Sprintf("Unexpected error: %+v", err)
 		resp.Ok = false
 		resp.Err = errString
-		env.log.Error(errString)
+		ecm.loggingClient.Error(errString)
 		return nil
 	}
 	if diceServerResponse.Ok {
@@ -59,6 +63,7 @@ func RESTRollHandler(e interface{}, w http.ResponseWriter, r *http.Request) erro
 	return nil
 }
 
+// StringFromRollResponse parses the response from the dice-server into a human readable format
 func StringFromRollResponse(rr *dicelang.RollResponse) string {
 	var s []string
 	var finalTotal int64

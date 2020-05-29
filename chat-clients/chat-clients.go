@@ -3,12 +3,15 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/base64"
 	"fmt"
+	"io/ioutil"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
-	"sort"
 	"strconv"
 	"strings"
 	"syscall"
@@ -16,27 +19,64 @@ import (
 
 	"cloud.google.com/go/datastore"
 	"cloud.google.com/go/logging"
-	"contrib.go.opencensus.io/exporter/stackdriver"
 	"github.com/aasmall/dicemagic/lib/envreader"
 	"github.com/aasmall/dicemagic/lib/handler"
 	log "github.com/aasmall/dicemagic/lib/logger"
-	"github.com/go-redis/redis"
+	"github.com/go-redis/redis/v7"
 	"github.com/gorilla/mux"
-	"go.opencensus.io/plugin/ocgrpc"
-	"go.opencensus.io/plugin/ochttp"
-	"go.opencensus.io/trace"
-	"go.opencensus.io/trace/propagation"
+	"github.com/gorilla/websocket"
+	"google.golang.org/api/cloudkms/v1"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc"
 )
 
+type externalClientType int
+
+const (
+	slackClientType externalClientType = iota
+	diceServerClient
+	httpClient
+	webSocketClient
+	redisClient
+	datastoreClient
+	kmsClient
+)
+
 type environment struct {
-	traceClient      *http.Client
-	config           *envConfig
-	log              *log.Logger
+	config         *envConfig
+	ShuttingDown   bool
+	configReloader func() (*envConfig, error)
+}
+type externalClientsManager struct {
+	slackClient      *SlackChatClient
 	diceServerClient *grpc.ClientConn
-	ShuttingDown     bool
-	configReloader   func() (*envConfig, error)
+	httpClient       *http.Client
+	webSocketClient  *websocket.Dialer
+	redisClient      *redis.ClusterClient
+	datastoreClient  *datastore.Client
+	kmsClient        *cloudkms.Service
+	loggingClient    *log.Logger
+}
+
+func (ecm *externalClientsManager) getClient(ect externalClientType) interface{} {
+	switch ect {
+	case slackClientType:
+		return ecm.slackClient
+	case diceServerClient:
+		return ecm.diceServerClient
+	case httpClient:
+		return ecm.httpClient
+	case webSocketClient:
+		return ecm.webSocketClient
+	case redisClient:
+		return ecm.redisClient
+	case datastoreClient:
+		return ecm.datastoreClient
+	case kmsClient:
+		return ecm.kmsClient
+	default:
+		return nil
+	}
 }
 
 type envConfig struct {
@@ -58,46 +98,47 @@ type envConfig struct {
 	localRedirectURI      string
 	slackProxyURL         string
 	mockKMSURL            string
+	mockDatastoreHost     string
+	mockDatastorePort     string
 	redisClusterHosts     []string
 	debug                 bool
 	local                 bool
-	traceProbability      float64
 }
 
-func GetEnvironmentalConfig() (*envConfig, error) {
+// GetEnvironmentalConfigr reparses all data gathered from environment
+// variables and Kubernetes
+func getEnvironmentalConfig() (*envConfig, error) {
 	// Gather Environment Variables
 	configReader := new(envreader.EnvReader)
 	config := &envConfig{
-		projectID:           configReader.GetEnv("PROJECT_ID"),
-		kmsKeyring:          configReader.GetEnv("KMS_KEYRING"),
-		kmsSlackKey:         configReader.GetEnv("KMS_SLACK_KEY"),
-		kmsSlackKeyLocation: configReader.GetEnv("KMS_SLACK_KEY_LOCATION"),
-		slackClientID:       configReader.GetEnv("SLACK_CLIENT_ID"),
-		slackAppID:          configReader.GetEnv("SLACK_APP_ID"),
-		slackOAuthDeniedURL: configReader.GetEnv("SLACK_OAUTH_DENIED_URL"),
-		logName:             configReader.GetEnv("LOG_NAME"),
-		serverPort:          configReader.GetEnv("SERVER_PORT"),
-		slackTokenURL:       configReader.GetEnv("SLACK_TOKEN_URL"),
-		diceServerPort:      configReader.GetEnv("DICE_SERVER_PORT"),
-		redisPort:           configReader.GetEnv("REDIS_PORT"),
-		podName:             configReader.GetEnv("POD_NAME"),
-		localRedirectURI:    configReader.GetEnvOpt("REDIRECT_URI"),
-		slackProxyURL:       configReader.GetEnvOpt("SLACK_PROXY_URL"),
-		mockKMSURL:          configReader.GetEnvOpt("MOCK_KMS_URL"),
-		debug:               configReader.GetEnvBoolOpt("DEBUG"),
-		local:               configReader.GetEnvBoolOpt("LOCAL"),
-		traceProbability:    configReader.GetEnvFloat("TRACE_PROBABILITY"),
-		redisClusterHosts:   configReader.GetPodHosts("default", "k8s-app=redis"),
+		projectID:             configReader.GetEnv("PROJECT_ID"),
+		kmsKeyring:            configReader.GetEnv("KMS_KEYRING"),
+		kmsSlackKey:           configReader.GetEnv("KMS_SLACK_KEY"),
+		kmsSlackKeyLocation:   configReader.GetEnv("KMS_SLACK_KEY_LOCATION"),
+		slackClientID:         configReader.GetEnv("SLACK_CLIENT_ID"),
+		slackAppID:            configReader.GetEnv("SLACK_APP_ID"),
+		slackOAuthDeniedURL:   configReader.GetEnv("SLACK_OAUTH_DENIED_URL"),
+		logName:               configReader.GetEnv("LOG_NAME"),
+		serverPort:            configReader.GetEnv("SERVER_PORT"),
+		slackTokenURL:         configReader.GetEnv("SLACK_TOKEN_URL"),
+		diceServerPort:        configReader.GetEnv("DICE_SERVER_PORT"),
+		redisPort:             configReader.GetEnv("REDIS_PORT"),
+		podName:               configReader.GetEnv("POD_NAME"),
+		localRedirectURI:      configReader.GetEnvOpt("REDIRECT_URI"),
+		slackProxyURL:         configReader.GetEnvOpt("SLACK_PROXY_URL"),
+		mockKMSURL:            configReader.GetEnvOpt("MOCK_KMS_URL"),
+		mockDatastoreHost:     configReader.GetEnvOpt("MOCK_DATASTORE_SERVICE_HOST"),
+		mockDatastorePort:     configReader.GetEnvOpt("MOCK_DATASTORE_SERVICE_PORT"),
+		debug:                 configReader.GetEnvBoolOpt("DEBUG"),
+		local:                 configReader.GetEnvBoolOpt("LOCAL"),
+		redisClusterHosts:     configReader.GetPodHosts("default", "k8s-app=redis"),
+		encSlackSigningSecret: base64.StdEncoding.EncodeToString(configReader.GetFromFile("/etc/slack-secrets/slack-signing-secret")),
+		encSlackClientSecret:  base64.StdEncoding.EncodeToString(configReader.GetFromFile("/etc/slack-secrets/slack-client-secret")),
 	}
-	config.encSlackSigningSecret = base64.StdEncoding.EncodeToString(configReader.GetFromFile("/etc/slack-secrets/slack-signing-secret"))
-	config.encSlackClientSecret = base64.StdEncoding.EncodeToString(configReader.GetFromFile("/etc/slack-secrets/slack-client-secret"))
-	// config.encSlackSigningSecret = strings.TrimSpace(config.encSlackSigningSecret)
-	// config.encSlackClientSecret = strings.TrimSpace(config.encSlackClientSecret)
 	if configReader.Errors {
 		return nil, fmt.Errorf("Could not gather config. Failed variables: %v", configReader.MissingKeys)
 	}
 	return config, nil
-
 }
 func (env *environment) ReloadConfig() error {
 	config, err := env.configReloader()
@@ -111,118 +152,156 @@ func (env *environment) ReloadConfig() error {
 func main() {
 	log.Printf("hello.")
 	ctx := context.Background()
-	env := &environment{configReloader: func() (*envConfig, error) { return GetEnvironmentalConfig() }}
+	env := &environment{configReloader: func() (*envConfig, error) { return getEnvironmentalConfig() }}
 	err := env.ReloadConfig()
 	if err != nil {
 		log.Fatalf("ERROR OCCURED BEFORE LOGGING: %s", err)
 	}
-	// Stackdriver Logger
-	env.log = log.New(
+	ecm := &externalClientsManager{}
+	ecm.loggingClient = log.New(
 		env.config.projectID,
 		log.WithDefaultSeverity(logging.Error),
 		log.WithDebug(env.config.debug),
 		log.WithLogName(env.config.logName),
 		log.WithPrefix(env.config.podName+": "),
 	)
-	env.log.Info("Logger up and running!")
-	defer log.Println("Shutting down logger.")
-	defer env.log.Close()
+	log := ecm.loggingClient
+	log.Info("Logger up and running!")
+	defer log.Info("Shutting down logger.")
+	defer ecm.loggingClient.Close()
 
 	//keep config up to date
 	go func() {
-		ticker := time.NewTicker(time.Second * 60)
+		ticker := time.NewTicker(time.Second * 30)
 		defer ticker.Stop()
 		for range ticker.C {
 			err := env.ReloadConfig()
 			if err != nil {
-				env.log.Criticalf("Could not reload config: %v", err)
+				log.Criticalf("Could not reload config: %v", err)
 			}
 		}
 	}()
 
-	// Stackdriver Trace exporter
-	if !env.config.local {
-		exporter, err := stackdriver.NewExporter(stackdriver.Options{
-			ProjectID: env.config.projectID,
-		})
+	// Default HTTP Client
+	var netTransport = &http.Transport{
+		Dial: (&net.Dialer{
+			Timeout: 5 * time.Second,
+		}).Dial,
+		TLSHandshakeTimeout: 5 * time.Second,
+	}
+
+	// Default WebSocket Client
+	if env.isLocal() {
+		// override URL and HTTP client to force use of self-signed CA and mocks
+		rootCAs, _ := x509.SystemCertPool()
+		if rootCAs == nil {
+			rootCAs = x509.NewCertPool()
+		}
+		certs, err := ioutil.ReadFile("/etc/mock-tls/tls.crt")
 		if err != nil {
-			log.Fatalf("could not configure Stackdriver Exporter: %s", err)
+			log.Criticalf("Failed to append mock-server to RootCAs: %v", err)
 		}
-		trace.ApplyConfig(trace.Config{DefaultSampler: trace.ProbabilitySampler(env.config.traceProbability)})
-		trace.RegisterExporter(exporter)
+		if ok := rootCAs.AppendCertsFromPEM(certs); !ok {
+			log.Debugf("No certs appended, using system certs only")
+		}
+		tlsConfig := &tls.Config{
+			InsecureSkipVerify: false,
+			RootCAs:            rootCAs,
+		}
+		netTransport.TLSClientConfig = tlsConfig
 
-		// Stackdriver Trace client
-		grpc.EnableTracing = true
-		env.traceClient = &http.Client{
-			Transport: &ochttp.Transport{
-				// Use Google Cloud propagation format.
-				Propagation: *new(propagation.HTTPFormat),
-			},
+		// detect calls to slack API and redirect to mock slack-server
+		netTransport.DialTLSContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+			log.Debugf("rewriting address: network: %s. address: %s", network, addr)
+			if strings.HasPrefix(addr, "slack.com") {
+				return tls.Dial(network, env.config.slackProxyURL, tlsConfig)
+			}
+			return tls.Dial(network, addr, tlsConfig)
 		}
+		ecm.webSocketClient = &websocket.Dialer{TLSClientConfig: tlsConfig}
+	} else {
+		ecm.webSocketClient = &websocket.Dialer{}
 	}
+	ecm.httpClient = &http.Client{Transport: netTransport}
+
 	// Dice Server Client
-	diceServerClient, err := grpc.Dial(env.config.diceServerPort,
-		grpc.WithInsecure(),
-		grpc.WithStatsHandler(&ocgrpc.ClientHandler{}))
+	diceServerClient, err := grpc.Dial(env.config.diceServerPort, grpc.WithInsecure())
 	if err != nil {
-		log.Fatalf("did not connect to dice-server(%s): %v", env.config.diceServerPort, err)
+		log.Criticalf("did not connect to dice-server(%s): %v", env.config.diceServerPort, err)
+		panic(err)
 	}
-	env.diceServerClient = diceServerClient
+	ecm.diceServerClient = diceServerClient
 
-	env.log.Infof("Creating redis cluster client with URIs: %v\n", env.redisClusterAddresses())
-	redisClient := redis.NewClusterClient(&redis.ClusterOptions{
+	// Redis Client
+	log.Infof("Creating redis cluster client with URIs: %v\n", env.redisClusterAddresses())
+	ecm.redisClient = redis.NewClusterClient(&redis.ClusterOptions{
 		Addrs:    env.redisClusterAddresses(),
 		Password: "",
 	})
+
+	// keep config up to date. Re-create redis client from k8s state if borked.
 	go func() {
 		ticker := time.NewTicker(time.Second * 30)
 		defer ticker.Stop()
 		for range ticker.C {
 			err = env.ReloadConfig()
-			env.log.Debugf("Creating redis cluster client with URIs: %v\n", env.redisClusterAddresses())
-			*redisClient = *redis.NewClusterClient(&redis.ClusterOptions{
-				Addrs:    env.redisClusterAddresses(),
-				Password: "",
-			})
+			if err != nil {
+				log.Criticalf("Failed to get new config: %v", err)
+			}
+			currentRedisClient := ecm.getClient(redisClient).(*redis.ClusterClient)
+			if pingResponse, err := currentRedisClient.Ping().Result(); pingResponse != "PONG" || err != nil {
+				log.Errorf("Lost connection to Redis Client, recreating: %s: %v", pingResponse, err)
+				log.Debugf("Creating redis cluster client with URIs: %v\n", env.redisClusterAddresses())
+				currentRedisClient.Close()
+				ecm.redisClient = redis.NewClusterClient(&redis.ClusterOptions{
+					Addrs:    env.redisClusterAddresses(),
+					Password: "",
+				})
+			}
 		}
 	}()
-	// Keep ClusterIPs up to date if IPs change
-	// go func(env *environment, client *redis.ClusterClient) {
-	// 	ticker := time.NewTicker(time.Second * 30)
-	// 	defer ticker.Stop()
-	// 	for range ticker.C {
-	// 		err = env.ReloadConfig()
-	// 		env.log.Debugf("reloading redisClientState with URIs: %v\n", env.redisClusterAddresses())
-	// 		err = redisClient.ReloadState()
-	// 		if err != nil {
-	// 			env.log.Criticalf("Error updating Redis ClusterClientConfig: %v", err)
-	// 		}
-	// 	}
-	// }(env, redisClient)
 
 	// Cloud Datastore Client
 	var dsClient *datastore.Client
 	if env.config.local {
-		dsClient, err = datastore.NewClient(ctx, env.config.projectID, option.WithoutAuthentication(), option.WithGRPCDialOption(grpc.WithInsecure()))
+		os.Setenv("DATASTORE_EMULATOR_HOST", env.config.mockDatastoreHost+":"+env.config.mockDatastorePort)
+		os.Setenv("DATASTORE_EMULATOR_HOST_PATH", env.config.mockDatastoreHost+":"+env.config.mockDatastorePort+"/datastore")
+		dsClient, err = datastore.NewClient(ctx,
+			env.config.projectID, option.WithoutAuthentication(),
+			option.WithGRPCDialOption(grpc.WithInsecure()),
+			option.WithGRPCDialOption(grpc.WithTimeout(time.Second*10)))
 	} else {
 		dsClient, err = datastore.NewClient(ctx, env.config.projectID)
 	}
 	if err != nil {
 		log.Fatalf("Could not configure Datastore Client: %s", err)
 	}
+	ecm.datastoreClient = dsClient
+
+	// Cloud KMS Client
+	var kmsService *cloudkms.Service
+	if env.config.local {
+		kmsService, err = cloudkms.NewService(ctx,
+			option.WithEndpoint(env.config.mockKMSURL),
+			option.WithAPIKey("mockAPIKey"),
+			option.WithHTTPClient(ecm.httpClient))
+	} else {
+		kmsService, err = cloudkms.NewService(ctx)
+	}
+	if err != nil {
+		log.Fatalf("Error creating cloudKMS.service: %v", err)
+	}
+	ecm.kmsClient = kmsService
 
 	// Call chat-clients init
-	slackChatClient := NewSlackChatClient(env.log, redisClient, dsClient, env.traceClient, env.diceServerClient, env.config)
+	slackChatClient := env.NewSlackChatClient(ecm)
 
 	// Define inbound Routes
 	r := mux.NewRouter()
-	r.Handle("/roll", handler.Handler{Env: env, H: RESTRollHandler})
+	r.Handle("/roll", handler.Handler{Env: ecm, H: RESTRollHandler})
 	r.Handle("/slack/oauth", handler.Handler{Env: slackChatClient, H: SlackOAuthHandler})
 	r.Handle("/slack/slash/roll", handler.Handler{Env: slackChatClient, H: SlackSlashRollHandler})
 	r.Handle("/", handler.Handler{Env: env, H: rootHandler})
-
-	// Add OpenCensus HTTP Handler Wrapper
-	openCensusWrapper := &ochttp.Handler{Handler: r}
 
 	// Define a server with timeouts
 	srv := &http.Server{
@@ -230,7 +309,7 @@ func main() {
 		WriteTimeout: time.Second * 15,
 		ReadTimeout:  time.Second * 15,
 		IdleTimeout:  time.Second * 60,
-		Handler:      openCensusWrapper, // Pass our instance of gorilla/mux and tracer in.
+		Handler:      r, // Pass our instance of gorilla/mux
 
 	}
 	srv.RegisterOnShutdown(slackChatClient.Init(ctx))
@@ -239,7 +318,7 @@ func main() {
 	go func() {
 		err := srv.ListenAndServe()
 		if err != nil {
-			log.Printf("ListenAndServe error: %+v", err)
+			log.Infof("ListenAndServe error: %+v", err)
 		}
 	}()
 
@@ -247,8 +326,6 @@ func main() {
 	// SIGKILL, SIGQUIT or SIGTERM (Ctrl+/)
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, syscall.SIGINT, syscall.SIGTERM)
-
-	// Block until we receive our signal.
 	<-c
 
 	// Create a deadline to wait for.
@@ -261,14 +338,10 @@ func main() {
 		srv.Shutdown(ctx)
 	}()
 	<-ctx.Done()
-	log.Println("shut down")
-	//os.Exit(0)
+	log.Infof("shut down")
 }
 
 func rootHandler(e interface{}, w http.ResponseWriter, r *http.Request) error {
-	env := e.(*environment)
-	trace.ApplyConfig(trace.Config{DefaultSampler: trace.NeverSample()})
-	defer trace.ApplyConfig(trace.Config{DefaultSampler: trace.ProbabilitySampler(env.config.traceProbability)})
 	fmt.Fprint(w, "200")
 	return nil
 }
@@ -307,50 +380,4 @@ func (env *environment) redisClusterAddresses() []string {
 		clusterURIs[i] = fmt.Sprintf("%s:%s", strings.TrimSpace(s), env.config.redisPort)
 	}
 	return clusterURIs
-}
-func (env *environment) redisClusterSlots() ([]redis.ClusterSlot, error) {
-	addresses := env.redisClusterAddresses()
-	sort.Strings(addresses)
-	//client side cluster
-	slots := splitSlots(len(addresses))
-
-	for i := 0; i < len(slots); i++ {
-		slots[i].Nodes = []redis.ClusterNode{{Addr: addresses[i]}}
-	}
-	env.log.Debugf("redisClusterSet = %+v", slots)
-	return slots, nil
-}
-func splitSlots(numberOfHosts int) []redis.ClusterSlot {
-	maxSlots := 16383
-	var slots []redis.ClusterSlot
-	nextSlot := 0
-	if numberOfHosts == 0 {
-		log.Printf("redis hosts not up yet, cannot assign slots.")
-		return nil
-	}
-	if maxSlots < numberOfHosts {
-		// More hosts than slots, can't be divided
-		return []redis.ClusterSlot{{Start: 0}, {End: 0}}
-	} else if (maxSlots % numberOfHosts) == 0 {
-		// slots divide evenly into hosts
-		for i := 0; i < numberOfHosts; i++ {
-			slotsEach := maxSlots / numberOfHosts
-			slots = append(slots, redis.ClusterSlot{Start: nextSlot, End: (i + 1) * slotsEach})
-			nextSlot = ((i + 1) * slotsEach) + 1
-		}
-	} else {
-		// slots do not divide evenly into hosts
-		unevenCount := numberOfHosts - (maxSlots % numberOfHosts)
-		evenAmount := maxSlots / numberOfHosts
-		for i := 0; i < numberOfHosts; i++ {
-			if i >= unevenCount {
-				slots = append(slots, redis.ClusterSlot{Start: nextSlot, End: (i + 1) * (evenAmount + 1)})
-				nextSlot = ((i + 1) * (evenAmount + 1)) + 1
-			} else {
-				slots = append(slots, redis.ClusterSlot{Start: nextSlot, End: (i + 1) * evenAmount})
-				nextSlot = ((i + 1) * evenAmount) + 1
-			}
-		}
-	}
-	return slots
 }

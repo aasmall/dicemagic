@@ -1,6 +1,6 @@
 FROM alpine
 
-RUN apk add --no-cache ca-certificates shadow redis libc6-compat \
+RUN apk add --no-cache ca-certificates shadow redis libc6-compat curl\
     && sed -i 's/^CREATE_MAIL_SPOOL=yes/CREATE_MAIL_SPOOL=no/' /etc/default/useradd \
     && groupadd --gid 1000 dicemagic \
     && useradd --uid 1000 --gid dicemagic --shell /bin/sh --create-home dicemagic \

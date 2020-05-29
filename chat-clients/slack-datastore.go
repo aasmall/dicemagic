@@ -18,6 +18,9 @@ type SlackTeam struct {
 	TeamName   string
 }
 
+// SlackInstallInstanceDoc represents one authorized user on a team who has installed DiceMagic.
+// Multiple users can install the bot, and it is not fully uninstalled until all users delete it.
+// This object contains all the secrets required to connect to the slack server.
 type SlackInstallInstanceDoc struct {
 	Key            *datastore.Key `datastore:"__key__"`
 	EncAccessToken string         `datastore:",noindex" json:"access_token"`
@@ -32,6 +35,9 @@ type SlackInstallInstanceDoc struct {
 	TeamName string `json:"team_name"`
 	UserID   string `json:"user_id"`
 }
+
+// RedisCommand represents a command a user has sent to dice magic that was persisted to redis
+// this allows for the rapid replay of commands with "!!"
 type RedisCommand struct {
 	Key          *datastore.Key `datastore:"__key__"`
 	TeamID       string
@@ -41,6 +47,7 @@ type RedisCommand struct {
 	Expire       time.Time
 }
 
+// UpsetSlackTeam creates or updates a SlackTeam object to the datastore
 func (ds *SlackDatastoreClient) UpsetSlackTeam(ctx context.Context, team *SlackTeam) (*datastore.Key, error) {
 	var err error
 	var k *datastore.Key
@@ -80,6 +87,7 @@ func (ds *SlackDatastoreClient) UpsetSlackTeam(ctx context.Context, team *SlackT
 	return k, nil
 }
 
+// UpsetRedisCommand creates or updates a RedisCommand object to the datastore
 func (ds *SlackDatastoreClient) UpsetRedisCommand(ctx context.Context, cmd *RedisCommand, appID string) (*datastore.Key, error) {
 	var err error
 	var k *datastore.Key
@@ -125,6 +133,7 @@ func (ds *SlackDatastoreClient) UpsetRedisCommand(ctx context.Context, cmd *Redi
 	return k, nil
 }
 
+// UpsertSlackInstallInstance creates or updates a SlackInstallInstance object to the datastore
 func (ds *SlackDatastoreClient) UpsertSlackInstallInstance(ctx context.Context, d *SlackInstallInstanceDoc, parentKey *datastore.Key) (*datastore.Key, error) {
 	var err error
 	var k *datastore.Key
@@ -162,8 +171,10 @@ func (ds *SlackDatastoreClient) UpsertSlackInstallInstance(ctx context.Context, 
 
 	return k, nil
 }
-func (ds *SlackDatastoreClient) GetTeam(ctx context.Context, teamId string, appId string) (*datastore.Key, error) {
-	q := datastore.NewQuery("SlackTeam").Filter("SlackAppID = ", appId).Filter("TeamID = ", teamId).Limit(1)
+
+// GetTeam returns a SlackTeam object for a valid teamID and AppID. Returns nil if an error is encountered.
+func (ds *SlackDatastoreClient) GetTeam(ctx context.Context, teamID string, appID string) (*datastore.Key, error) {
+	q := datastore.NewQuery("SlackTeam").Filter("SlackAppID = ", appID).Filter("TeamID = ", teamID).Limit(1)
 	var teams []SlackTeam
 	_, err := ds.GetAll(ctx, q, &teams)
 	if err != nil {
@@ -172,6 +183,7 @@ func (ds *SlackDatastoreClient) GetTeam(ctx context.Context, teamId string, appI
 	return teams[0].Key, nil
 }
 
+// GetAllTeams returns a map of SlackTeamIDs and datastore Keys for all SlackTeam objects that match the appID. Returns nil if an error is encountered.
 func (ds *SlackDatastoreClient) GetAllTeams(ctx context.Context, appID string) (map[string]*datastore.Key, error) {
 	q := datastore.NewQuery("SlackTeam").Filter("SlackAppID = ", appID)
 	var teams []SlackTeam
@@ -185,6 +197,8 @@ func (ds *SlackDatastoreClient) GetAllTeams(ctx context.Context, appID string) (
 	}
 	return retMap, nil
 }
+
+// GetFirstSlackInstallInstanceByTeamID returns a single SlackInstallInstace, as only one is required to make a connection to the slack server. Returns nil if an error is encountered.
 func (ds *SlackDatastoreClient) GetFirstSlackInstallInstanceByTeamID(ctx context.Context, teamID string, appID string) (*SlackInstallInstanceDoc, error) {
 	docs := []SlackInstallInstanceDoc{}
 
@@ -205,6 +219,8 @@ func (ds *SlackDatastoreClient) GetFirstSlackInstallInstanceByTeamID(ctx context
 	}
 	return &docs[0], nil
 }
+
+//GetRedisCommand returns a single redis command for it's command key.
 func (ds *SlackDatastoreClient) GetRedisCommand(ctx context.Context, teamID string, userID string, cmd string, appID string) (*RedisCommand, error) {
 	cmds := []RedisCommand{}
 	parent, err := ds.GetTeam(ctx, teamID, appID)
@@ -223,6 +239,8 @@ func (ds *SlackDatastoreClient) GetRedisCommand(ctx context.Context, teamID stri
 	}
 	return &cmds[0], nil
 }
+
+// DeleteSlackInstallInstance deletes one SlackInstallDoc, and if it's the last ancestor, deletes the parent team.
 func (ds *SlackDatastoreClient) DeleteSlackInstallInstance(ctx context.Context, key *datastore.Key) error {
 	_, err := ds.RunInTransaction(ctx, func(tx *datastore.Transaction) error {
 
@@ -251,6 +269,7 @@ func (ds *SlackDatastoreClient) DeleteSlackInstallInstance(ctx context.Context, 
 
 }
 
+//DeleteWithAllChildren deletes a datastore object and any children.
 func (ds *SlackDatastoreClient) DeleteWithAllChildren(ctx context.Context, key *datastore.Key) error {
 	_, err := ds.RunInTransaction(ctx, func(tx *datastore.Transaction) error {
 		q := datastore.NewQuery("").Ancestor(key).KeysOnly()

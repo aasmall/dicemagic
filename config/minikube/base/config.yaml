@@ -9,8 +9,8 @@ data:
     KMS_SLACK_KEY: "slack"
     KMS_SLACK_KEY_LOCATION: "us-central1"
     SLACK_CLIENT_ID: "42142079431.351057397637"
-    SLACK_OAUTH_DENIED_URL: "https://www.dicemagic.io/page/access-denied/"
-    SLACK_APP_ID: "AAB1PBPJR"
+    SLACK_OAUTH_DENIED_URL: "https://www.local.dicemagic.io/page/access-denied/"
+    SLACK_APP_ID: "MOCKAPPID"
     LOG_NAME: "dicemagic-dev-logs"
     SERVER_PORT: ":7070"
     TRACE_PROBABILITY: "20"
@@ -20,6 +20,8 @@ data:
     LOCAL: "true"
     REDIS_PORT: "6379" 
     REDIRECT_URI: ""
+    MOCK_KMS_URL: "mock-kms.default.svc.cluster.local:1080"
+    SLACK_PROXY_URL: "mock-slack-server.default.svc.cluster.local:1082"
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -29,11 +31,12 @@ metadata:
 data:
     PROJECT_ID: "k8s-dice-magic"
     LOG_NAME: "dicemagic-logs"
+    REDIS_STATEFULSET_NAME: "redis"
     REDIS_PORT: "6379"
     REDIS_NAMESPACE: "default"
     REDIS_LABEL_SELECTOR: "k8s-app=redis"
-    DEBUG: "false"
-    LOCAL: "false"
+    DEBUG: "true"
+    LOCAL: "true"
 ---
 apiVersion: v1
 kind: ConfigMap

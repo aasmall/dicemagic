@@ -108,6 +108,16 @@ rules:
   verbs: ["get", "list", "update"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: default
+  name: statefulset-reader
+rules:
+- apiGroups: ["apps"] # "" indicates the core API group
+  resources: ["statefulsets"]
+  verbs: ["get", "watch", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   namespace: default
@@ -122,4 +132,18 @@ subjects:
   namespace: default
 - kind: ServiceAccount # Omit apiGroup
   name: dicemagic-serviceaccount
+  namespace: default
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  namespace: default
+  name: statefulset-reader-rolebinding
+roleRef:
+  apiGroup: ""
+  kind: Role
+  name: statefulset-reader
+subjects:
+- kind: ServiceAccount # Omit apiGroup
+  name: redis-serviceaccount
   namespace: default

@@ -12,7 +12,7 @@
                 }
             },
             "type": "shell",
-            "command": "make -j16 local",
+            "command": "make -j16 quick",
             "runOptions": {
                 "runOn": "default"
             },

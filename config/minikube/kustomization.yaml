@@ -17,8 +17,10 @@ secretGenerator:
   files:
   - secrets/slack/slack-client-secret
   - secrets/slack/slack-signing-secret
-- name: default-server-secret
+- name: default-ingress-certs
   namespace: nginx-ingress
   files:
-  - secrets/nginx-ingress/tls.crt
-  - secrets/nginx-ingress/tls.key
+  - secrets/letsencrypt-certs/tls.crt
+  - secrets/letsencrypt-certs/tls.key
+generatorOptions:
+  disableNameSuffixHash: true

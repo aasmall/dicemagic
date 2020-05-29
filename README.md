@@ -5,10 +5,10 @@
 
 ## Build Status
 
-|Branch|Build Status |
-|--|--|
-| master | [![Build Status](https://gitlab.com/aasmall/dicemagic/badges/master/pipeline.svg?style=flat-square)](https://gitlab.com/aasmall/dicemagic)|
-| development |  [![Build Status](https://gitlab.com/aasmall/dicemagic/badges/development/pipeline.svg?style=flat-square)](https://gitlab.com/aasmall/dicemagic)|
+|Branch| Pipeline Status | Code Coverage |
+|--|--|--|
+| master | [![Build Status](https://gitlab.com/aasmall/dicemagic/badges/master/pipeline.svg?style=flat-square)](https://gitlab.com/aasmall/dicemagic)|![coverage](https://gitlab.com/aasmall/dicemagic/badges/master/coverage.svg?style=flat-square)
+| development |  [![Build Status](https://gitlab.com/aasmall/dicemagic/badges/development/pipeline.svg?style=flat-square)](https://gitlab.com/aasmall/dicemagic)|![coverage](https://gitlab.com/aasmall/dicemagic/badges/development/coverage.svg?style=flat-square)
 
 ## Set up a development environment
 
@@ -125,7 +125,7 @@ minikube ip
 
 Edit/create `/etc/NetworkManager/dnsmasq.d/address.conf` Use minikube's IP from above
 
-```toml
+```
 address=/local.dicemagic.io/xxx.xxx.xxx.xxx
 ```
 
@@ -159,7 +159,7 @@ make build-minikube-secrets
 
 ### Start Skaffold
 ```bash
-skaffold dev --default-repo $(minikube ip):5000
+skaffold dev --default-repo $(minikube ip):5000 -p minikube
 ```
 
 forward client traffic to fake slack server
@@ -178,3 +178,23 @@ go get golang.org/x/tools/cmd/stringer
 ```
 
 ## Go write code...
+
+## after host reboot
+
+I have a little helper script in the root of the repo I use to rebuild my cluster after a reboot. Minikube is pretty bad about restarting stopped multi-node clusters, so I just kill it and restart
+
+```bash
+#!/bin/bash
+minikube delete
+minikube start --vm-driver=kvm2 --cpus=2 --nodes 3 --network-plugin=cni \
+--addons registry --enable-default-cni=false \
+--insecure-registry "10.0.0.0/24" --insecure-registry "192.168.39.0/24" \
+--extra-config=kubeadm.pod-network-cidr=10.244.0.0/16 \
+--extra-config=kubelet.network-plugin=cni
+kubectl config use-context minikube
+kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml
+kubectl patch deployment coredns -n kube-system --patch '{"spec":{"template":{"spec":{"volumes":[{"name":"emptydir-tmp","emptyDir":{}}],"containers":[{"name":"coredns","volumeMounts":[{"name":"emptydir-tmp","mountPath":"/tmp"}]}]}}}}'
+echo "replacing dnsmasq address with minikubeip and restarting"
+sudo sed -i -E "s/(address=\/local\.dicemagic\.io\/)(.*)/\1$(minikube ip)/" /etc/NetworkManager/dnsmasq.d/address.conf
+sudo nmcli general reload
+```

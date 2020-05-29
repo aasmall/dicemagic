@@ -12,6 +12,7 @@ import (
 	errors "github.com/aasmall/dicemagic/lib/dicelang-errors"
 )
 
+// SlackOAuthHandler handles Add To Slack oAuth flow
 func SlackOAuthHandler(e interface{}, w http.ResponseWriter, r *http.Request) error {
 	r.ParseForm()
 	ctx := r.Context()
@@ -41,7 +42,7 @@ func SlackOAuthHandler(e interface{}, w http.ResponseWriter, r *http.Request) er
 	req, err := http.NewRequest("POST", c.config.slackTokenURL, strings.NewReader(form.Encode()))
 	req.SetBasicAuth(c.config.slackClientID, clientSecret)
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-	resp, err := c.traceClient.Do(req)
+	resp, err := c.ecm.httpClient.Do(req)
 	if err != nil {
 		log.Criticalf("error getting oAuthToken: %s", err)
 		return err

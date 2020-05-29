@@ -17,15 +17,29 @@ spec:
   selector:
     matchLabels:
       k8s-app: redis
+  volumeClaimTemplates:
+  - metadata:
+      name: redis-storage
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 5Gi
+      storageClassName: standard
   template:
     metadata:
+      namespace: default
       labels:
         k8s-app: redis
     spec:
       serviceAccountName: redis-serviceaccount
       volumes:
-      - name: data
-        emptyDir: {}
+      # - name: data
+      #   emptyDir: {}
+      - name: redis-storage
+        persistentVolumeClaim:
+          claimName: redis-volumeclaim
       - name: podinfo
         downwardAPI:
           items:
@@ -50,12 +64,14 @@ spec:
         # - containerPort: 16379
         #   hostPort: 16379
         volumeMounts:
-        - mountPath: /data
-          name: data
-          readOnly: false
+        # - mountPath: /data
+        #   name: data
+        #   readOnly: false
         - name: podinfo
           mountPath: /etc/podinfo
           readOnly: false
+        - name: redis-storage
+          mountPath: /data
         env:
         - name: LOCAL_POD_IP
           valueFrom:
@@ -93,6 +109,7 @@ metadata:
   annotations:
     service.alpha.kubernetes.io/tolerate-unready-endpoints: "false"
   name: redis-cluster
+  namespace: default
   labels:
     k8s-app: redis
 spec:
@@ -105,3 +122,16 @@ spec:
     name: gossip
   selector:
     k8s-app: redis
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: redis-volumeclaim
+  annotations:
+    volume.beta.kubernetes.io/storage-class: standard
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 500Mi

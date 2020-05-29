@@ -6,7 +6,6 @@ import (
 	"sort"
 
 	"cloud.google.com/go/logging"
-	"contrib.go.opencensus.io/exporter/stackdriver"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 
@@ -14,9 +13,6 @@ import (
 	errors "github.com/aasmall/dicemagic/lib/dicelang-errors"
 	log "github.com/aasmall/dicemagic/lib/logger"
 	"golang.org/x/net/context"
-
-	"go.opencensus.io/plugin/ocgrpc"
-	"go.opencensus.io/trace"
 )
 
 type env struct {
@@ -59,14 +55,7 @@ func main() {
 	}
 	env := &env{config: config}
 
-	//Stackdriver Trace exporter
-	exporter, err := stackdriver.NewExporter(stackdriver.Options{
-		ProjectID: env.config.projectID,
-	})
-	trace.ApplyConfig(trace.Config{DefaultSampler: trace.AlwaysSample()})
-	trace.RegisterExporter(exporter)
-
-	// Stackdriver Logger
+	// Logger
 	env.log = log.New(
 		env.config.projectID,
 		log.WithDefaultSeverity(logging.Error),
@@ -83,7 +72,7 @@ func main() {
 		env.log.Criticalf("failed to listen: %v", err)
 		return
 	}
-	s := grpc.NewServer(grpc.StatsHandler(&ocgrpc.ServerHandler{}))
+	s := grpc.NewServer()
 	dicelang.RegisterRollerServer(s, newServer(env))
 
 	// Register reflection service on gRPC server.
@@ -207,11 +196,7 @@ func (s *server) astToDiceSets(p bool, c bool, tree *dicelang.AST) (*dicelang.Di
 
 func (s *server) Roll(ctx context.Context, in *dicelang.RollRequest) (*dicelang.RollResponse, error) {
 	log := s.env.log
-	ctx, span := trace.StartSpan(ctx, "Roll")
-	defer span.End()
 	out := dicelang.RollResponse{Ok: true}
-
-	ctx, parseSpan := trace.StartSpan(ctx, "Parse")
 	var p *dicelang.Parser
 	if in.Cmd == "" {
 		return &out, s.handleExposedErrors(errors.NewDicelangError("zero length command is invalid", errors.InvalidCommand, nil), &out)
@@ -219,10 +204,6 @@ func (s *server) Roll(ctx context.Context, in *dicelang.RollRequest) (*dicelang.
 	p = dicelang.NewParser(in.Cmd)
 	log.Debugf("Rolling cmd on server: %s", in.Cmd)
 	tree, err := p.Statements()
-	parseSpan.End()
-	tree.String()
-	ctx, dsSpan := trace.StartSpan(ctx, "AST to Diceset")
-	defer dsSpan.End()
 	diceSets, err := s.astToDiceSets(in.Probabilities, in.Chart, tree)
 	if err != nil {
 		return &out, s.handleExposedErrors(err, &out)
