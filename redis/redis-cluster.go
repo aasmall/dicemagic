@@ -330,7 +330,7 @@ func (cc *clusterConfigurator) joinCluster(ctx context.Context) error {
 	if !cc.isOrdZero() {
 		err := cc.localClient.ClusterMeet(cc.getClusterNodes(ctx, false).getOrdZero().IPAddress, cc.config.redisPort).Err()
 		if err != nil {
-			cc.log.Criticalf("Failed to meet ord 0: ", err)
+			cc.log.Criticalf("Failed to meet ord 0: %v", err)
 			return err
 		}
 		return nil
