@@ -9,7 +9,6 @@ data:
     SLACK_OAUTH_DENIED_URL: "https://www.dev.dicemagic.io/page/access-denied/"
     SLACK_APP_ID: "AGRLNDHDL"
     LOG_NAME: "dicemagic-dev-logs"
-    DEBUG: "false"
     KMS_KEYRING: "dice-magic"
     KMS_SLACK_KEY: "slack"
     KMS_SLACK_KEY_LOCATION: "us-central1"
@@ -17,6 +16,7 @@ data:
     TRACE_PROBABILITY: "20"
     SLACK_TOKEN_URL: "https://slack.com/api/oauth.access"
     DICE_SERVER_PORT: ":50051"
+    DEBUG: "false"
     LOCAL: "false"
     REDIS_PORT: "6379" 
     REDIRECT_URI: ""
@@ -29,6 +29,7 @@ metadata:
 data:
     PROJECT_ID: "k8s-dice-magic"
     LOG_NAME: "dicemagic-logs"
+    REDIS_STATEFULSET_NAME: "redis"
     REDIS_PORT: "6379"
     REDIS_NAMESPACE: "default"
     REDIS_LABEL_SELECTOR: "k8s-app=redis"

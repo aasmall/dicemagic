@@ -7,13 +7,16 @@ require (
 	cloud.google.com/go/logging v1.0.0
 	github.com/aasmall/word2number v0.0.0-20180508050052-3e177d961031
 	github.com/blend/go-sdk v1.1.1 // indirect
+	github.com/dgraph-io/badger v1.6.1 // indirect
 	github.com/go-redis/redis/v7 v7.3.0
+	github.com/gojp/goreportcard v0.0.0-20200415071653-59167b516f3f // indirect
 	github.com/golang/protobuf v1.4.2
 	github.com/gorilla/mux v1.7.4
 	github.com/gorilla/websocket v1.4.2
 	github.com/kr/pretty v0.2.0 // indirect
 	github.com/minio/highwayhash v1.0.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
+	github.com/prometheus/client_golang v1.6.0 // indirect
 	github.com/serialx/hashring v0.0.0-20190515033939-7706f26af194
 	github.com/slack-go/slack v0.6.4
 	github.com/wcharczuk/go-chart v2.0.1+incompatible

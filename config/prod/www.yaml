@@ -1,0 +1,12 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: www
+  namespace: default
+spec:
+  template:
+    spec:
+      containers:
+      - name: www
+        command: ["/usr/bin/www"]
+        args: ["--environment","prod"]

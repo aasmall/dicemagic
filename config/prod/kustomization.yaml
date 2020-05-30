@@ -1,4 +1,5 @@
 bases:
 - ../base
 patchesStrategicMerge:
-- nginx.yaml
+- nginx-loadbalancer.yaml
+- www.yaml

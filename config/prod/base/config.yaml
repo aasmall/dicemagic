@@ -5,13 +5,13 @@ metadata:
   namespace: default
 data:
     PROJECT_ID: "k8s-dice-magic"
-    KMS_KEYRING: "dice-magic"
-    KMS_SLACK_KEY: "slack"
-    KMS_SLACK_KEY_LOCATION: "us-central1"
     SLACK_CLIENT_ID: "42142079431.351057397637"
     SLACK_OAUTH_DENIED_URL: "https://www.dicemagic.io/page/access-denied/"
     SLACK_APP_ID: "AAB1PBPJR"
     LOG_NAME: "dicemagic-logs"
+    KMS_KEYRING: "dice-magic"
+    KMS_SLACK_KEY: "slack"
+    KMS_SLACK_KEY_LOCATION: "us-central1"
     SERVER_PORT: ":7070"
     TRACE_PROBABILITY: "20"
     SLACK_TOKEN_URL: "https://slack.com/api/oauth.access"
@@ -29,6 +29,7 @@ metadata:
 data:
     PROJECT_ID: "k8s-dice-magic"
     LOG_NAME: "dicemagic-logs"
+    REDIS_STATEFULSET_NAME: "redis"
     REDIS_PORT: "6379"
     REDIS_NAMESPACE: "default"
     REDIS_LABEL_SELECTOR: "k8s-app=redis"
@@ -42,8 +43,8 @@ metadata:
   namespace: default
 data:
     PROJECT_ID: "k8s-dice-magic"
-    SERVER_PORT: ":50051"
     LOG_NAME: "dicemagic-logs"
+    SERVER_PORT: ":50051"
     TRACE_PROBABILITY: "100"
     DEBUG: "false"
     LOCAL: "false"

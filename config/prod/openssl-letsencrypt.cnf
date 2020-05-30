@@ -1,0 +1,21 @@
+    [req]
+    prompt = no
+    distinguished_name = req_distinguished_name
+    req_extensions = v3_req
+
+    [req_distinguished_name]
+    countryName = US
+    stateOrProvinceName = Washington
+    localityName = Seattle
+    commonName = *.dicemagic.io
+
+    [ v3_req ]
+    # Extensions to add to a certificate request
+    basicConstraints = CA:FALSE
+    keyUsage = nonRepudiation, digitalSignature, keyEncipherment
+    subjectAltName = @alt_names
+
+    [alt_names]
+    DNS.1 = api.dicemagic.io
+    DNS.2 = www.dicemagic.io
+    DNS.3 = dicemagic.io
