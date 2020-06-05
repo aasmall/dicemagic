@@ -6,7 +6,9 @@ require (
 	cloud.google.com/go/datastore v1.1.0
 	cloud.google.com/go/logging v1.0.0
 	github.com/aasmall/word2number v0.0.0-20180508050052-3e177d961031
+	github.com/antonmedv/countdown v1.0.0 // indirect
 	github.com/blend/go-sdk v1.1.1 // indirect
+	github.com/davecgh/go-spew v1.1.1
 	github.com/go-redis/redis/v7 v7.3.0
 	github.com/golang/protobuf v1.4.2
 	github.com/gorilla/mux v1.7.4

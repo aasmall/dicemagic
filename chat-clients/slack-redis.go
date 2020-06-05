@@ -12,6 +12,7 @@ import (
 const timeFormat = "2006-01-02 15:04:05.999999999 -0700 MST"
 const threeMonths = time.Minute * 131000 // not right, but close enough
 
+//ChannelType is an enum of slack channel types
 //go:generate stringer -type=ChannelType
 type ChannelType uint16
 
@@ -23,12 +24,14 @@ const (
 	Standard
 )
 
+// MarshalBinary marshals a channelType into []byte
 func (cType *ChannelType) MarshalBinary() ([]byte, error) {
 	bytes := make([]byte, 4)
 	binary.BigEndian.PutUint16(bytes, uint16(*cType))
 	return bytes, nil
 }
 
+// UnmarshalBinary unmarshals a channelType into []byte
 func (cType *ChannelType) UnmarshalBinary(data []byte) error {
 	if len(data) != 4 {
 		return fmt.Errorf("data wrong size")
@@ -37,10 +40,13 @@ func (cType *ChannelType) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+// SetLastCommand stores the last command issued with the "!!" token
 func (c *SlackChatClient) SetLastCommand(userID string, teamID string, cmd string) error {
 	key := fmt.Sprintf("command:%s:%s:!!", teamID, userID)
 	return c.ecm.redisClient.Set(key, cmd, threeMonths).Err()
 }
+
+// GetLastCommand returns the command stores with the "!!" token
 func (c *SlackChatClient) GetLastCommand(userID string, teamID string) (string, error) {
 	key := fmt.Sprintf("command:%s:%s:!!", teamID, userID)
 	cmd, err := c.ecm.redisClient.Get(key).Result()
@@ -49,6 +55,8 @@ func (c *SlackChatClient) GetLastCommand(userID string, teamID string) (string, 
 	}
 	return cmd, err
 }
+
+// SaveCommand saves a command with the given token and persists it to the datastore
 func (c *SlackChatClient) SaveCommand(userID string, teamID string, commandMap map[string]string) error {
 	key := fmt.Sprintf("command:%s:%s:%s", teamID, userID, commandMap["name"])
 	go c.SlackDatastoreClient.UpsetRedisCommand(context.Background(),
@@ -56,6 +64,8 @@ func (c *SlackChatClient) SaveCommand(userID string, teamID string, commandMap m
 		c.config.slackAppID)
 	return c.ecm.redisClient.Set(key, commandMap["cmd"], threeMonths).Err()
 }
+
+// GetCommand retrieves a command from redis with the given token in the form of map[CommandName]CommandValue
 func (c *SlackChatClient) GetCommand(userID string, teamID string, commandMap map[string]string) (string, error) {
 	key := fmt.Sprintf("command:%s:%s:%s", teamID, userID, commandMap["name"])
 	cmd, err := c.ecm.redisClient.Get(key).Result()
@@ -71,6 +81,7 @@ func (c *SlackChatClient) GetCommand(userID string, teamID string, commandMap ma
 	return cmd, err
 }
 
+// GetCachedChannelType retrieves a channel type from redis for a given channel string
 func (c *SlackChatClient) GetCachedChannelType(teamID string, channel string) (ChannelType, error) {
 	key := fmt.Sprintf("channel:%s:%s", teamID, channel)
 	b, err := c.ecm.redisClient.Get(key).Bytes()
@@ -82,15 +93,14 @@ func (c *SlackChatClient) GetCachedChannelType(teamID string, channel string) (C
 	err = ret.UnmarshalBinary(b)
 	return ret, err
 }
+
+// SetCachedChannelType stores a channel type in redis for a given channel string
 func (c *SlackChatClient) SetCachedChannelType(teamID string, channel string, cType *ChannelType) error {
 	key := fmt.Sprintf("channel:%s:%s", teamID, channel)
 	return c.ecm.redisClient.Set(key, cType, time.Minute*120).Err()
 }
-func (c *SlackChatClient) SilentSetCachedChannelType(teamID string, channel string, cType *ChannelType) {
-	key := fmt.Sprintf("channel:%s:%s", teamID, channel)
-	c.ecm.redisClient.Set(key, cType, time.Minute*120)
-}
 
+// SpawnPodCrier is intended to be called from a go routine. calls CryPods() at freq duration specified
 func (c *SlackChatClient) SpawnPodCrier(freq time.Duration) {
 	ticker := time.NewTicker(freq)
 	defer ticker.Stop()
@@ -105,6 +115,8 @@ func (c *SlackChatClient) SpawnPodCrier(freq time.Duration) {
 		}
 	}
 }
+
+// SpawnTeamsCrier is intended to be called from a go routine. calls CryTeams() at freq duration specified
 func (c *SlackChatClient) SpawnTeamsCrier(freq time.Duration) {
 	ticker := time.NewTicker(freq)
 	defer ticker.Stop()
@@ -119,12 +131,16 @@ func (c *SlackChatClient) SpawnTeamsCrier(freq time.Duration) {
 		}
 	}
 }
+
+// CryPods announces this pods identity to redis
 func (c *SlackChatClient) CryPods(tick time.Time) error {
 	err := c.ecm.redisClient.HSet("pods", c.config.podName, tick.Format(timeFormat)).Err()
 	pods, _ := c.GetHashKeys("pods")
 	c.log.Debugf("Just cried pod '%v'. Current HSet value: %v", c.config.podName, pods)
 	return err
 }
+
+// CryTeams announces all teams to redis
 func (c *SlackChatClient) CryTeams(tick time.Time) error {
 	teams, err := c.GetAllTeams(context.Background(), c.config.slackAppID)
 	c.log.Debugf("Crying teams: %+v", teams)
@@ -142,6 +158,7 @@ func (c *SlackChatClient) CryTeams(tick time.Time) error {
 	return nil
 }
 
+// SpawnReaper is intended to be called from a goroutine. calls reap() at the specified frequency and deletes objects older than the specified duration
 func (c *SlackChatClient) SpawnReaper(key string, freq time.Duration, age time.Duration) {
 	ticker := time.NewTicker(freq)
 	defer ticker.Stop()
@@ -176,13 +193,19 @@ func (c *SlackChatClient) reap(key string, freq time.Duration, age time.Duration
 	}
 	return nil
 }
+
+// GetHashKeys returns a slice of strings for a given redis hash key
 func (c *SlackChatClient) GetHashKeys(key string) ([]string, error) {
 	return c.ecm.redisClient.HKeys(key).Result()
 }
+
+// AssignTeamToPod records teams assignment to pods
 func (c *SlackChatClient) AssignTeamToPod(teamID string, podName string, expirey time.Duration) error {
 	key := fmt.Sprintf("team-assignment:%s", teamID)
 	return c.ecm.redisClient.Set(key, podName, expirey).Err()
 }
+
+// GetTeamsAssignedtoPod assigns teams to pods
 func (c *SlackChatClient) GetTeamsAssignedtoPod() ([]string, error) {
 	teams, err := c.GetHashKeys("teams")
 	if err != nil {
@@ -207,6 +230,7 @@ func (c *SlackChatClient) GetTeamsAssignedtoPod() ([]string, error) {
 	return assignedTeams, nil
 }
 
+// DeletePod deletes the current pod from the "pods" hashset
 func (c *SlackChatClient) DeletePod() error {
 	return c.ecm.redisClient.HDel("pods", c.config.podName).Err()
 }

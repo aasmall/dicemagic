@@ -18,12 +18,12 @@ type StatusError struct {
 	Err  error
 }
 
-// Allows StatusError to satisfy the error interface.
+// Error allows StatusError to satisfy the error interface.
 func (se StatusError) Error() string {
 	return se.Err.Error()
 }
 
-// Returns our HTTP status code.
+// Status Returns our HTTP status code.
 func (se StatusError) Status() int {
 	return se.Code
 }

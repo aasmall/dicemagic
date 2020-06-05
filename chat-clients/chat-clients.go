@@ -30,6 +30,9 @@ import (
 	"google.golang.org/grpc"
 )
 
+// intended to be overwritten during build
+var gitCommitID string
+
 type externalClientType int
 
 const (
@@ -55,6 +58,7 @@ type externalClientsManager struct {
 	redisClient      *redis.ClusterClient
 	datastoreClient  *datastore.Client
 	kmsClient        *cloudkms.Service
+	grpcClient       *grpc.ClientConn
 	loggingClient    *log.Logger
 }
 
@@ -129,8 +133,8 @@ func getEnvironmentalConfig() (*envConfig, error) {
 		mockKMSURL:            configReader.GetEnvOpt("MOCK_KMS_URL"),
 		mockDatastoreHost:     configReader.GetEnvOpt("MOCK_DATASTORE_SERVICE_HOST"),
 		mockDatastorePort:     configReader.GetEnvOpt("MOCK_DATASTORE_SERVICE_PORT"),
-		debug:                 configReader.GetEnvBoolOpt("DEBUG"),
-		local:                 configReader.GetEnvBoolOpt("LOCAL"),
+		debug:                 configReader.GetEnvBool("DEBUG"),
+		local:                 configReader.GetEnvBool("LOCAL"),
 		redisClusterHosts:     configReader.GetPodHosts("default", "k8s-app=redis"),
 		encSlackSigningSecret: base64.StdEncoding.EncodeToString(configReader.GetFromFile("/etc/slack-secrets/slack-signing-secret")),
 		encSlackClientSecret:  base64.StdEncoding.EncodeToString(configReader.GetFromFile("/etc/slack-secrets/slack-client-secret")),
@@ -182,7 +186,7 @@ func main() {
 		}
 	}()
 
-	// Default HTTP Client
+	// Default HTTP Transport
 	var netTransport = &http.Transport{
 		Dial: (&net.Dialer{
 			Timeout: 5 * time.Second,
@@ -218,6 +222,7 @@ func main() {
 			}
 			return tls.Dial(network, addr, tlsConfig)
 		}
+
 		ecm.webSocketClient = &websocket.Dialer{TLSClientConfig: tlsConfig}
 	} else {
 		ecm.webSocketClient = &websocket.Dialer{}
@@ -342,7 +347,7 @@ func main() {
 }
 
 func rootHandler(e interface{}, w http.ResponseWriter, r *http.Request) error {
-	fmt.Fprint(w, "200")
+	fmt.Fprintf(w, "Git commit: %s", gitCommitID)
 	return nil
 }
 

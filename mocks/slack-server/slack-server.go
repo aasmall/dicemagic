@@ -22,12 +22,12 @@ const (
 	maxMessageSize = 512
 )
 
-//go:generate stringer -type=ClientType
-type ClientType int
+//go:generate stringer -type=clientType
+type clientType int
 
 const (
-	Normal ClientType = iota
-	Snooper
+	normal clientType = iota
+	snooper
 )
 
 var (
@@ -43,11 +43,13 @@ var upgrader = websocket.Upgrader{
 type env struct {
 	hub *Hub
 }
+
+// Client is an internal representation of a connection to a websocket server
 type Client struct {
 	hub *Hub
 
 	// The type of client. Snooper will listen to all messages that pass through the hub
-	clientType ClientType
+	clientType clientType
 
 	// The websocket connection.
 	conn *websocket.Conn
@@ -55,6 +57,8 @@ type Client struct {
 	// Buffered channel of outbound messages.
 	send chan []byte
 }
+
+// Hub maintains channels for all clients
 type Hub struct {
 	// Registered clients.
 	clients map[*Client]bool
@@ -71,6 +75,8 @@ type Hub struct {
 	// Unregister requests from clients.
 	unregister chan *Client
 }
+
+// RTMConnectResponse mocks the response Slack Clients expect from the slack server after a call to .connect
 type RTMConnectResponse struct {
 	Ok   bool `json:"ok"`
 	Self struct {
@@ -84,6 +90,8 @@ type RTMConnectResponse struct {
 	} `json:"team"`
 	URL string `json:"url"`
 }
+
+// RTMMessage mocks the json structure of a message from a slack client
 type RTMMessage struct {
 	Type string `json:"type"`
 }
@@ -172,9 +180,9 @@ func wssHandler(e interface{}, w http.ResponseWriter, r *http.Request) error {
 	client := &Client{hub: e.(*env).hub, conn: conn, send: make(chan []byte, 256)}
 	vars := mux.Vars(r)
 	if vars["client-type"] == "snooper" {
-		client.clientType = Snooper
+		client.clientType = snooper
 	} else {
-		client.clientType = Normal
+		client.clientType = normal
 	}
 	client.hub.register <- client
 	client.send <- sayHello()
@@ -210,7 +218,7 @@ func (c *Client) readPump() {
 		//message = bytes.TrimSpace(bytes.Replace(message, newline, space, -1))
 		//if I am a snooping client, send my message directly to normal clients
 		//else send the message to snooping clients and process a reply
-		if c.clientType == Snooper {
+		if c.clientType == snooper {
 			c.hub.outbound <- message
 		} else {
 			c.hub.evesdrop <- message
@@ -347,7 +355,7 @@ func (h *Hub) run() {
 			}
 		case message := <-h.evesdrop:
 			for client := range h.clients {
-				if client.clientType == Snooper {
+				if client.clientType == snooper {
 					client.send <- message
 				}
 			}

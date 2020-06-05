@@ -16,12 +16,14 @@ import (
 
 const commandRegex = `(?mi)^!(\w+)\b\s*=[\t|\f|\v| ]*(.*)$`
 
+// Disconnect slack client
 func (c *SlackChatClient) Disconnect(id int) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.DisconnectNoLock(id)
 }
 
+// DisconnectNoLock disconnects slack client without locking
 func (c *SlackChatClient) DisconnectNoLock(id int) error {
 	if c.slackConnectionPool[id] != nil {
 		err := c.slackConnectionPool[id].conn.Disconnect()
@@ -32,6 +34,8 @@ func (c *SlackChatClient) DisconnectNoLock(id int) error {
 	}
 	return nil
 }
+
+// DisconnectIfUnassigned disconnects slack client if no teams are assigned to it.
 func (c *SlackChatClient) DisconnectIfUnassigned(assignedTeamIDs []string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -45,6 +49,8 @@ func (c *SlackChatClient) DisconnectIfUnassigned(assignedTeamIDs []string) error
 	}
 	return nil
 }
+
+// OpenConnection connects to assigned team ID
 func (c *SlackChatClient) OpenConnection(ctx context.Context, teamID string) error {
 	c.mu.Lock()
 	for _, conn := range c.slackConnectionPool {
@@ -183,6 +189,7 @@ func regexToMap(re *regexp.Regexp, input string) map[string]string {
 	return result
 }
 
+// IsMention returns true if the current bot ID is mentioned
 func (c *SlackChatClient) IsMention(text string, botID string) (bool, string) {
 	formattedBotID := fmt.Sprintf("<@%s>", botID)
 	if strings.Contains(text, formattedBotID) {
@@ -191,6 +198,7 @@ func (c *SlackChatClient) IsMention(text string, botID string) (bool, string) {
 	return false, strings.TrimSpace(text)
 }
 
+// Reply responds to a command
 func (c *SlackChatClient) Reply(conn *SlackConnection, cmd string, channel string) {
 	var rollResponse *dicelang.RollResponse
 	var err error
@@ -204,14 +212,15 @@ func (c *SlackChatClient) Reply(conn *SlackConnection, cmd string, channel strin
 		if rollResponse.Error.Code == errors.Friendly {
 			conn.client.PostMessage(channel, slack.MsgOptionText(rollResponse.Error.Msg, false))
 			return
-		} else {
-			conn.client.PostMessage(channel, slack.MsgOptionText(fmt.Sprintf("Oops! an error occured: %s", rollResponse.Error.Msg), false))
-			return
 		}
+		conn.client.PostMessage(channel, slack.MsgOptionText(fmt.Sprintf("Oops! an error occured: %s", rollResponse.Error.Msg), false))
+		return
 	}
 	attachments := SlackAttachmentsFromRollResponse(rollResponse)
 	conn.client.PostMessage(channel, slack.MsgOptionAttachments(attachments...))
 }
+
+// ManageSlackConnections is designed to run in a goroutine. Observes redis state and establishes connection for assigned teams.
 func (c *SlackChatClient) ManageSlackConnections(ctx context.Context, freq time.Duration) {
 	ticker := time.NewTicker(freq)
 	defer ticker.Stop()
@@ -240,6 +249,7 @@ func (c *SlackChatClient) ManageSlackConnections(ctx context.Context, freq time.
 	}
 }
 
+// ManagePods rebalances teams across pods
 func (c *SlackChatClient) ManagePods(ctx context.Context, freq time.Duration) {
 	go func() {
 		c.RebalancePods(ctx, freq*2)
@@ -253,6 +263,8 @@ func (c *SlackChatClient) ManagePods(ctx context.Context, freq time.Duration) {
 		}
 	}()
 }
+
+// RebalancePods assigns teams to pods
 func (c *SlackChatClient) RebalancePods(ctx context.Context, assignmentExpiry time.Duration) {
 	// Create a ring hash and assign all teams to pods
 	teams, _ := c.GetHashKeys("teams")
@@ -273,6 +285,7 @@ func (c *SlackChatClient) RebalancePods(ctx context.Context, assignmentExpiry ti
 	}
 }
 
+// GetChannelType get Channel type from Slack API and caches it in Redis
 func (c *SlackChatClient) GetChannelType(ctx context.Context, slackAPI *slack.Client, teamID string, channel string) ChannelType {
 	cType, err := c.GetCachedChannelType(teamID, channel)
 	fmt.Printf("Channel Type is: %s\n", cType.String())
@@ -288,7 +301,6 @@ func (c *SlackChatClient) GetChannelType(ctx context.Context, slackAPI *slack.Cl
 			cType = Standard
 		}
 	}
-	//go c.SilentSetCachedChannelType(teamID, channel, cType)
 	err = c.SetCachedChannelType(teamID, channel, &cType)
 	if err != nil {
 		panic(err)

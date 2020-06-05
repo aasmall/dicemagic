@@ -324,27 +324,27 @@ func (token *AST) inverseShuntingYard(buff *bytes.Buffer, preStack *Stack, postS
 	return nil
 }
 
-func (t *AST) eval(ds *DiceSet) (float64, *DiceSet, error) {
-	switch strings.ToUpper(t.Sym) {
+func (token *AST) eval(ds *DiceSet) (float64, *DiceSet, error) {
+	switch strings.ToUpper(token.Sym) {
 	case "(NUMBER)":
-		i, _ := strconv.ParseFloat(t.Value, 64)
-		if len(t.Children) > 0 {
+		i, _ := strconv.ParseFloat(token.Value, 64)
+		if len(token.Children) > 0 {
 			//grab any color below, get it on ds
-			t.Children[0].eval(ds)
+			token.Children[0].eval(ds)
 		}
 		return i, ds, nil
 	case "-H", "-L":
 		var sum, z float64
 		var err error
 
-		for _, c := range t.Children {
+		for _, c := range token.Children {
 			z, ds, err = c.eval(ds)
 			if err != nil {
 				return 0, ds, err
 			}
 			sum += z
 		}
-		switch t.Sym {
+		switch token.Sym {
 		case "-H":
 			ds.DropHighest = int64(sum)
 		case "-L":
@@ -354,10 +354,10 @@ func (t *AST) eval(ds *DiceSet) (float64, *DiceSet, error) {
 	case "D":
 		dice := &Dice{}
 		var nums []int64
-		for i := 0; i < len(t.Children); i++ {
+		for i := 0; i < len(token.Children); i++ {
 			var num float64
 			var err error
-			num, ds, err = t.Children[i].eval(ds)
+			num, ds, err = token.Children[i].eval(ds)
 			if err != nil {
 				return 0, nil, err
 			}
@@ -371,14 +371,14 @@ func (t *AST) eval(ds *DiceSet) (float64, *DiceSet, error) {
 
 		return float64(res), ds, err
 	case "+", "-", "*", "/", "^":
-		x, ds, err := t.preformArithmitic(ds, t.Sym)
+		x, ds, err := token.preformArithmitic(ds, token.Sym)
 		if err != nil {
 			return 0, ds, err
 		}
 		return x, ds, nil
 	case "{", "ROLL", "(ROOTNODE)":
 		var x float64
-		for _, c := range t.Children {
+		for _, c := range token.Children {
 			y, ds, err := c.eval(ds)
 			if err != nil {
 				return 0, ds, err
@@ -387,13 +387,13 @@ func (t *AST) eval(ds *DiceSet) (float64, *DiceSet, error) {
 		}
 		return x, ds, nil
 	case "(IDENT)":
-		ds.PushColor(t.Value)
+		ds.PushColor(token.Value)
 		return 0, ds, nil
 	case "REP":
-		numberOfReps, _, _ := t.Children[1].eval(ds)
+		numberOfReps, _, _ := token.Children[1].eval(ds)
 		var x float64
 		for index := 0; index < int(numberOfReps); index++ {
-			y, ds, err := t.Children[0].eval(ds)
+			y, ds, err := token.Children[0].eval(ds)
 			if err != nil {
 				return 0, ds, err
 			}
@@ -401,19 +401,19 @@ func (t *AST) eval(ds *DiceSet) (float64, *DiceSet, error) {
 		}
 		return x, ds, nil
 	case "IF":
-		res, ds, err := t.Children[0].evaluateBoolean(ds)
+		res, ds, err := token.Children[0].evaluateBoolean(ds)
 		if err != nil {
 			return 0, ds, err
 		}
 		fmt.Print(res, " ")
 		var c *AST
 		if res {
-			c = t.Children[1]
+			c = token.Children[1]
 		} else {
-			if len(t.Children) < 3 {
+			if len(token.Children) < 3 {
 				return 0, ds, nil
 			}
-			c = t.Children[2]
+			c = token.Children[2]
 		}
 		var x float64
 		//Evaluate chosen child
@@ -424,20 +424,20 @@ func (t *AST) eval(ds *DiceSet) (float64, *DiceSet, error) {
 		x += y
 		return x, ds, nil
 	default:
-		return 0, ds, fmt.Errorf("Unsupported symbol: %s", t.Sym)
+		return 0, ds, fmt.Errorf("Unsupported symbol: %s", token.Sym)
 	}
 }
 
-func (t *AST) preformArithmitic(ds *DiceSet, op string) (float64, *DiceSet, error) {
+func (token *AST) preformArithmitic(ds *DiceSet, op string) (float64, *DiceSet, error) {
 	//arithmitic is always binary
 	//...except for the "-" unary operator
-	if len(t.Children) < 2 {
+	if len(token.Children) < 2 {
 
 	}
 	diceCount := len(ds.Dice)
 	var nums []float64
 	ds.ColorDepth++
-	for _, c := range t.Children {
+	for _, c := range token.Children {
 		switch c.Sym {
 		case "(IDENT)":
 			_, ds, err := c.eval(ds)
@@ -500,16 +500,16 @@ func (t *AST) preformArithmitic(ds *DiceSet, op string) (float64, *DiceSet, erro
 
 	return x, ds, nil
 }
-func (t *AST) evaluateBoolean(ds *DiceSet) (bool, *DiceSet, error) {
-	left, ds, err := t.Children[0].eval(ds)
+func (token *AST) evaluateBoolean(ds *DiceSet) (bool, *DiceSet, error) {
+	left, ds, err := token.Children[0].eval(ds)
 	if err != nil {
 		return false, ds, err
 	}
-	right, ds, err := t.Children[1].eval(ds)
+	right, ds, err := token.Children[1].eval(ds)
 	if err != nil {
 		return false, ds, err
 	}
-	switch t.Sym {
+	switch token.Sym {
 	case ">":
 		return left > right, ds, nil
 	case "<":

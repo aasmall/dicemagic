@@ -5,20 +5,24 @@ import (
 	"fmt"
 )
 
+// Stack replicates the behavior of a push-down-stack, but it's really just a linked list.
 type Stack struct {
 	top  *Element
 	size int
 }
 
+// Element contains the value of an element and a pointer to the next element in the stack.
 type Element struct {
 	value interface{}
 	next  *Element
 }
 
+// Empty returns true if the stack is empty
 func (s *Stack) Empty() bool {
 	return s.size == 0
 }
 
+// Top returns the element at the top of the stack
 func (s *Stack) Top() interface{} {
 	if s.Empty() {
 		return nil
@@ -26,11 +30,13 @@ func (s *Stack) Top() interface{} {
 	return s.top.value
 }
 
+// Push adds an element to the top of the stack
 func (s *Stack) Push(value interface{}) {
 	s.top = &Element{value, s.top}
 	s.size++
 }
 
+// Pop removes an element from the top of the stack and returns it
 func (s *Stack) Pop() (value interface{}) {
 	if s.size > 0 {
 		value, s.top = s.top.value, s.top.next
@@ -40,6 +46,7 @@ func (s *Stack) Pop() (value interface{}) {
 	return nil
 }
 
+// String pretty prints the whole stack
 func (s *Stack) String() string {
 	var buf bytes.Buffer
 	var next *Element
@@ -54,26 +61,3 @@ func (s *Stack) String() string {
 	}
 	return buf.String()
 }
-
-// func (s *Stack) String() string {
-// 	ch := make(chan interface{})
-// 	go func() {
-// 		emitChildren(ch, s.top)
-// 		close(ch)
-// 	}()
-// 	var buf bytes.Buffer
-// 	for element := range ch {
-// 		buf.WriteString(fmt.Sprintf("%v\n", element))
-// 	}
-// 	return buf.String()
-// }
-
-// func emitChildren(ch chan interface{}, e *Element) {
-
-// 	if e != nil {
-// 		ch <- e.value
-// 	}
-// 	if e.next != nil {
-// 		emitChildren(ch, e.next)
-// 	}
-// }

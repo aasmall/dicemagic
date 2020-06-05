@@ -25,7 +25,7 @@ spec:
       - ReadWriteOnce
       resources:
         requests:
-          storage: 5Gi
+          storage: 1Gi
       storageClassName: standard
   template:
     metadata:
@@ -59,14 +59,7 @@ spec:
       - name: redis
         image: registry.gitlab.com/aasmall/dicemagic/redis:latest
         ports:
-        # - containerPort: 6379
-        #   hostPort: 6379
-        # - containerPort: 16379
-        #   hostPort: 16379
         volumeMounts:
-        # - mountPath: /data
-        #   name: data
-        #   readOnly: false
         - name: podinfo
           mountPath: /etc/podinfo
           readOnly: false
@@ -85,20 +78,16 @@ spec:
         - configMapRef:
             name: redis-config
         readinessProbe:
-          exec:
-            command:
-            - sh
-            - -c
-            - "redis-cli -h $(hostname) ping"
+          httpGet:
+            path: /readyz
+            port: 8888
           initialDelaySeconds: 15
           timeoutSeconds: 5
         # Mark a node as down if Redis server stops running
         livenessProbe:
-          exec:
-            command:
-            - sh
-            - -c
-            - "redis-cli -h $(hostname) ping"
+          httpGet:
+            path: /healthz
+            port: 8888
 ---
 #
 # Redis Cluster service

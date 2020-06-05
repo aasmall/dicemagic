@@ -24,6 +24,7 @@ import (
 	"golang.org/x/net/context"
 )
 
+// SlackChatClient  represents a client to Slack
 type SlackChatClient struct {
 	SlackDatastoreClient
 	ecm                 *externalClientsManager
@@ -34,10 +35,13 @@ type SlackChatClient struct {
 	ShuttingDown        bool
 }
 
+// SlackDatastoreClient represents a connection from Slack to the datastore
 type SlackDatastoreClient struct {
 	*datastore.Client
 	log *log.Logger
 }
+
+// SlackConnection represents a connection to the slack server
 type SlackConnection struct {
 	teamID      string
 	botID       string
@@ -47,6 +51,17 @@ type SlackConnection struct {
 	ID          int
 }
 
+// Init spawns all relevant goroutines and returns a cleanup function
+func (c *SlackChatClient) Init(ctx context.Context) func() {
+	go c.ManageSlackConnections(ctx, time.Second*2)
+	go c.SpawnPodCrier(time.Second * 5)
+	go c.SpawnTeamsCrier(time.Second * 5)
+	go c.SpawnReaper("pods", time.Second*10, time.Second*30)
+	go c.SpawnReaper("teams", time.Second*10, time.Second*30)
+	return func() { c.Cleanup() }
+}
+
+// NewSlackChatClients creates a new Slack Chat Client
 func (env *environment) NewSlackChatClient(ecm *externalClientsManager) *SlackChatClient {
 	return &SlackChatClient{
 		SlackDatastoreClient{ecm.datastoreClient, ecm.loggingClient},
@@ -59,18 +74,16 @@ func (env *environment) NewSlackChatClient(ecm *externalClientsManager) *SlackCh
 	}
 }
 
+// returns a simple json error over HTTP to the ResponseWriter
 func returnErrorToSlack(text string, w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(slack.Msg{Text: text})
 }
 
+// SlackAttachmentsFromRollResponse formats response from dice-server into SlackAttachments
 func SlackAttachmentsFromRollResponse(rr *dicelang.RollResponse) []slack.Attachment {
 	var sets []slack.Attachment
-	// retSlackAttachment := slack.Attachment{
-	// 	Fallback: totalsMapString(rr.DiceSet.TotalsByColor),
-	// 	Color:    stringToColor(rr.DiceSet.ReString),
-	// }
-	dSets := dicelang.DiceSetsFromSlice(rr.DiceSets)
+	dSets := dicelang.DiceSets{DiceSet: rr.DiceSets}
 	retSlackAttachment := slack.Attachment{}
 	retSlackAttachment.Fallback = totalsMapString(dSets.MergeDiceTotalMaps())
 	retSlackAttachment.Color = stringToColor(dSets.String())
@@ -101,8 +114,8 @@ func SlackAttachmentsFromRollResponse(rr *dicelang.RollResponse) []slack.Attachm
 
 // ValidateSlackSignature checks the X-Slack-Signature slack appends
 // to every request to ensure we're actually recieving them from slack.
-func (sc *SlackChatClient) ValidateSlackSignature(r *http.Request) bool {
-	log := sc.log.WithRequest(r)
+func (c *SlackChatClient) ValidateSlackSignature(r *http.Request) bool {
+	log := c.log.WithRequest(r)
 	//read relevant headers
 	slackSigString := r.Header.Get("X-Slack-Signature")
 	remoteHMAC, _ := hex.DecodeString(strings.Split(slackSigString, "v0=")[1])
@@ -130,7 +143,7 @@ func (sc *SlackChatClient) ValidateSlackSignature(r *http.Request) bool {
 		return false
 	}
 
-	decSigningSecret, err := sc.Decrypt(r.Context(), sc.config.kmsSlackKey, sc.config.encSlackSigningSecret)
+	decSigningSecret, err := c.Decrypt(r.Context(), c.config.kmsSlackKey, c.config.encSlackSigningSecret)
 	if err != nil {
 		log.Errorf("cannot validate slack signature. can't decrypt signing secret: %s", err)
 		return false
@@ -159,16 +172,6 @@ func stringToColor(input string) string {
 	g := rand.Intn(0xff)
 	b := rand.Intn(0xff)
 	return fmt.Sprintf("#%02X%02X%02X", r, g, b)
-}
-
-func (c *SlackChatClient) Init(ctx context.Context) func() {
-	// advertise that I'm alive. Delete pods that aren't
-	go c.ManageSlackConnections(ctx, time.Second*2)
-	go c.SpawnPodCrier(time.Second * 5)
-	go c.SpawnTeamsCrier(time.Second * 5)
-	go c.SpawnReaper("pods", time.Second*10, time.Second*30)
-	go c.SpawnReaper("teams", time.Second*10, time.Second*30)
-	return func() { c.Cleanup() }
 }
 
 //Cleanup stops all long running go routines and disconnects all open websockets

@@ -2,22 +2,27 @@ package main
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"fmt"
+	"math"
+	"net/http"
 	"os"
 	"os/exec"
 	"os/signal"
+	"reflect"
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
 	"cloud.google.com/go/logging"
 	"github.com/aasmall/dicemagic/lib/envreader"
+	"github.com/aasmall/dicemagic/lib/handler"
 	log "github.com/aasmall/dicemagic/lib/logger"
 	"github.com/go-redis/redis/v7"
+	"github.com/gorilla/mux"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/watch"
@@ -26,7 +31,7 @@ import (
 )
 
 //MAXSLOTS is the total number of slots a redis cluster has
-const MAXSLOTS = 16383
+const MAXSLOTS = 16384
 
 type clusterConfiguratorConfig struct {
 	projectID            string
@@ -42,20 +47,22 @@ type clusterConfiguratorConfig struct {
 }
 type clusterConfigurator struct {
 	k8sClient   *kubernetes.Clientset
-	redisClient **redis.ClusterClient
+	redisClient *redis.ClusterClient
 	localClient *redis.Client
 	log         *log.Logger
 	config      *clusterConfiguratorConfig
 	nodes       clusterNodes
 }
 type clusterNode struct {
-	IPAddress  string
-	ID         string
-	master     bool
-	slaveTo    *clusterNode
-	masterTo   *clusterNode
-	replicated bool
-	PodName    string
+	IPAddress           string
+	ID                  string
+	master              bool
+	slaveTo             *clusterNode
+	masterTo            *clusterNode
+	replicated          bool
+	podName             string
+	currentSlaveryState string
+	currentMasterID     string
 }
 type clusterNodes []*clusterNode
 
@@ -72,24 +79,30 @@ func (nodes clusterNodes) String() string {
 
 type clusterSlots []redis.ClusterSlot
 
-type reshardCommands struct {
-	commands []struct {
-		order      int
-		nodeToID   string
-		nodeFromID string
-		count      int
-	}
+type reshardCommands []*reshardCommand
+type reshardCommand struct {
+	order      int
+	nodeToID   string
+	nodeFromID string
+	count      int
+}
+type nodeReshardTargets []*nodeReshardTarget
+type nodeReshardTarget struct {
+	node              *clusterNode
+	nodeOffset        int
+	assignedSlotCount int
+	targetSlotCount   int
 }
 
 func main() {
 	ctx := context.Background()
-
+	mu := &sync.Mutex{}
 	// Gather environment variables
 	configReader := new(envreader.EnvReader)
 	config := &clusterConfiguratorConfig{
 		projectID:            configReader.GetEnv("PROJECT_ID"),
-		debug:                configReader.GetEnvBoolOpt("DEBUG"),
-		local:                configReader.GetEnvBoolOpt("LOCAL"),
+		debug:                configReader.GetEnvBool("DEBUG"),
+		local:                configReader.GetEnvBool("LOCAL"),
 		logname:              configReader.GetEnv("LOG_NAME"),
 		podname:              configReader.GetEnv("POD_NAME"),
 		redisPort:            configReader.GetEnv("REDIS_PORT"),
@@ -112,93 +125,96 @@ func main() {
 		log.WithPrefix(cc.config.podname+": "),
 	)
 
+	// create simple webserver for healthchecks
+	r := mux.NewRouter()
+	r.Handle("/healthz", handler.Handler{Env: cc, H: healtzHandler})
+	r.Handle("/readyz", handler.Handler{Env: cc, H: readyzHandler})
+
+	// Define a server with timeouts
+	srv := &http.Server{
+		Addr:         ":8888",
+		WriteTimeout: time.Second * 15,
+		ReadTimeout:  time.Second * 15,
+		IdleTimeout:  time.Second * 60,
+		Handler:      r, // Pass our instance of gorilla/mux
+	}
+
+	// Run our server in a goroutine so that it doesn't block.
+	go func() {
+		err := srv.ListenAndServe()
+		if err != nil {
+			log.Printf("ListenAndServe error: %+v", err)
+			panic(err)
+		}
+	}()
+
 	// Create new Kubernetes Client
 	client, err := newKubernetesClient()
 	if err != nil {
 		log.Fatalf("Failed to create kubernetes client: %v", err)
 	}
 	cc.k8sClient = client
-	cc.waitForRedis(ctx)
 
 	// if this is the first run, create a redis-client.
 	var redisClientURIs []string
 	for _, n := range *cc.getClusterNodes(ctx, false) {
 		redisClientURIs = append(redisClientURIs, n.IPAddress+":"+cc.config.redisPort)
 	}
+	redisClientURIs = append(redisClientURIs, "localhost:"+cc.config.redisPort)
 	cc.log.Debug("Creating redis client on first init")
 	redisClient := redis.NewClusterClient(&redis.ClusterOptions{
 		Addrs:    redisClientURIs,
 		Password: "",
 	})
 	localClient := redis.NewClient(&redis.Options{
-		Addr:     "localhost:6379", // use default Addr
-		Password: "",               // no password set
-		DB:       0,                // use default DB
+		Addr:     "localhost:" + cc.config.redisPort, // use default Addr
+		Password: "",                                 // no password set
+		DB:       0,                                  // use default DB
 	})
 	cc.localClient = localClient
-	cc.redisClient = &redisClient
+	cc.redisClient = redisClient
 	cc.log.Debugf("Got redis client from %v", redisClientURIs)
 
 	// keep config up to date. Re-create redis client from k8s state if borked.
-	go func() {
+	go func(mu *sync.Mutex) {
+		ticker := time.NewTicker(time.Second * 10)
+		defer ticker.Stop()
+		for range ticker.C {
+			if pingResponse, err := cc.redisClient.Ping().Result(); pingResponse != "PONG" || err != nil {
+				cc.log.Critical("CANNOT PING REDIS. Resetting cluster and trying again.")
+				mu.Lock()
+				_, _ = cc.localClient.ClusterResetSoft().Result()
+				mu.Unlock()
+				pingResponse, err := cc.redisClient.Ping().Result()
+				if err != nil {
+					cc.log.Fatalf("could not ping redis. failing: %s: %v", pingResponse, err)
+				}
+			}
+		}
+	}(mu)
+
+	cc.waitForRedis(ctx)
+
+	// Keep node list up to date
+	go cc.spawnPodWatcher(ctx, mu)
+
+	joined := make(chan bool, 1)
+	go func(joinedChannel chan bool) {
 		ticker := time.NewTicker(time.Second * 30)
 		defer ticker.Stop()
 		for range ticker.C {
-			currentClient := *cc.redisClient
-			if pingResponse, err := currentClient.Ping().Result(); pingResponse != "PONG" || err != nil {
-				cc.log.Errorf("Lost connection to Redis Client, recreating: %s: %v", pingResponse, err)
-				cc.log.Debugf("Creating redis cluster client with URIs: %v\n", cc.getRedisClusterClientURIs(ctx))
-				currentClient.Close()
-				newClient := redis.NewClusterClient(&redis.ClusterOptions{
-					Addrs:    cc.getRedisClusterClientURIs(ctx),
-					Password: "",
-				})
-				cc.redisClient = &newClient
-			}
-		}
-	}()
-
-	// Keep node list up to date
-	go func() {
-		var resourceVersion string
-		for {
-			podChanges := cc.listenForPodChanges(ctx, cc.config.redisNamespace, cc.config.redisLabelSelector, resourceVersion)
-			for event := range podChanges {
-				p, ok := event.Object.(*v1.Pod)
-				if !ok {
-					log.Fatal("unexpected type")
+			func() {
+				err = cc.joinCluster(ctx)
+				if err != nil {
+					cc.log.Errorf("Couldn't join cluster: %v. Retrying in 30 seconds.", err)
+					return
 				}
-				switch event.Type {
-				case "DELETED":
-				case "BOOKMARK":
-					resourceVersion = p.ResourceVersion
-					cc.log.Debugf("Received bookmark: %s\n", resourceVersion)
-				case "ADDED":
-					fallthrough
-				case "MODIFIED":
-					if p.Status.Phase == v1.PodRunning {
-						cc.log.Info("Pod Up")
-						cc.meetNewPeer(ctx, p.Status.PodIP)
-						//clusterConfigurator.redisClient.ReloadState()
-					}
-				default:
-					cc.log.Infof("Unknown eventType: %v", event.Type)
-				}
-			}
-			cc.log.Debugf("ClusterConfigurator Done. Restarting watch @%s", resourceVersion)
+				cc.log.Debug("Joined Cluster.")
+				joined <- true
+			}()
 		}
-	}()
-
-	err = cc.joinCluster(ctx)
-	if err != nil {
-		time.Sleep(time.Second * 10)
-		err = cc.joinCluster(ctx)
-		if err != nil {
-			log.Fatalf("Couldn't join cluster: %v", err)
-		}
-	}
-
-	cc.createClusterIfMaster(ctx)
+	}(joined)
+	<-joined
 
 	// kick off a process that tries to find it's master. if master changes, adapt.
 	cc.nodes = *cc.getClusterNodes(ctx, true)
@@ -207,8 +223,7 @@ func main() {
 		ticker := time.NewTicker(time.Second * 30)
 		defer ticker.Stop()
 		for range ticker.C {
-			cc.nodes = *cc.getClusterNodes(ctx, true)
-			cc.replicateToMaster(ctx)
+			cc.replicateToMaster(ctx, mu)
 			// if clusterConfigurator.nodes.nodeByPodname(clusterConfigurator.config.podname).replicated == true {
 			// 	break
 			// }
@@ -216,6 +231,11 @@ func main() {
 		// clusterConfigurator.log.Debug("Replicated to master successfully. Don't need to keep trying.")
 		// }
 	}()
+
+	// ordzero has the special task of managing all cluster sharding
+	if cc.isOrdZero() {
+		go cc.rebalanceReplicas(ctx, mu)
+	}
 
 	cc.log.Info("===== Redis bootstrap complete =====")
 
@@ -230,72 +250,212 @@ func main() {
 	}()
 	<-done
 	cc.log.Info("Exiting")
-
-	//get sum of all assigned slots
-	// var totalSlots int
-	// var allSlots clusterSlots
-	// allSlots, err = clusterConfigurator.redisClient.ClusterSlots().Result()
-	// totalSlots = allSlots.sumOfSlots()
-
-	// //calculate ideal distribution
-	// var masterCount int
-	// for {
-	// 	clusterConfigurator.getClusterNodes(ctx)
-	// 	masterCount = clusterConfigurator.countOfMasterNodes()
-	// 	if masterCount == 0 {
-	// 		clusterConfigurator.log.Criticalf("RESHARD: Count of master nodes is 0.... waiting and trying again to avoid Div/0 error.")
-	// 		time.Sleep(time.Second * 10)
-	// 	} else {
-	// 		break
-	// 	}
-	// }
-	// targetSlotCount := int(math.Floor(float64(totalSlots / masterCount)))
-
-	// //calculate number of imbalanced nodes
-	// numberOfImbalancedNodes := targetSlotCount % len(clusterConfigurator.nodes)
-	// clusterConfigurator.log.Debugf("RESHARD: totalSlots: %d. targetSlotCount: %d, numberofImbalancedNodes: %d", totalSlots, targetSlotCount, numberOfImbalancedNodes)
-
-	// //for every known node, including ones with no slots assigned.
-	// //sorted by node name
-	// sort.SliceStable(clusterConfigurator.nodes, func(i, j int) bool {
-	// 	return clusterConfigurator.nodes[i].PodName < clusterConfigurator.nodes[j].PodName
-	// })
-	// var reshardCommands = &reshardCommands{}
-	// for i, node := range clusterConfigurator.nodes {
-	// 	clusterConfigurator.log.Debugf("RESHARD: current node: %+v", node)
-	// 	//Only reshard masters
-	// 	if node.master {
-	// 		//get the slots already assigned to this node
-	// 		clusterConfigurator.log.Debugf("RESHARD: NodeIP(%s): %s:%s", node.PodName, node.IPAddress, node.ID)
-	// 		currentNodeSlots := node.getSlotsAssigned(allSlots)
-	// 		clusterConfigurator.log.Debugf("RESHARD: currentNodeSlots(%s): %+v", node.PodName, currentNodeSlots)
-	// 		//count sum of slots assigned to current node and any that will be assigned during reshard
-	// 		totalSlotsAssignedToNode := currentNodeSlots.sumOfSlots() + reshardCommands.countByToID(node.ID)
-	// 		clusterConfigurator.log.Debugf("RESHARD: totalSlotsAssignedToNode(%s): %+v", node.PodName, totalSlotsAssignedToNode)
-	// 		//if this node has more slots than it needs
-	// 		if totalSlotsAssignedToNode > targetSlotCount {
-	// 			//queue commsnd to move nodes
-	// 			//from this node, to the next node in the loop
-	// 			//if the node is imbalanced, add one slot
-	// 			if i < numberOfImbalancedNodes {
-	// 				reshardCommands.add(clusterConfigurator.nodes[i+1].ID, node.ID, (totalSlotsAssignedToNode-targetSlotCount)+1)
-	// 			} else {
-	// 				reshardCommands.add(clusterConfigurator.nodes[i+1].ID, node.ID, (totalSlotsAssignedToNode - targetSlotCount))
-	// 			}
-	// 		}
-	// 	}
-	// }
-
-	// clusterConfigurator.log.Debugf("RESHARD: pending command: %+v", reshardCommands)
-	// sort.SliceStable(reshardCommands.commands, func(i, j int) bool {
-	// 	return reshardCommands.commands[i].order < reshardCommands.commands[j].order
-	// })
-	// if clusterConfigurator.isMaster() {
-	// 	for _, reshardCommand := range reshardCommands.commands {
-	// 		clusterConfigurator.reshard(reshardCommand.nodeFromID, reshardCommand.nodeToID, strconv.Itoa(reshardCommand.count))
-	// 	}
-	// }
 }
+
+func healtzHandler(e interface{}, w http.ResponseWriter, r *http.Request) error {
+	cc, ok := e.(*clusterConfigurator)
+	if ok == false {
+		fmt.Printf("error getting cluster configurator: %v", reflect.TypeOf(e))
+	}
+	fmt.Fprintf(w, "Cluster Configurator: \n%+v\n", *cc)
+	return nil
+}
+
+func readyzHandler(e interface{}, w http.ResponseWriter, r *http.Request) error {
+	cc, ok := e.(*clusterConfigurator)
+	if ok == false {
+		panic("couldn't cast to *clusterConfigurator")
+	}
+	pingVal, err := cc.localClient.Ping().Result()
+	if pingVal != "PONG" {
+		w.WriteHeader(http.StatusInternalServerError)
+		cc.log.Criticalf("Didn't get ping: %v: %v\n", pingVal, err)
+	}
+	fmt.Fprintf(w, "PING: %+v\n", pingVal)
+	fmt.Fprintf(w, "Cluster Configurator: \n%+v\n", *cc)
+	return nil
+}
+
+func isBetween(n, min, max int) bool {
+	if n >= min && n <= max {
+		return true
+	}
+	return false
+}
+
+func (targets *nodeReshardTargets) getExcessSlots(forNode *nodeReshardTarget, cmds *reshardCommands) {
+	requiredSlots := forNode.nodeOffset
+	for _, fromNode := range *targets {
+		if fromNode.nodeOffset+forNode.nodeOffset >= 0 {
+			// take everything forNode needs and add it to a cmd
+			cmds.add(forNode.node.ID, fromNode.node.ID, forNode.nodeOffset*-1)
+			return
+		}
+		// take everything the fromNode has to offer and move on.
+		cmds.add(forNode.node.ID, fromNode.node.ID, fromNode.nodeOffset)
+		requiredSlots = requiredSlots + fromNode.nodeOffset
+		if requiredSlots == 0 {
+			return
+		}
+		continue
+	}
+}
+
+// blocks. only call from a goroutine
+func (cc *clusterConfigurator) rebalanceReplicas(ctx context.Context, mu *sync.Mutex) {
+	ticker := time.NewTicker(time.Second * 30)
+	defer ticker.Stop()
+	for range ticker.C {
+		// anon func so we can use defer and continue(or, return) at the same time.
+		func() {
+			mu.Lock()
+			defer mu.Unlock()
+
+			//get sum of all assigned slots
+			cc.nodes = *cc.getClusterNodes(ctx, true)
+			var allSlots clusterSlots
+			allSlots, err := cc.redisClient.ClusterSlots().Result()
+			if err != nil {
+				cc.log.Criticalf("could not get ClusterSlots: %v", err)
+				return
+			}
+
+			// if all slots are not assigned, just pick them up and assign them to Ord Zero
+			var unassignedSlots []int
+			if allSlots.sumOfSlots() != MAXSLOTS {
+				for i := 0; i < MAXSLOTS; i++ {
+					assigned := false
+					for _, slot := range allSlots {
+						if isBetween(i, slot.Start, slot.End) {
+							assigned = true
+						}
+					}
+					if !assigned {
+						unassignedSlots = append(unassignedSlots, i)
+					}
+				}
+				cc.log.Debugf("Taking slots over: %v", unassignedSlots)
+				result, err := cc.redisClient.ClusterAddSlots(unassignedSlots...).Result()
+				if err != nil {
+					cc.log.Errorf("Could not add slots to cluster%v: result:%v. err: %v.\n", unassignedSlots, result, err)
+				}
+			}
+
+			//calculate ideal distribution
+			var masterCount int
+			for {
+				masterCount = cc.countOfMasterNodes()
+				if masterCount == 0 {
+					cc.log.Criticalf("RESHARD: Count of master nodes is 0... waiting and trying again to avoid Div/0 error.")
+					time.Sleep(time.Second * 5)
+					continue
+				} else {
+					break
+				}
+			}
+
+			// 1) loop through all master nodes and calculate the offset between ideal and actual assigned slots
+			// 2) for each negative offset we create one or more reshard commands necessary to bring the offset to zero
+			var masterNodes clusterNodes
+			// Only reshard masters
+			for _, node := range cc.nodes {
+				if node.master {
+					masterNodes = append(masterNodes, node)
+				}
+			}
+			numberOfImbalancedNodes := MAXSLOTS % len(masterNodes)
+
+			var rebalanceTargets nodeReshardTargets
+			for i, node := range masterNodes {
+				var reshardNode = &nodeReshardTarget{node: node}
+				reshardNode.assignedSlotCount = node.getSlotsAssigned(allSlots).sumOfSlots()
+				reshardNode.targetSlotCount = int(math.Floor(float64(MAXSLOTS / masterCount)))
+				if i < numberOfImbalancedNodes {
+					reshardNode.targetSlotCount = reshardNode.targetSlotCount + 1
+				}
+				reshardNode.nodeOffset = reshardNode.assignedSlotCount - reshardNode.targetSlotCount
+				rebalanceTargets = append(rebalanceTargets, reshardNode)
+			}
+			cc.log.Debugf("DRYRUN: ImbalancedNodes: %d. MAXSLOTS: %d.", numberOfImbalancedNodes, MAXSLOTS)
+			for _, target := range rebalanceTargets {
+				cc.log.Debugf("DRYRUN TARGET: %+v", target)
+			}
+			var reshardCommands = &reshardCommands{}
+			for _, target := range rebalanceTargets {
+				if target.nodeOffset < 0 {
+					rebalanceTargets.getExcessSlots(target, reshardCommands)
+				}
+			}
+			cc.log.Debugf("DRYRUN: Reshard Commands: %+v", reshardCommands)
+			for _, cmd := range *reshardCommands {
+				cc.log.Debugf("DRYRUN CMD: %v", cmd)
+				cc.reshard(cmd.nodeFromID, cmd.nodeToID, strconv.Itoa(cmd.count))
+			}
+			// sort.SliceStable(cc.nodes, func(i, j int) bool {
+			// 	return cc.nodes[i].podName < cc.nodes[j].podName
+			// })
+			// for i := 0; i < len(masterNodes); i++ {
+			// 	//get the slots already assigned to this node
+			// 	cc.log.Debugf("RESHARD: NodeIP(%s): %s:%s", masterNodes[i].podName, masterNodes[i].IPAddress, masterNodes[i].ID)
+
+			// 	cc.log.Debugf("RESHARD: currentNodeSlots(%s): %+v", masterNodes[i].podName, currentNodeSlots)
+			// 	//count sum of slots assigned to current node and any that will be assigned during reshard
+			// 	totalSlotsAssignedToNode := currentNodeSlots.sumOfSlots() + reshardCommands.countByToID(masterNodes[i].ID)
+			// 	//if the node is imbalanced, add one slot
+			// 	cc.log.Debugf("RESHARD: totalSlotsAssignedToNode(%s): %+v", masterNodes[i].podName, totalSlotsAssignedToNode)
+			// 	//if this node has more slots than it needs
+			// 	if totalSlotsAssignedToNode > targetSlotCount {
+			// 		//queue commsnd to move slots
+			// 		//from this node, to the next node in the loop
+			// 		reshardCommands.add(masterNodes[i+1].ID, masterNodes[i].ID, (totalSlotsAssignedToNode - targetSlotCount))
+			// 	}
+			// }
+			// sort.SliceStable(reshardCommands.commands, func(i, j int) bool {
+			// 	return reshardCommands.commands[i].order < reshardCommands.commands[j].order
+			// })
+			// for _, reshardCommand := range reshardCommands.commands {
+			// 	cc.log.Debugf("REDHARD: pending command %v", reshardCommand)
+			// }
+			// for _, reshardCommand := range reshardCommands.commands {
+			// 	cc.reshard(reshardCommand.nodeFromID, reshardCommand.nodeToID, strconv.Itoa(reshardCommand.count))
+			// }
+		}()
+	}
+
+}
+
+// blocks. only call from a goroutine
+func (cc *clusterConfigurator) spawnPodWatcher(ctx context.Context, mu *sync.Mutex) {
+	var resourceVersion string
+	for {
+		podChanges := cc.listenForPodChanges(ctx, cc.config.redisNamespace, cc.config.redisLabelSelector, resourceVersion)
+		for event := range podChanges {
+			p, ok := event.Object.(*v1.Pod)
+			if !ok {
+				log.Fatal("unexpected type")
+			}
+			switch event.Type {
+			case "DELETED":
+			case "BOOKMARK":
+				resourceVersion = p.ResourceVersion
+				cc.log.Debugf("Received bookmark: %s\n", resourceVersion)
+			case "ADDED":
+				fallthrough
+			case "MODIFIED":
+				if p.Status.Phase == v1.PodRunning {
+					cc.log.Info("Pod Up")
+					mu.Lock()
+					cc.meetNewPeer(ctx, p.Status.PodIP)
+					mu.Unlock()
+				}
+			default:
+				cc.log.Infof("Unknown eventType: %v", event.Type)
+			}
+		}
+		cc.log.Debugf("ClusterConfigurator Done. Restarting watch @%s", resourceVersion)
+	}
+}
+
 func (cc *clusterConfigurator) getRedisClusterClientURIs(ctx context.Context) []string {
 	var redisClientURIs []string
 	for _, n := range *cc.getClusterNodes(ctx, false) {
@@ -306,7 +466,7 @@ func (cc *clusterConfigurator) getRedisClusterClientURIs(ctx context.Context) []
 
 func (nodes *clusterNodes) getOrdZero() *clusterNode {
 	for _, node := range *nodes {
-		nameSegments := strings.Split(node.PodName, "-")
+		nameSegments := strings.Split(node.podName, "-")
 		if nameSegments[len(nameSegments)-1] == "0" {
 			return node
 		}
@@ -337,20 +497,77 @@ func (cc *clusterConfigurator) joinCluster(ctx context.Context) error {
 	}
 	return nil
 }
+func (cc *clusterConfigurator) myNode() *clusterNode {
+	return cc.nodes.nodeByPodname(cc.config.podname)
+}
 
-func (cc *clusterConfigurator) replicateToMaster(ctx context.Context) {
+func (cc *clusterConfigurator) replicateToMaster(ctx context.Context, mu *sync.Mutex) {
+	mu.Lock()
+	defer mu.Unlock()
+	cc.nodes = *cc.getClusterNodes(ctx, true)
 	cc.log.Debugf("Checking slavery status: MyNodeIs: %s", cc.config.podname)
-	if cc.nodes.nodeByPodname(cc.config.podname).slaveTo != nil {
-		if cc.nodes.nodeByPodname(cc.config.podname).slaveTo.ID != "" {
-			cc.log.Debugf("I'm a slave to %s, with ID of %s", cc.nodes.nodeByPodname(cc.config.podname).slaveTo.PodName, cc.nodes.nodeByPodname(cc.config.podname).slaveTo.ID)
+	// TODO: only run if not already slave
+	if cc.myNode().slaveTo != nil {
+		if cc.myNode().slaveTo.ID != cc.myNode().currentMasterID {
+			cc.log.Debugf("I'm a slave to %s, with ID of %s", cc.myNode().slaveTo.podName, cc.myNode().slaveTo.ID)
 			replicateResult, err := cc.localClient.ClusterReplicate(cc.nodes.nodeByPodname(cc.config.podname).slaveTo.ID).Result()
 			if err != nil {
 				cc.log.Criticalf("Failed to replicate %s: %v", replicateResult, err)
+				_, _ = cc.localClient.ClusterResetSoft().Result()
 			} else {
 				cc.nodes.nodeByPodname(cc.config.podname).replicated = true
 			}
 		}
+	} else if cc.nodes.nodeByPodname(cc.config.podname).master && cc.myNode().currentSlaveryState != "master" {
+		resetResult, err := cc.localClient.ClusterResetSoft().Result()
+		if err != nil {
+			cc.log.Criticalf("could not reset local cluster state %s: %v", resetResult, err)
+		}
+		helloResult, err := cc.redisClient.ClusterMeet(cc.myNode().IPAddress, cc.config.redisPort).Result()
+		if err != nil {
+			cc.log.Criticalf("could not meet new node %s: %v", helloResult, err)
+		}
 	}
+}
+
+func (cc *clusterConfigurator) failover(ctx context.Context, takeover bool) error {
+	masterizeResult, err := cc.localClient.ClusterFailover().Result()
+	if err != nil {
+		cc.log.Criticalf("Failed to masterize. taking over. %s: %v", masterizeResult, err)
+		return cc.forceFailover(ctx, takeover)
+	}
+	return nil
+}
+func (cc *clusterConfigurator) forceFailover(ctx context.Context, takeover bool) error {
+	var cmd *exec.Cmd
+	if takeover {
+		cmd = exec.Command("redis-cli",
+			"cluster", "failover", "takeover")
+
+	} else {
+		cmd = exec.Command("redis-cli",
+			"cluster", "failover", "force")
+	}
+	cmd.Stderr = os.Stderr
+	cc.log.Debugf("Running redis-cli command: %v", cmd.Args)
+	err := cmd.Run()
+	if err != nil {
+		cc.log.Criticalf("Failed to run %s: %v", cmd.String(), err)
+		return err
+	}
+	return nil
+}
+func (cc *clusterConfigurator) takeoverFailover(ctx context.Context) error {
+	cmd := exec.Command("redis-cli",
+		"cluster", "failover", "takeover")
+	cmd.Stderr = os.Stderr
+	cc.log.Debugf("Running redis-cli command: %v", cmd.Args)
+	err := cmd.Run()
+	if err != nil {
+		cc.log.Criticalf("Failed to run %s: %v", cmd.String(), err)
+		return err
+	}
+	return nil
 }
 func (cc *clusterConfigurator) countOfMasterNodes() int {
 	var count int
@@ -361,38 +578,56 @@ func (cc *clusterConfigurator) countOfMasterNodes() int {
 	}
 	return count
 }
-func (reshardCommands *reshardCommands) countByToID(ID string) int {
+func (cmds *reshardCommands) countByToID(ID string) int {
 	var sum int
-	for _, cmd := range reshardCommands.commands {
+	for _, cmd := range *cmds {
 		if cmd.nodeToID == ID {
 			sum = sum + cmd.count
 		}
 	}
 	return sum
 }
-func (reshardCommands *reshardCommands) add(toID string, fromID string, count int) {
+func (cmds *reshardCommands) add(toID string, fromID string, count int) {
 	var maxOrder int
-	for _, reshardCommand := range reshardCommands.commands {
-		if reshardCommand.order > maxOrder {
-			maxOrder = reshardCommand.order
+	for _, cmd := range *cmds {
+		if cmd.order > maxOrder {
+			maxOrder = cmd.order
 		}
 	}
-	reshardCommands.commands = append(reshardCommands.commands, struct {
-		order      int
-		nodeToID   string
-		nodeFromID string
-		count      int
-	}{maxOrder, toID, fromID, count})
+	*cmds = append(*cmds, &reshardCommand{maxOrder + 1, toID, fromID, count})
 }
 func (cc *clusterConfigurator) reshard(nodeFromID string, nodeToID string, numberOfSlots string) {
 	cmd := exec.Command("redis-cli",
 		"--cluster", "reshard",
-		cc.nodes.nodeByPodname(cc.config.podname).IPAddress+":"+cc.config.redisPort,
+		"localhost:"+cc.config.redisPort,
 		"--cluster-from", nodeFromID, "--cluster-to", nodeToID, "--cluster-slots", numberOfSlots, "--cluster-yes")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+
+	logFile, err := os.OpenFile("/data/reshard.log", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
+	if err != nil {
+		cc.log.Errorf("Could not create reshard.log: %v", err)
+		return
+	}
+	errorFile, err := os.OpenFile("/data/reshard-error.log", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
+	if err != nil {
+		cc.log.Errorf("Could not create reshard-error.log: %v", err)
+		return
+	}
+	defer logFile.Close()
+	defer errorFile.Close()
+
+	logfileWriter := bufio.NewWriter(logFile)
+	errorfileWriter := bufio.NewWriter(errorFile)
+
+	defer logfileWriter.Flush()
+	defer errorfileWriter.Flush()
+
+	defer logfileWriter.WriteString(fmt.Sprintf("---------- %s ----------\n", time.Now().Format("2006-01-02T15:04:05-0700")))
+	defer errorfileWriter.WriteString(fmt.Sprintf("---------- %s ----------\n", time.Now().Format("2006-01-02T15:04:05-0700")))
+
+	cmd.Stdout = logfileWriter
+	cmd.Stderr = errorfileWriter
 	cc.log.Debugf("RESHARD: Running redis-cli command: %v", cmd.Args)
-	err := cmd.Run()
+	err = cmd.Run()
 	if err != nil {
 		cc.log.Criticalf("Failed to run %s: %v", cmd.String(), err)
 	}
@@ -411,7 +646,7 @@ func (clusterNode *clusterNode) lowestSlot(allSlots clusterSlots) int {
 func (clusterSlots clusterSlots) sumOfSlots() int {
 	var sum int
 	for _, slot := range clusterSlots {
-		sum = sum + slot.End - slot.Start
+		sum = sum + (slot.End - slot.Start) + 1
 	}
 	return sum
 }
@@ -419,7 +654,7 @@ func (clusterNode *clusterNode) getSlotsAssigned(allSlots clusterSlots) clusterS
 	var retSlots clusterSlots
 	for _, slot := range allSlots {
 		for _, node := range slot.Nodes {
-			log.Printf("ASSIGNED: slotNode.ID: %s, clusterNode.ID: %s. equal: %t\n", node.ID, clusterNode.ID, node.ID == clusterNode.ID)
+			//log.Printf("ASSIGNED: slotNode.ID: %s, clusterNode.ID: %s. equal: %t\n", node.ID, clusterNode.ID, node.ID == clusterNode.ID)
 			if node.ID == clusterNode.ID {
 				retSlots = append(retSlots, slot)
 			}
@@ -428,9 +663,10 @@ func (clusterNode *clusterNode) getSlotsAssigned(allSlots clusterSlots) clusterS
 	log.Printf("ASSIGNED: retSlots: %+v", retSlots)
 	return retSlots
 }
+
 func (nodes clusterNodes) nodeByPodname(myPodname string) *clusterNode {
 	for _, node := range nodes {
-		if node.PodName == myPodname {
+		if node.podName == myPodname {
 			return node
 		}
 	}
@@ -446,7 +682,7 @@ func (nodes clusterNodes) nodeByID(ID string) *clusterNode {
 }
 func (nodes clusterNodes) nodeByPodNameAndIP(PodName string, IP string) *clusterNode {
 	for _, node := range nodes {
-		if node.PodName == PodName && node.IPAddress == IP {
+		if node.podName == PodName && node.IPAddress == IP {
 			return node
 		}
 	}
@@ -454,23 +690,14 @@ func (nodes clusterNodes) nodeByPodNameAndIP(PodName string, IP string) *cluster
 }
 func (cc *clusterConfigurator) waitForRedis(ctx context.Context) {
 	for {
-		cmd := exec.Command("redis-cli", "ping")
-		var outb bytes.Buffer
-		cmd.Stdout = &outb
-		cmd.Stderr = os.Stderr
-		err := cmd.Start()
-		if err != nil {
-			log.Fatalf("Error pinging redis: %v", err)
-		}
-		err = cmd.Wait()
-		if err != nil {
-			log.Fatalf("Error waiting for redis ping: %v", err)
-		}
-		if strings.Contains(outb.String(), "PONG") {
-			break
+		pong, err := cc.redisClient.Ping().Result()
+		if err != nil || pong != "PONG" {
+			cc.log.Infof("Error pinging redis: %s: %v", pong, err)
 		} else {
-			cc.log.Debugf("waiting for Redis to start. Got: %s", outb.String())
+			break
 		}
+		cc.log.Debugf("waiting for Redis to start. Got: %s", pong)
+		time.Sleep(time.Second)
 	}
 
 	for {
@@ -488,13 +715,13 @@ func (cc *clusterConfigurator) waitForRedis(ctx context.Context) {
 func (cc *clusterConfigurator) getNodeNames() []string {
 	var nodeNames []string
 	for _, node := range cc.nodes {
-		nodeNames = append(nodeNames, node.PodName)
+		nodeNames = append(nodeNames, node.podName)
 	}
 	return nodeNames
 }
 func (cc *clusterConfigurator) deleteNodeByPodName(podName string) {
 	for i, node := range cc.nodes {
-		if node.PodName == podName {
+		if node.podName == podName {
 			cc.log.Debug("REDIS: clusterConfigurator.redisClient.ClusterForget(node.ID).Result()")
 			currentClient := *cc.redisClient
 			_, err := currentClient.ClusterForget(node.ID).Result()
@@ -528,36 +755,10 @@ func (cc *clusterConfigurator) isOrdZero() bool {
 	}
 	return false
 }
-func (cc *clusterConfigurator) createClusterIfMaster(ctx context.Context) {
-	// If this is redis-0, take ownership of all slots
-	if cc.isOrdZero() {
-		cc.log.Debug("This node elected Ord Zero\n REDIS: clusterConfigurator.redisClient.ClusterAddSlotsRange(0, 16383).Result()")
-		currentClient := *cc.redisClient
-		addSlotsResult, err := currentClient.ClusterAddSlotsRange(0, 16383).Result()
-		if err != nil {
-			cc.log.Criticalf("Could not take ownership of all slots: %s: %v\n", addSlotsResult, err)
-			currentClient := *cc.redisClient
-			err := currentClient.FlushAll().Err()
-			err = currentClient.ClusterResetSoft().Err()
-			if err != nil {
-				log.Fatalf("Failed to reset all nodes: %v\n", err)
-			}
-			cc.log.Debug("Reset all nodes, taking ownership again.")
-			time.Sleep(time.Second * 10)
-			addSlotsResult, err := currentClient.ClusterAddSlotsRange(0, 16383).Result()
-			if err != nil {
-				log.Fatalf("Could not take ownership of all slots: %s: %v\n", addSlotsResult, err)
-			}
-			cc.log.Debugf("took ownership of all slots after resetting nodes: %s", addSlotsResult)
-		} else {
-			cc.log.Debugf("took ownership of all slots: %s", addSlotsResult)
-		}
-	}
-}
 
 func getOrdZeroNode(nodes *clusterNodes) (*clusterNode, error) {
 	for _, node := range *nodes {
-		nameSegments := strings.Split(node.PodName, "-")
+		nameSegments := strings.Split(node.podName, "-")
 		if nameSegments[len(nameSegments)-1] == "0" {
 			return node, nil
 		}
@@ -604,7 +805,7 @@ func (cc *clusterConfigurator) getClusterNodes(ctx context.Context, withRedisCli
 		if pods.Items[i].Status.Phase == v1.PodRunning {
 			var newNode = &clusterNode{
 				IPAddress: pods.Items[i].Status.PodIP,
-				PodName:   pods.Items[i].ObjectMeta.Name,
+				podName:   pods.Items[i].ObjectMeta.Name,
 			}
 			nodes = append(nodes, newNode)
 		}
@@ -612,32 +813,25 @@ func (cc *clusterConfigurator) getClusterNodes(ctx context.Context, withRedisCli
 	//do we need replicas?
 	if targetNumberOfNodes/2 >= 3 && targetNumberOfNodes%2 == 0 {
 		//make slaves
-		var b bytes.Buffer
-		sort.SliceStable(nodes, func(i, j int) bool { return nodes[i].PodName < nodes[j].PodName })
-		b.WriteString("Assigning masters and slaves:\n")
+		sort.SliceStable(nodes, func(i, j int) bool { return nodes[i].podName < nodes[j].podName })
 		for i, node := range nodes {
-			b.WriteString(fmt.Sprintf("PodName: %s: ", node.PodName))
 			if i%2 == 0 {
+				//make master
 				node.master = true
 				if len(nodes) > 1+i {
 					node.masterTo = nodes[i+1]
-					b.WriteString("master\n")
 				}
-				//make master
 			} else {
-				node.slaveTo = nodes[i-1]
-				b.WriteString(fmt.Sprintf("slave to %s\n", node.slaveTo.PodName))
 				//make slave of previous master
+				node.slaveTo = nodes[i-1]
 			}
 		}
-		cc.log.Debug(b.String())
 	}
 	if withRedisClient {
 		// user redis client to get ClusterNodes ID
-		currentClient := *cc.redisClient
-		clusterNodes, err := currentClient.ClusterNodes().Result()
+		clusterNodes, err := cc.redisClient.ClusterNodes().Result()
 		if err != nil {
-			cc.log.Criticalf("Failed to get ClusterNodes with RedisClient: %v", err)
+			cc.log.Criticalf("Failed to get ClusterNodes with RedisClient: %v @%p", err, cc.redisClient)
 		}
 		scanner := bufio.NewScanner(strings.NewReader(clusterNodes))
 		lineNumber := 0
@@ -649,13 +843,28 @@ func (cc *clusterConfigurator) getClusterNodes(ctx context.Context, withRedisCli
 			for i := range nodesData {
 				nodesData[i] = strings.TrimSpace(nodesData[i])
 			}
+			found := false
 			for _, node := range nodes {
 				if strings.HasPrefix(nodesData[1], node.IPAddress+":"+cc.config.redisPort) {
+					found = true
 					node.ID = nodesData[0]
+					for _, s := range strings.Split(nodesData[2], ",") {
+						if s == "slave" {
+							node.currentSlaveryState = "slave"
+							node.currentMasterID = nodesData[3]
+							break
+						} else if s == "master" {
+							node.currentSlaveryState = "master"
+							break
+						}
+					}
 					break
 				}
 			}
-
+			if !found {
+				_, err := cc.redisClient.ClusterForget(nodesData[0]).Result()
+				cc.log.Debugf("Tried to forget %s: err:%v", nodesData[0], err)
+			}
 		}
 	}
 	return &nodes

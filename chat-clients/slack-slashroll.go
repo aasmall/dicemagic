@@ -10,10 +10,10 @@ import (
 	"github.com/slack-go/slack"
 )
 
+// SlackSlashRollHandler handles requets to /roll slack command
 func SlackSlashRollHandler(e interface{}, w http.ResponseWriter, r *http.Request) error {
 	c, _ := e.(*SlackChatClient)
 
-	//r.Body = ioutil.NopCloser(bytes.NewBuffer(body))
 	if !c.ValidateSlackSignature(r) {
 		return handler.StatusError{
 			Code: http.StatusUnauthorized,
@@ -21,7 +21,6 @@ func SlackSlashRollHandler(e interface{}, w http.ResponseWriter, r *http.Request
 		}
 	}
 
-	//log := c.log.WithRequest(r)
 	s, err := slack.SlashCommandParse(r)
 	if err != nil {
 		fmt.Fprintf(w, "could not parse slash command: %s", err)
@@ -36,10 +35,9 @@ func SlackSlashRollHandler(e interface{}, w http.ResponseWriter, r *http.Request
 		if rollResponse.Error.Code == errors.Friendly {
 			returnErrorToSlack(rollResponse.Error.Msg, w, r)
 			return nil
-		} else {
-			returnErrorToSlack(fmt.Sprintf("Oops! an error occured: %s", rollResponse.Error.Msg), w, r)
-			return nil
 		}
+		returnErrorToSlack(fmt.Sprintf("Oops! an error occured: %s", rollResponse.Error.Msg), w, r)
+		return nil
 	}
 	webhookMessage := slack.Msg{}
 	webhookMessage.Attachments = append(webhookMessage.Attachments, SlackAttachmentsFromRollResponse(rollResponse)...)

@@ -34,6 +34,7 @@ const (
 	LstdFlags     = Ldate | Ltime // initial values for the standard logger
 )
 
+// Logger satisfies the logger interface
 type Logger struct {
 	mu                *sync.Mutex // ensures atomic writes; protects the following fields
 	prefix            string      // prefix to write at beginning of each line
@@ -45,7 +46,11 @@ type Logger struct {
 	buf               []byte // for accumulating text to write
 	defaultSeverity   logging.Severity
 }
+
+// LoggerOption defines a function to set LoggerOptions
 type LoggerOption func(*LoggerOptions)
+
+// LoggerOptions define the behavior of a new Logger
 type LoggerOptions struct {
 	LogName         string
 	Prefix          string
@@ -54,31 +59,42 @@ type LoggerOptions struct {
 	Context         context.Context
 }
 
+// WithLogName sets the name for the logs
 func WithLogName(logname string) LoggerOption {
 	return func(o *LoggerOptions) {
 		o.LogName = logname
 	}
 }
+
+// WithPrefix sets a string prefix for all loglines
 func WithPrefix(prefix string) LoggerOption {
 	return func(o *LoggerOptions) {
 		o.Prefix = prefix
 	}
 }
+
+// WithDefaultSeverity sets the severity for all logs that don't have one specified.
 func WithDefaultSeverity(defaultSeverity logging.Severity) LoggerOption {
 	return func(o *LoggerOptions) {
 		o.DefaultSeverity = defaultSeverity
 	}
 }
+
+// WithDebug sets whether or not debug logs should be written
 func WithDebug(debug bool) LoggerOption {
 	return func(o *LoggerOptions) {
 		o.Debug = debug
 	}
 }
+
+// WithContext sets logger context
 func WithContext(ctx context.Context) LoggerOption {
 	return func(o *LoggerOptions) {
 		o.Context = ctx
 	}
 }
+
+// New creates a new logger with specified LoggerOptions
 func New(projectID string, options ...LoggerOption) *Logger {
 	opts := LoggerOptions{
 		LogName:         "",
@@ -115,12 +131,15 @@ func (l *Logger) WithRequest(r *http.Request) *Logger {
 	return l2
 }
 
+// Info outputs a logline with Info severity
 func (l *Logger) Info(message interface{}) {
 	l.outputEntry(2, logging.Entry{
 		Payload:  message,
 		Severity: logging.Info,
 	})
 }
+
+// Debug outputs a logline with Debug severity
 func (l *Logger) Debug(message interface{}) {
 	if l.debug {
 		l.outputEntry(2, logging.Entry{
@@ -129,12 +148,16 @@ func (l *Logger) Debug(message interface{}) {
 		})
 	}
 }
+
+// Error outputs a logline with Error severity
 func (l *Logger) Error(message interface{}) {
 	l.outputEntry(2, logging.Entry{
 		Payload:  message,
 		Severity: logging.Error,
 	})
 }
+
+// Critical outputs a logline with Critical severity
 func (l *Logger) Critical(message interface{}) {
 	l.outputEntry(2, logging.Entry{
 		Payload:  message,
@@ -142,12 +165,15 @@ func (l *Logger) Critical(message interface{}) {
 	})
 }
 
+// Infof is like Info but uses a format statement
 func (l *Logger) Infof(format string, a ...interface{}) {
 	l.outputEntry(2, logging.Entry{
 		Payload:  fmt.Sprintf(format, a...),
 		Severity: logging.Info,
 	})
 }
+
+// Debugf is like Debug but uses a format statement
 func (l *Logger) Debugf(format string, a ...interface{}) {
 	if l.debug {
 		l.outputEntry(2, logging.Entry{
@@ -156,12 +182,16 @@ func (l *Logger) Debugf(format string, a ...interface{}) {
 		})
 	}
 }
+
+// Errorf is like Error but uses a format statement
 func (l *Logger) Errorf(format string, a ...interface{}) {
 	l.outputEntry(2, logging.Entry{
 		Payload:  fmt.Sprintf(format, a...),
 		Severity: logging.Error,
 	})
 }
+
+// Criticalf is like Critical but uses a format statement
 func (l *Logger) Criticalf(format string, a ...interface{}) {
 	l.outputEntry(2, logging.Entry{
 		Payload:  fmt.Sprintf(format, a...),
@@ -169,14 +199,16 @@ func (l *Logger) Criticalf(format string, a ...interface{}) {
 	})
 }
 
+// Fatalf outputs a logline with critical severity and then calls os.Exit(1)
 func (l *Logger) Fatalf(format string, a ...interface{}) {
 	l.outputEntry(2, logging.Entry{
 		Payload:  fmt.Sprintf(format, a...),
 		Severity: logging.Critical,
 	})
-	panic(nil)
+	os.Exit(1)
 }
 
+// Close closes the loggingClient
 func (l *Logger) Close() {
 	l.loggingClient.Close()
 }

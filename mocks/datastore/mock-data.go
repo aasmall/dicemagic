@@ -9,12 +9,15 @@ import (
 	"cloud.google.com/go/datastore"
 )
 
+// SlackTeam represents the datastructure for a Slack Team
 type SlackTeam struct {
 	Key        *datastore.Key `datastore:"__key__"`
 	SlackAppID string
 	TeamID     string
 	TeamName   string
 }
+
+// SlackInstallInstanceDoc represents the data structure where we store all the resulting data from installing the bot.
 type SlackInstallInstanceDoc struct {
 	Key            *datastore.Key `datastore:"__key__"`
 	EncAccessToken string         `datastore:",noindex" json:"access_token"`
@@ -48,7 +51,7 @@ func createTeam(ctx context.Context, ds *datastore.Client) {
 	for {
 		fmt.Printf("%v+\n", time.Now())
 		log.Printf("Upserting team to mock datastore: %v", team)
-		k, err := UpsetSlackTeam(ctx, *ds, team)
+		k, err := UpsertSlackTeam(ctx, *ds, team)
 		if err != nil {
 			log.Printf("Error Upserting: %v", err)
 		}
@@ -64,7 +67,9 @@ func createTeam(ctx context.Context, ds *datastore.Client) {
 		time.Sleep(time.Second * 10)
 	}
 }
-func UpsetSlackTeam(ctx context.Context, ds datastore.Client, team *SlackTeam) (*datastore.Key, error) {
+
+// UpsertSlackTeam either creates a new SlackTeam object or updates an existing one if it matches provided TeamID and SlackAppID
+func UpsertSlackTeam(ctx context.Context, ds datastore.Client, team *SlackTeam) (*datastore.Key, error) {
 	var err error
 	var k *datastore.Key
 
@@ -96,6 +101,7 @@ func UpsetSlackTeam(ctx context.Context, ds datastore.Client, team *SlackTeam) (
 	}
 }
 
+// UpsertSlackInstallInstance either creates a new SlackInstallInstanceDoc or updates an existing one if it matches the UserID and parent of an existing one.
 func UpsertSlackInstallInstance(ctx context.Context, ds datastore.Client, d *SlackInstallInstanceDoc, parentKey *datastore.Key) (*datastore.Key, error) {
 	var err error
 	var k *datastore.Key

@@ -17,6 +17,7 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+// Message represents a mock slack message
 type Message struct {
 	Type    string `json:"type"`
 	Channel string `json:"channel"`
@@ -56,7 +57,6 @@ func main() {
 		kubePortFwd.Set("8080:2082")
 	}
 
-	println("args ...Type")
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt)
 

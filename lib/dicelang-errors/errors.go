@@ -6,9 +6,13 @@ import (
 )
 
 const (
+	// InvalidAST is the error type that occurs when the AST that resulted from the command is invalid in some way. Honestly, this shouldn't happen.
 	InvalidAST = iota
+	// InvalidCommand is the error type that occurs when a command cannot be parsed into an AST
 	InvalidCommand
+	// Friendly represents an expected error
 	Friendly
+	// Unexpected errors should not occur.
 	Unexpected = 999
 )
 

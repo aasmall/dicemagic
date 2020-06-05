@@ -12,7 +12,7 @@ PROTOCDLOC=https://github.com/protocolbuffers/protobuf/releases/download/v3.12.0
 LIBS=$(shell find "lib" -type f)
 ALL=$(shell find -type f)
 GENDEPS=$(shell grep -rl . -e '//go:generate' ; find -type f -name "*.proto" )
-
+GIT_COMMIT=$(shell git rev-list -1 HEAD)
 
 
 # DOCKERFILES=$(shell find "dockerfiles" -maxdepth 1 -type f | grep -E '.*\.(dockerfile)$$')
@@ -44,13 +44,13 @@ gen: $(GENDEPS)
 	go get golang.org/x/tools/cmd/stringer
 	PATH=${HOME}/.local/bin:${PATH} go generate ./...
 
-out/bin/chat-clients: $(shell find "chat-clients" -maxdepth 1 -type f | grep -E '.*\.(go|mod|sum)$$')
-	go build -o $@ github.com/aasmall/dicemagic/chat-clients
+out/bin/chat-clients: $(shell find "chat-clients" -maxdepth 1 -type f | grep -E '.*\.(go|mod|sum)$$') $(LIBS)
+	go build -ldflags "-X main.gitCommitID=$(GIT_COMMIT)" -o $@ github.com/aasmall/dicemagic/chat-clients
 
-out/bin/dice-server: $(shell find "dice-server" -maxdepth 1 -type f | grep -E '.*\.(go|mod|sum)$$')
+out/bin/dice-server: $(shell find "dice-server" -maxdepth 1 -type f | grep -E '.*\.(go|mod|sum)$$') $(LIBS)
 	go build -o $@ github.com/aasmall/dicemagic/dice-server
 
-out/bin/redis-cluster: $(shell find "redis" -maxdepth 1 -type f | grep -E '.*\.(go|mod|sum|sh|conf)$$')
+out/bin/redis-cluster: $(shell find "redis" -maxdepth 1 -type f | grep -E '.*\.(go|mod|sum|sh|conf)$$') $(LIBS)
 	@mkdir -p out/include/redis-cluster
 	go build -o $@ github.com/aasmall/dicemagic/redis
 	cp redis/bootstrap-pod.sh redis/redis.conf out/include/redis-cluster
@@ -129,70 +129,6 @@ config/minikube/secrets/google/k8s-dice-magic.json:
 
 .PHONY: secrets
 secrets: config/minikube/secrets/slack/slack-client-secret config/minikube/secrets/slack/slack-signing-secret config/minikube/secrets/mocks/tls.key config/minikube/secrets/mocks/tls.crt config/minikube/secrets/nginx-ingress/tls.key config/minikube/secrets/nginx-ingress/tls.crt config/minikube/secrets/letsencrypt-certs/tls.key config/minikube/secrets/letsencrypt-certs/tls.crt config/minikube/secrets/google/k8s-dice-magic.json
-
-# .PHONY: docker $(NAMES) $(IMAGES)
-# 	@echo DOCKERFILES: $(DOCKERFILES)
-# 	@echo NAMES: $(NAMES)
-# 	@echo REGISTRY: $(REGISTRY)
-# 	@echo IMAGES: $(IMAGES)
-# 	@echo -------------
-
-# # $(NAMES): %: $(REGISTRY)/%
-# 	docker push $<
-
-# $(IMAGES): %:
-# 	docker build --build-arg REGISTRY=$(REGISTRY) -t $@ $(subst :,/,$(subst $(REGISTRY)/,,$@))
-	
-
-# .PHONY: $(IMAGENAMES)
-# $(IMAGENAMES): $(DOCKERFILES)
-# 	docker build . -f $< -t registry.gitlab.com/aasmall/dicemagic/$(<F)
-# 	docker push registry.gitlab.com/aasmall/dicemagic/$(<@):latest
-
-# .PHONY: builder
-# builder: 
-# 	docker build . -f ./dockerfiles/builder.dockerfile -t registry.gitlab.com/aasmall/dicemagic/builder
-# 	docker push registry.gitlab.com/aasmall/dicemagic/builder:latest
-
-# .PHONY: chat-clients-image
-# chat-clients: builder-image
-# 	docker build . -f ./dockerfiles/chat-clients.dockerfile -t registry.gitlab.com/aasmall/dicemagic/chat-clients
-# 	docker push registry.gitlab.com/aasmall/dicemagic/chat-clients:latest
-
-# .PHONY: dice-server-image
-# chat-clients: builder
-# 	docker build . -f ./dockerfiles/dice-server.dockerfile -t registry.gitlab.com/aasmall/dicemagic/dice-server
-# 	docker push registry.gitlab.com/aasmall/dicemagic/dice-server:latest
-
-# .PHONY: letsencrypt-image
-# chat-clients: builder-image
-# 	docker build . -f ./dockerfiles/letsencrypt.dockerfile -t registry.gitlab.com/aasmall/dicemagic/letsencrypt
-# 	docker push registry.gitlab.com/aasmall/dicemagic/letsencrypt:latest
-
-# .PHONY: mock-datastore-image
-# chat-clients: builder-image
-# 	docker build . -f ./dockerfiles/mock-datastore.dockerfile -t registry.gitlab.com/aasmall/dicemagic/mock-datastore
-# 	docker push registry.gitlab.com/aasmall/dicemagic/mock-datastore:latest
-	
-# .PHONY: mock-kms-image
-# chat-clients: builder-image
-# 	docker build . -f ./dockerfiles/mock-kms.dockerfile -t registry.gitlab.com/aasmall/dicemagic/mock-kms
-# 	docker push registry.gitlab.com/aasmall/dicemagic/mock-kms:latest
-
-# .PHONY: mock-slack-server
-# chat-clients: builder
-# 	docker build . -f ./dockerfiles/mock-slack-server.dockerfile -t registry.gitlab.com/aasmall/dicemagic/mock-slack-server
-# 	docker push registry.gitlab.com/aasmall/dicemagic/mock-slack-server:latest
-
-# .PHONY: redis
-# chat-clients: builder
-# 	docker build . -f ./dockerfiles/redis.dockerfile -t registry.gitlab.com/aasmall/dicemagic/redis
-# 	docker push registry.gitlab.com/aasmall/dicemagic/redis:latest
-
-# .PHONY: www
-# chat-clients: builder
-# 	docker build . -f ./dockerfiles/www.dockerfile -t registry.gitlab.com/aasmall/dicemagic/www
-# 	docker push registry.gitlab.com/aasmall/dicemagic/www:latest
 
 clean:
 	rm -rf ./out/ ./config/minikube/secrets/
