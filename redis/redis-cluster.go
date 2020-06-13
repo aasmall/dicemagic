@@ -54,15 +54,15 @@ type clusterConfigurator struct {
 	nodes       clusterNodes
 }
 type clusterNode struct {
-	IPAddress           string
-	ID                  string
-	master              bool
-	slaveTo             *clusterNode
-	masterTo            *clusterNode
-	replicated          bool
-	podName             string
-	currentSlaveryState string
-	currentMasterID     string
+	IPAddress               string
+	ID                      string
+	isPrimary               bool
+	replicaOf               *clusterNode
+	primaryFor              *clusterNode
+	replicated              bool
+	podName                 string
+	currentReplicationState string
+	currentPrimaryID        string
 }
 type clusterNodes []*clusterNode
 
@@ -216,20 +216,14 @@ func main() {
 	}(joined)
 	<-joined
 
-	// kick off a process that tries to find it's master. if master changes, adapt.
+	// kick off a process that tries to find it's primary. if primary changes, adapt.
 	cc.nodes = *cc.getClusterNodes(ctx, true)
 	go func() {
-		// if !clusterConfigurator.nodes.nodeByPodname(clusterConfigurator.config.podname).master {
 		ticker := time.NewTicker(time.Second * 30)
 		defer ticker.Stop()
 		for range ticker.C {
-			cc.replicateToMaster(ctx, mu)
-			// if clusterConfigurator.nodes.nodeByPodname(clusterConfigurator.config.podname).replicated == true {
-			// 	break
-			// }
+			cc.replicate(ctx, mu)
 		}
-		// clusterConfigurator.log.Debug("Replicated to master successfully. Don't need to keep trying.")
-		// }
 	}()
 
 	// ordzero has the special task of managing all cluster sharding
@@ -246,6 +240,8 @@ func main() {
 	go func() {
 		sig := <-sigs
 		cc.log.Infof("CAUGHT SIGNAL: %s", sig.String())
+		mu.Lock()
+		defer mu.Unlock()
 		done <- true
 	}()
 	<-done
@@ -342,11 +338,11 @@ func (cc *clusterConfigurator) rebalanceReplicas(ctx context.Context, mu *sync.M
 			}
 
 			//calculate ideal distribution
-			var masterCount int
+			var primaryCount int
 			for {
-				masterCount = cc.countOfMasterNodes()
-				if masterCount == 0 {
-					cc.log.Criticalf("RESHARD: Count of master nodes is 0... waiting and trying again to avoid Div/0 error.")
+				primaryCount = cc.countOfPrimaryNodes()
+				if primaryCount == 0 {
+					cc.log.Criticalf("RESHARD: Count of primary nodes is 0... waiting and trying again to avoid Div/0 error.")
 					time.Sleep(time.Second * 5)
 					continue
 				} else {
@@ -354,22 +350,22 @@ func (cc *clusterConfigurator) rebalanceReplicas(ctx context.Context, mu *sync.M
 				}
 			}
 
-			// 1) loop through all master nodes and calculate the offset between ideal and actual assigned slots
+			// 1) loop through all primary nodes and calculate the offset between ideal and actual assigned slots
 			// 2) for each negative offset we create one or more reshard commands necessary to bring the offset to zero
-			var masterNodes clusterNodes
-			// Only reshard masters
+			var primaryNodes clusterNodes
+			// Only reshard primaries
 			for _, node := range cc.nodes {
-				if node.master {
-					masterNodes = append(masterNodes, node)
+				if node.isPrimary {
+					primaryNodes = append(primaryNodes, node)
 				}
 			}
-			numberOfImbalancedNodes := MAXSLOTS % len(masterNodes)
+			numberOfImbalancedNodes := MAXSLOTS % len(primaryNodes)
 
 			var rebalanceTargets nodeReshardTargets
-			for i, node := range masterNodes {
+			for i, node := range primaryNodes {
 				var reshardNode = &nodeReshardTarget{node: node}
 				reshardNode.assignedSlotCount = node.getSlotsAssigned(allSlots).sumOfSlots()
-				reshardNode.targetSlotCount = int(math.Floor(float64(MAXSLOTS / masterCount)))
+				reshardNode.targetSlotCount = int(math.Floor(float64(MAXSLOTS / primaryCount)))
 				if i < numberOfImbalancedNodes {
 					reshardNode.targetSlotCount = reshardNode.targetSlotCount + 1
 				}
@@ -389,36 +385,10 @@ func (cc *clusterConfigurator) rebalanceReplicas(ctx context.Context, mu *sync.M
 			cc.log.Debugf("DRYRUN: Reshard Commands: %+v", reshardCommands)
 			for _, cmd := range *reshardCommands {
 				cc.log.Debugf("DRYRUN CMD: %v", cmd)
-				cc.reshard(cmd.nodeFromID, cmd.nodeToID, strconv.Itoa(cmd.count))
+				if cmd.count > 0 {
+					cc.reshard(cmd.nodeFromID, cmd.nodeToID, strconv.Itoa(cmd.count))
+				}
 			}
-			// sort.SliceStable(cc.nodes, func(i, j int) bool {
-			// 	return cc.nodes[i].podName < cc.nodes[j].podName
-			// })
-			// for i := 0; i < len(masterNodes); i++ {
-			// 	//get the slots already assigned to this node
-			// 	cc.log.Debugf("RESHARD: NodeIP(%s): %s:%s", masterNodes[i].podName, masterNodes[i].IPAddress, masterNodes[i].ID)
-
-			// 	cc.log.Debugf("RESHARD: currentNodeSlots(%s): %+v", masterNodes[i].podName, currentNodeSlots)
-			// 	//count sum of slots assigned to current node and any that will be assigned during reshard
-			// 	totalSlotsAssignedToNode := currentNodeSlots.sumOfSlots() + reshardCommands.countByToID(masterNodes[i].ID)
-			// 	//if the node is imbalanced, add one slot
-			// 	cc.log.Debugf("RESHARD: totalSlotsAssignedToNode(%s): %+v", masterNodes[i].podName, totalSlotsAssignedToNode)
-			// 	//if this node has more slots than it needs
-			// 	if totalSlotsAssignedToNode > targetSlotCount {
-			// 		//queue commsnd to move slots
-			// 		//from this node, to the next node in the loop
-			// 		reshardCommands.add(masterNodes[i+1].ID, masterNodes[i].ID, (totalSlotsAssignedToNode - targetSlotCount))
-			// 	}
-			// }
-			// sort.SliceStable(reshardCommands.commands, func(i, j int) bool {
-			// 	return reshardCommands.commands[i].order < reshardCommands.commands[j].order
-			// })
-			// for _, reshardCommand := range reshardCommands.commands {
-			// 	cc.log.Debugf("REDHARD: pending command %v", reshardCommand)
-			// }
-			// for _, reshardCommand := range reshardCommands.commands {
-			// 	cc.reshard(reshardCommand.nodeFromID, reshardCommand.nodeToID, strconv.Itoa(reshardCommand.count))
-			// }
 		}()
 	}
 
@@ -501,16 +471,16 @@ func (cc *clusterConfigurator) myNode() *clusterNode {
 	return cc.nodes.nodeByPodname(cc.config.podname)
 }
 
-func (cc *clusterConfigurator) replicateToMaster(ctx context.Context, mu *sync.Mutex) {
+func (cc *clusterConfigurator) replicate(ctx context.Context, mu *sync.Mutex) {
 	mu.Lock()
 	defer mu.Unlock()
 	cc.nodes = *cc.getClusterNodes(ctx, true)
-	cc.log.Debugf("Checking slavery status: MyNodeIs: %s", cc.config.podname)
-	// TODO: only run if not already slave
-	if cc.myNode().slaveTo != nil {
-		if cc.myNode().slaveTo.ID != cc.myNode().currentMasterID {
-			cc.log.Debugf("I'm a slave to %s, with ID of %s", cc.myNode().slaveTo.podName, cc.myNode().slaveTo.ID)
-			replicateResult, err := cc.localClient.ClusterReplicate(cc.nodes.nodeByPodname(cc.config.podname).slaveTo.ID).Result()
+	cc.log.Debugf("Checking replica status: MyNodeIs: %s", cc.config.podname)
+	// TODO: only run if not already replica
+	if cc.myNode().replicaOf != nil {
+		if cc.myNode().replicaOf.ID != cc.myNode().currentPrimaryID {
+			cc.log.Debugf("I'm a replica of %s, with ID of %s", cc.myNode().replicaOf.podName, cc.myNode().replicaOf.ID)
+			replicateResult, err := cc.localClient.ClusterReplicate(cc.nodes.nodeByPodname(cc.config.podname).replicaOf.ID).Result()
 			if err != nil {
 				cc.log.Criticalf("Failed to replicate %s: %v", replicateResult, err)
 				_, _ = cc.localClient.ClusterResetSoft().Result()
@@ -518,7 +488,7 @@ func (cc *clusterConfigurator) replicateToMaster(ctx context.Context, mu *sync.M
 				cc.nodes.nodeByPodname(cc.config.podname).replicated = true
 			}
 		}
-	} else if cc.nodes.nodeByPodname(cc.config.podname).master && cc.myNode().currentSlaveryState != "master" {
+	} else if cc.nodes.nodeByPodname(cc.config.podname).isPrimary && cc.myNode().currentReplicationState != "master" {
 		resetResult, err := cc.localClient.ClusterResetSoft().Result()
 		if err != nil {
 			cc.log.Criticalf("could not reset local cluster state %s: %v", resetResult, err)
@@ -531,9 +501,9 @@ func (cc *clusterConfigurator) replicateToMaster(ctx context.Context, mu *sync.M
 }
 
 func (cc *clusterConfigurator) failover(ctx context.Context, takeover bool) error {
-	masterizeResult, err := cc.localClient.ClusterFailover().Result()
+	failoverResult, err := cc.localClient.ClusterFailover().Result()
 	if err != nil {
-		cc.log.Criticalf("Failed to masterize. taking over. %s: %v", masterizeResult, err)
+		cc.log.Criticalf("Failed to masterize. taking over. %s: %v", failoverResult, err)
 		return cc.forceFailover(ctx, takeover)
 	}
 	return nil
@@ -569,10 +539,10 @@ func (cc *clusterConfigurator) takeoverFailover(ctx context.Context) error {
 	}
 	return nil
 }
-func (cc *clusterConfigurator) countOfMasterNodes() int {
+func (cc *clusterConfigurator) countOfPrimaryNodes() int {
 	var count int
 	for _, node := range cc.nodes {
-		if node.master {
+		if node.isPrimary {
 			count = count + 1
 		}
 	}
@@ -729,8 +699,8 @@ func (cc *clusterConfigurator) deleteNodeByPodName(podName string) {
 				cc.log.Criticalf("Failed to forget node: %v", err)
 			}
 			deleteNode(cc.nodes, i)
-			if node.masterTo != nil {
-				node.masterTo.replicated = false
+			if node.primaryFor != nil {
+				node.primaryFor.replicated = false
 			}
 			break
 		}
@@ -812,18 +782,18 @@ func (cc *clusterConfigurator) getClusterNodes(ctx context.Context, withRedisCli
 	}
 	//do we need replicas?
 	if targetNumberOfNodes/2 >= 3 && targetNumberOfNodes%2 == 0 {
-		//make slaves
+		//make replicas
 		sort.SliceStable(nodes, func(i, j int) bool { return nodes[i].podName < nodes[j].podName })
 		for i, node := range nodes {
 			if i%2 == 0 {
-				//make master
-				node.master = true
+				//make primary
+				node.isPrimary = true
 				if len(nodes) > 1+i {
-					node.masterTo = nodes[i+1]
+					node.primaryFor = nodes[i+1]
 				}
 			} else {
-				//make slave of previous master
-				node.slaveTo = nodes[i-1]
+				//make replica of previous primary
+				node.replicaOf = nodes[i-1]
 			}
 		}
 	}
@@ -848,13 +818,14 @@ func (cc *clusterConfigurator) getClusterNodes(ctx context.Context, withRedisCli
 				if strings.HasPrefix(nodesData[1], node.IPAddress+":"+cc.config.redisPort) {
 					found = true
 					node.ID = nodesData[0]
+					// unable to remove reference to slavery because these actual strings are returned from redis client
 					for _, s := range strings.Split(nodesData[2], ",") {
 						if s == "slave" {
-							node.currentSlaveryState = "slave"
-							node.currentMasterID = nodesData[3]
+							node.currentReplicationState = "slave"
+							node.currentPrimaryID = nodesData[3]
 							break
 						} else if s == "master" {
-							node.currentSlaveryState = "master"
+							node.currentReplicationState = "master"
 							break
 						}
 					}

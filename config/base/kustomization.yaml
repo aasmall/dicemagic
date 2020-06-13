@@ -7,5 +7,5 @@ resources:
 - nginx-loadbalancer.yaml
 - psp.yaml
 - rbac.yaml
-- redis-master.yaml
+- redis-primary.yaml
 - www.yaml
