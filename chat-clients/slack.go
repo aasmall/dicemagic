@@ -136,7 +136,7 @@ func (c *SlackChatClient) ValidateSlackSignature(r *http.Request) bool {
 		log.Errorf("cannot validate slack signature. Cannot parse timestamp: %s", timestamp)
 		return false
 	}
-	delta := time.Now().Sub(time.Unix(ts, 0))
+	delta := time.Since(time.Unix(ts, 0))
 	if delta.Minutes() > 5 {
 		log.Errorf("cannot validate slack signature. Time skew > 5 minutes (%s)", delta.String())
 		log.Debugf("timeskew: (%s)", delta.String())

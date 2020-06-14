@@ -21,7 +21,6 @@ type Lexer struct {
 	col    int
 	tok    *AST
 	cached bool
-	last   *AST
 	c      *word2number.Converter
 }
 
@@ -82,22 +81,6 @@ func (registry *tokenRegistry) infix(sym string, bp int) {
 }
 
 func (registry *tokenRegistry) infixLed(sym string, bp int, led ledFn) {
-	registry.register(sym, bp, nil, led, nil)
-}
-
-func (registry *tokenRegistry) infixRight(sym string, bp int) {
-	registry.register(sym, bp, nil, func(t *AST, p *Parser, left *AST) (*AST, error) {
-		t.Children = append(t.Children, left)
-		token, err := p.expression(t.BindingPower - 1)
-		if err != nil {
-			return nil, err
-		}
-		t.Children = append(t.Children, token)
-		return t, nil
-	}, nil)
-}
-
-func (registry *tokenRegistry) infixRightLed(sym string, bp int, led ledFn) {
 	registry.register(sym, bp, nil, led, nil)
 }
 

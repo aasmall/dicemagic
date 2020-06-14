@@ -39,7 +39,7 @@ func SlackOAuthHandler(e interface{}, w http.ResponseWriter, r *http.Request) er
 		form.Add("redirect_uri", c.config.localRedirectURI)
 	}
 
-	req, err := http.NewRequest("POST", c.config.slackTokenURL, strings.NewReader(form.Encode()))
+	req, _ := http.NewRequest("POST", c.config.slackTokenURL, strings.NewReader(form.Encode()))
 	req.SetBasicAuth(c.config.slackClientID, clientSecret)
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 	resp, err := c.ecm.httpClient.Do(req)
@@ -93,7 +93,7 @@ func SlackOAuthHandler(e interface{}, w http.ResponseWriter, r *http.Request) er
 		return err
 	}
 	// log.Debugf("upserting SlackInstallInstance: %+v", oauthResponse)
-	k, err = c.UpsertSlackInstallInstance(ctx, oauthResponse, k)
+	_, err = c.UpsertSlackInstallInstance(ctx, oauthResponse, k)
 	if err != nil {
 		log.Errorf("error upserting SlackInstallInstance: %s", err)
 		return err

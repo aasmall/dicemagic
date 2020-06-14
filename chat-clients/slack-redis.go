@@ -176,7 +176,7 @@ func (c *SlackChatClient) SpawnReaper(key string, freq time.Duration, age time.D
 func (c *SlackChatClient) reap(key string, freq time.Duration, age time.Duration) error {
 	hashMap, err := c.ecm.redisClient.HGetAll(key).Result()
 	if err != nil {
-		return fmt.Errorf("Could not get hash for key '%s' for reap: %s", key, err)
+		return fmt.Errorf("could not get hash for key '%s' for reap: %s", key, err)
 	}
 	for k, v := range hashMap {
 		c.log.Debugf("k: %v v: %v\n", k, v)
@@ -186,7 +186,7 @@ func (c *SlackChatClient) reap(key string, freq time.Duration, age time.Duration
 			c.ecm.redisClient.HDel(key, k)
 			continue
 		}
-		if time.Now().Sub(lastCheckin) >= age {
+		if time.Since(lastCheckin) >= age {
 			c.log.Debugf("Reaping %s: %s. They were %.3f seconds old", key, k, age.Seconds())
 			c.ecm.redisClient.HDel(key, k).Err()
 		}

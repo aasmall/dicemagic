@@ -69,7 +69,7 @@ func main() {
 	// We'll accept graceful shutdowns when quit via SIGINT (Ctrl+C)
 	// SIGKILL, SIGQUIT or SIGTERM (Ctrl+/) will not be caught.
 	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt, syscall.SIGTERM, syscall.SIGKILL, syscall.SIGQUIT)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM, syscall.SIGQUIT)
 
 	// Block until we receive our signal.
 	<-c
@@ -131,7 +131,7 @@ func (fs *customFileServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	defer f.Close()
-	s, err := f.Stat()
+	s, _ := f.Stat()
 	if s.IsDir() {
 		index := strings.TrimSuffix(name, "/") + "/index.html"
 		g, err := os.Open(index)

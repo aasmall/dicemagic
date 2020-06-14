@@ -11,6 +11,7 @@ import (
 
 	"github.com/aasmall/dicemagic/lib/dicelang"
 	errors "github.com/aasmall/dicemagic/lib/dicelang-errors"
+	"github.com/aasmall/dicemagic/lib/envreader"
 	log "github.com/aasmall/dicemagic/lib/logger"
 	"golang.org/x/net/context"
 )
@@ -39,19 +40,18 @@ func newServer(e *env) *server {
 }
 
 func main() {
-	configReader := new(envReader)
-
+	configReader := envreader.NewEnvReader()
 	config := &envConfig{
-		projectID:        configReader.getEnv("PROJECT_ID"),
-		logName:          configReader.getEnv("LOG_NAME"),
-		serverPort:       configReader.getEnv("SERVER_PORT"),
-		debug:            configReader.getEnvBoolOpt("DEBUG"),
-		local:            configReader.getEnvBoolOpt("LOCAL"),
-		traceProbability: configReader.getEnvFloat("TRACE_PROBABILITY"),
-		podName:          configReader.getEnv("POD_NAME"),
+		projectID:        configReader.GetEnv("PROJECT_ID"),
+		logName:          configReader.GetEnv("LOG_NAME"),
+		serverPort:       configReader.GetEnv("SERVER_PORT"),
+		podName:          configReader.GetEnv("POD_NAME"),
+		debug:            configReader.GetEnvBool("DEBUG"),
+		local:            configReader.GetEnvBool("LOCAL"),
+		traceProbability: configReader.GetEnvFloat("TRACE_PROBABILITY"),
 	}
-	if configReader.errors {
-		log.Fatalf("could not gather environment variables. Failed variables: %v", configReader.missingKeys)
+	if configReader.Errors {
+		log.Fatalf("could not gather environment variables. Failed variables: %v", configReader.MissingKeys)
 	}
 	env := &env{config: config}
 
@@ -203,14 +203,12 @@ func (s *server) Roll(ctx context.Context, in *dicelang.RollRequest) (*dicelang.
 	}
 	p = dicelang.NewParser(in.Cmd)
 	log.Debugf("Rolling cmd on server: %s", in.Cmd)
-	tree, err := p.Statements()
+	tree, _ := p.Statements()
 	diceSets, err := s.astToDiceSets(in.Probabilities, in.Chart, tree)
 	if err != nil {
 		return &out, s.handleExposedErrors(err, &out)
 	}
-	for _, ds := range diceSets.DiceSet {
-		out.DiceSets = append(out.DiceSets, ds)
-	}
+	out.DiceSets = append(out.DiceSets, diceSets.DiceSet...)
 	out.Cmd = in.Cmd
 	log.Debugf("roll response from server: %+v", &out)
 	return &out, nil

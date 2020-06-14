@@ -14,8 +14,6 @@ import (
 	"golang.org/x/net/context"
 )
 
-const commandRegex = `(?mi)^!(\w+)\b\s*=[\t|\f|\v| ]*(.*)$`
-
 // Disconnect slack client
 func (c *SlackChatClient) Disconnect(id int) error {
 	c.mu.Lock()
@@ -134,7 +132,6 @@ func (c *SlackChatClient) listen(ctx context.Context, connectionInfo *SlackConne
 							continue
 						}
 						c.Reply(connectionInfo, cmd, ev.Channel)
-						break
 					case saveCommand.MatchString(cmd):
 						saveCommandMap := regexToMap(saveCommand, cmd)
 						c.log.Debugf("Save: %s", saveCommandMap)
@@ -202,7 +199,7 @@ func (c *SlackChatClient) IsMention(text string, botID string) (bool, string) {
 func (c *SlackChatClient) Reply(conn *SlackConnection, cmd string, channel string) {
 	var rollResponse *dicelang.RollResponse
 	var err error
-	rollResponse, err = Roll(c.ecm.diceServerClient, cmd)
+	rollResponse, err = Roll(c.ecm.diceServerClient, cmd, RollOptionWithContext(context.TODO()), RollOptionWithTimeout(time.Second*2))
 	if err != nil {
 		c.log.Errorf("Unexpected error: %+v", err)
 		conn.client.PostMessage(channel, slack.MsgOptionText(fmt.Sprintf("Oops! an unexpected error occured: %s", err), false))

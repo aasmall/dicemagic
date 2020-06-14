@@ -2,10 +2,8 @@ package main
 
 import (
 	"context"
-	"crypto/md5"
 	"crypto/sha256"
 	"encoding/base64"
-	"encoding/hex"
 	"fmt"
 
 	"crypto/hmac"
@@ -47,16 +45,6 @@ func (c *SlackChatClient) Encrypt(ctx context.Context, keyName string, plaintext
 	}
 
 	return string(resp.Ciphertext), nil
-}
-
-// HashStrings computes the MD5 hash of all input strings
-func HashStrings(inputs ...string) string {
-	h := md5.New()
-	for _, input := range inputs {
-		h.Write([]byte(input))
-	}
-	hexb := h.Sum(nil)
-	return hex.EncodeToString(hexb)
 }
 
 // CalculateHMAC creats an cryptographically correct byte slice for data and a secret

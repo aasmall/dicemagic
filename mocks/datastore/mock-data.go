@@ -114,7 +114,7 @@ func UpsertSlackInstallInstance(ctx context.Context, ds datastore.Client, d *Sla
 		if keysLen := len(keys); keysLen > 1 {
 			// Delete duplicate entries, but for now error out
 			err := fmt.Errorf("found multiple install entries entries for parent: %v, UserID: %s", parentKey, d.UserID)
-			log.Printf(err.Error())
+			log.Print(err.Error())
 			return err
 		} else if keysLen == 1 {
 			// Update

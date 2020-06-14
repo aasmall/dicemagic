@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	"math"
 	"net/http"
 	"os"
 	"os/exec"
@@ -250,7 +249,7 @@ func main() {
 
 func healtzHandler(e interface{}, w http.ResponseWriter, r *http.Request) error {
 	cc, ok := e.(*clusterConfigurator)
-	if ok == false {
+	if !ok {
 		fmt.Printf("error getting cluster configurator: %v", reflect.TypeOf(e))
 	}
 	fmt.Fprintf(w, "Cluster Configurator: \n%+v\n", *cc)
@@ -259,7 +258,7 @@ func healtzHandler(e interface{}, w http.ResponseWriter, r *http.Request) error 
 
 func readyzHandler(e interface{}, w http.ResponseWriter, r *http.Request) error {
 	cc, ok := e.(*clusterConfigurator)
-	if ok == false {
+	if !ok {
 		panic("couldn't cast to *clusterConfigurator")
 	}
 	pingVal, err := cc.localClient.Ping().Result()
@@ -365,7 +364,7 @@ func (cc *clusterConfigurator) rebalanceReplicas(ctx context.Context, mu *sync.M
 			for i, node := range primaryNodes {
 				var reshardNode = &nodeReshardTarget{node: node}
 				reshardNode.assignedSlotCount = node.getSlotsAssigned(allSlots).sumOfSlots()
-				reshardNode.targetSlotCount = int(math.Floor(float64(MAXSLOTS / primaryCount)))
+				reshardNode.targetSlotCount = int(float64(MAXSLOTS / primaryCount))
 				if i < numberOfImbalancedNodes {
 					reshardNode.targetSlotCount = reshardNode.targetSlotCount + 1
 				}
@@ -424,14 +423,6 @@ func (cc *clusterConfigurator) spawnPodWatcher(ctx context.Context, mu *sync.Mut
 		}
 		cc.log.Debugf("ClusterConfigurator Done. Restarting watch @%s", resourceVersion)
 	}
-}
-
-func (cc *clusterConfigurator) getRedisClusterClientURIs(ctx context.Context) []string {
-	var redisClientURIs []string
-	for _, n := range *cc.getClusterNodes(ctx, false) {
-		redisClientURIs = append(redisClientURIs, n.IPAddress+":"+cc.config.redisPort)
-	}
-	return redisClientURIs
 }
 
 func (nodes *clusterNodes) getOrdZero() *clusterNode {
@@ -500,45 +491,6 @@ func (cc *clusterConfigurator) replicate(ctx context.Context, mu *sync.Mutex) {
 	}
 }
 
-func (cc *clusterConfigurator) failover(ctx context.Context, takeover bool) error {
-	failoverResult, err := cc.localClient.ClusterFailover().Result()
-	if err != nil {
-		cc.log.Criticalf("Failed to masterize. taking over. %s: %v", failoverResult, err)
-		return cc.forceFailover(ctx, takeover)
-	}
-	return nil
-}
-func (cc *clusterConfigurator) forceFailover(ctx context.Context, takeover bool) error {
-	var cmd *exec.Cmd
-	if takeover {
-		cmd = exec.Command("redis-cli",
-			"cluster", "failover", "takeover")
-
-	} else {
-		cmd = exec.Command("redis-cli",
-			"cluster", "failover", "force")
-	}
-	cmd.Stderr = os.Stderr
-	cc.log.Debugf("Running redis-cli command: %v", cmd.Args)
-	err := cmd.Run()
-	if err != nil {
-		cc.log.Criticalf("Failed to run %s: %v", cmd.String(), err)
-		return err
-	}
-	return nil
-}
-func (cc *clusterConfigurator) takeoverFailover(ctx context.Context) error {
-	cmd := exec.Command("redis-cli",
-		"cluster", "failover", "takeover")
-	cmd.Stderr = os.Stderr
-	cc.log.Debugf("Running redis-cli command: %v", cmd.Args)
-	err := cmd.Run()
-	if err != nil {
-		cc.log.Criticalf("Failed to run %s: %v", cmd.String(), err)
-		return err
-	}
-	return nil
-}
 func (cc *clusterConfigurator) countOfPrimaryNodes() int {
 	var count int
 	for _, node := range cc.nodes {
@@ -547,15 +499,6 @@ func (cc *clusterConfigurator) countOfPrimaryNodes() int {
 		}
 	}
 	return count
-}
-func (cmds *reshardCommands) countByToID(ID string) int {
-	var sum int
-	for _, cmd := range *cmds {
-		if cmd.nodeToID == ID {
-			sum = sum + cmd.count
-		}
-	}
-	return sum
 }
 func (cmds *reshardCommands) add(toID string, fromID string, count int) {
 	var maxOrder int
@@ -601,17 +544,6 @@ func (cc *clusterConfigurator) reshard(nodeFromID string, nodeToID string, numbe
 	if err != nil {
 		cc.log.Criticalf("Failed to run %s: %v", cmd.String(), err)
 	}
-	return
-}
-func (clusterNode *clusterNode) lowestSlot(allSlots clusterSlots) int {
-	var min int
-	slots := clusterNode.getSlotsAssigned(allSlots)
-	for _, slot := range slots {
-		if slot.Start < min {
-			min = slot.Start
-		}
-	}
-	return min
 }
 func (clusterSlots clusterSlots) sumOfSlots() int {
 	var sum int
@@ -642,22 +574,6 @@ func (nodes clusterNodes) nodeByPodname(myPodname string) *clusterNode {
 	}
 	return nil
 }
-func (nodes clusterNodes) nodeByID(ID string) *clusterNode {
-	for _, node := range nodes {
-		if node.ID == ID {
-			return node
-		}
-	}
-	return nil
-}
-func (nodes clusterNodes) nodeByPodNameAndIP(PodName string, IP string) *clusterNode {
-	for _, node := range nodes {
-		if node.podName == PodName && node.IPAddress == IP {
-			return node
-		}
-	}
-	return nil
-}
 func (cc *clusterConfigurator) waitForRedis(ctx context.Context) {
 	for {
 		pong, err := cc.redisClient.Ping().Result()
@@ -682,66 +598,11 @@ func (cc *clusterConfigurator) waitForRedis(ctx context.Context) {
 		}
 	}
 }
-func (cc *clusterConfigurator) getNodeNames() []string {
-	var nodeNames []string
-	for _, node := range cc.nodes {
-		nodeNames = append(nodeNames, node.podName)
-	}
-	return nodeNames
-}
-func (cc *clusterConfigurator) deleteNodeByPodName(podName string) {
-	for i, node := range cc.nodes {
-		if node.podName == podName {
-			cc.log.Debug("REDIS: clusterConfigurator.redisClient.ClusterForget(node.ID).Result()")
-			currentClient := *cc.redisClient
-			_, err := currentClient.ClusterForget(node.ID).Result()
-			if err != nil {
-				cc.log.Criticalf("Failed to forget node: %v", err)
-			}
-			deleteNode(cc.nodes, i)
-			if node.primaryFor != nil {
-				node.primaryFor.replicated = false
-			}
-			break
-		}
-	}
-}
-func (cc *clusterConfigurator) getNodeByID(ID string) *clusterNode {
-	for _, node := range cc.nodes {
-		if node.ID == ID {
-			return node
-		}
-	}
-	return nil
-}
-func deleteNode(s clusterNodes, i int) clusterNodes {
-	s[len(s)-1], s[i] = s[i], s[len(s)-1]
-	return s[:len(s)-1]
-}
 func (cc *clusterConfigurator) isOrdZero() bool {
 	nameSegments := strings.Split(cc.config.podname, "-")
-	if nameSegments[len(nameSegments)-1] == "0" {
-		return true
-	}
-	return false
+	return nameSegments[len(nameSegments)-1] == "0"
 }
 
-func getOrdZeroNode(nodes *clusterNodes) (*clusterNode, error) {
-	for _, node := range *nodes {
-		nameSegments := strings.Split(node.podName, "-")
-		if nameSegments[len(nameSegments)-1] == "0" {
-			return node, nil
-		}
-	}
-	return nil, fmt.Errorf("no ordinal 0 pod found")
-}
-func seq(min, max int) []string {
-	a := make([]string, max-min+1)
-	for i := range a {
-		a[i] = strconv.Itoa(min + i)
-	}
-	return a
-}
 func (cc *clusterConfigurator) listenForPodChanges(ctx context.Context, namespace string, labelSelector string, bookmark string) <-chan watch.Event {
 	var listOptions metav1.ListOptions
 	if bookmark == "" {

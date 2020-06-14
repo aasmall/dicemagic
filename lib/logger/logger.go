@@ -36,15 +36,14 @@ const (
 
 // Logger satisfies the logger interface
 type Logger struct {
-	mu                *sync.Mutex // ensures atomic writes; protects the following fields
-	prefix            string      // prefix to write at beginning of each line
-	debug             bool
-	flag              int // properties
-	stackDriverLogger *logging.Logger
-	loggingClient     *logging.Client
-	httpRequest       *logging.HTTPRequest
-	buf               []byte // for accumulating text to write
-	defaultSeverity   logging.Severity
+	mu              *sync.Mutex // ensures atomic writes; protects the following fields
+	prefix          string      // prefix to write at beginning of each line
+	debug           bool
+	flag            int // properties
+	loggingClient   *logging.Client
+	httpRequest     *logging.HTTPRequest
+	buf             []byte // for accumulating text to write
+	defaultSeverity logging.Severity
 }
 
 // LoggerOption defines a function to set LoggerOptions

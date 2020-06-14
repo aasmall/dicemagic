@@ -13,35 +13,6 @@ import (
 	errors "github.com/aasmall/dicemagic/lib/dicelang-errors"
 )
 
-//Dice represents a a throw of a single type of die
-// type Dice struct {
-// 	Count       int64
-// 	Sides       int64
-// 	Total       int64
-// 	Faces       []int64
-// 	Max         int64
-// 	Min         int64
-// 	DropHighest int64
-// 	DropLowest  int64
-// 	Color       string
-// }
-
-// //DiceSet represents a collection of Dice and their totals by type
-// type DiceSet struct {
-// 	Dice          []Dice
-// 	TotalsByColor map[string]float64
-// 	dropHighest   int64
-// 	dropLowest    int64
-// 	colors        []string
-// 	colorDepth    int
-// }
-
-type flatToken struct {
-	sym   string
-	value string
-	rbp   int
-}
-
 //PrintAST prints a formatted version of the ast to a string
 func PrintAST(t *AST, identation int) string {
 	var b bytes.Buffer
@@ -124,16 +95,6 @@ func ReStringAST(t *AST) string {
 	return "\n" + buff.String()
 }
 
-func stringPostfix(s *Stack) string {
-	var buf bytes.Buffer
-	for !s.Empty() {
-		buf.WriteString(s.Pop().(*AST).Value + ", ")
-
-	}
-	buf.WriteRune('\n')
-	return buf.String()
-}
-
 func shuntBinary(token *AST, s *Stack, spacer string) {
 	op1 := s.Pop().(*AST)
 	op2 := s.Pop().(*AST)
@@ -156,10 +117,6 @@ func shuntUnary(token *AST, s *Stack) {
 		Sym:          "(COMPOUND)",
 		BindingPower: token.BindingPower})
 
-}
-
-func shuntPostfix(token *AST, s *Stack) {
-	s.Push(token)
 }
 
 func emitTokens(ch chan *AST, t *AST) {
@@ -424,16 +381,13 @@ func (token *AST) eval(ds *DiceSet) (float64, *DiceSet, error) {
 		x += y
 		return x, ds, nil
 	default:
-		return 0, ds, fmt.Errorf("Unsupported symbol: %s", token.Sym)
+		return 0, ds, fmt.Errorf("unsupported symbol: %s", token.Sym)
 	}
 }
 
 func (token *AST) preformArithmitic(ds *DiceSet, op string) (float64, *DiceSet, error) {
 	//arithmitic is always binary
 	//...except for the "-" unary operator
-	if len(token.Children) < 2 {
-
-	}
 	diceCount := len(ds.Dice)
 	var nums []float64
 	ds.ColorDepth++
@@ -523,7 +477,7 @@ func (token *AST) evaluateBoolean(ds *DiceSet) (bool, *DiceSet, error) {
 	case "!=":
 		return left != right, ds, nil
 	}
-	return false, ds, fmt.Errorf("Bad bool")
+	return false, ds, fmt.Errorf("bad bool")
 }
 
 //PushAndRoll adds a dice roll to the "stack" applying any values from the set
@@ -642,7 +596,7 @@ func roll(numberOfDice int64, sides int64, H int64, L int64) ([]int64, int64, er
 
 func generateRandomInt(min int64, max int64) (int64, error) {
 	if max <= 0 || min < 0 {
-		err := fmt.Errorf("Cannot make a random int of size zero")
+		err := fmt.Errorf("cannot make a random int of size zero")
 		return 0, err
 	}
 	size := max - min
@@ -652,7 +606,7 @@ func generateRandomInt(min int64, max int64) (int64, error) {
 	//rand.Int does not return the max value, add 1
 	nBig, err := rand.Int(rand.Reader, big.NewInt(int64(size+1)))
 	if err != nil {
-		err = fmt.Errorf("Couldn't make a random number. Out of entropy?")
+		err = fmt.Errorf("couldn't make a random number. Out of entropy?")
 		return 0, err
 	}
 	n := nBig.Int64()

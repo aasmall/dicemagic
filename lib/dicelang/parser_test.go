@@ -6,8 +6,7 @@ import (
 
 func benchmarkSimpleParse(cmd string, b *testing.B) {
 	for n := 0; n < b.N; n++ {
-		var p *Parser
-		p = NewParser(cmd)
+		p := NewParser(cmd)
 		root, _ := p.Statements()
 		root.GetDiceSet()
 	}

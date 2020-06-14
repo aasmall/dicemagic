@@ -1,9 +1,11 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	errors "github.com/aasmall/dicemagic/lib/dicelang-errors"
 	"github.com/aasmall/dicemagic/lib/handler"
@@ -25,7 +27,7 @@ func SlackSlashRollHandler(e interface{}, w http.ResponseWriter, r *http.Request
 	if err != nil {
 		fmt.Fprintf(w, "could not parse slash command: %s", err)
 	}
-	rollResponse, err := Roll(c.ecm.diceServerClient, s.Text)
+	rollResponse, err := Roll(c.ecm.diceServerClient, s.Text, RollOptionWithContext(context.TODO()), RollOptionWithTimeout(time.Second*2))
 	if err != nil {
 		c.log.Errorf("Unexpected error: %+v", err)
 		returnErrorToSlack(fmt.Sprintf("Oops! an unexpected error occured: %s", err), w, r)

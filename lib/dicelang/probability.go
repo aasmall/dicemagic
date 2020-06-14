@@ -65,12 +65,12 @@ func (mw *memoWrap) outcomes(count, sides, dropHighest, dropLowest int64) map[in
 	if val := mw.Get(args); val != nil {
 		return val
 	}
-	d, d1 := make(map[int64]float64), make(map[int64]float64)
+	d := make(map[int64]float64)
 	if count == 0 {
 		d[0] = 1
 	} else if sides != 0 {
 		for countShowingMax := int64(0); countShowingMax <= count; countShowingMax++ {
-			d1 = mw.outcomes(
+			d1 := mw.outcomes(
 				count-countShowingMax,
 				sides-1,
 				max(dropHighest-countShowingMax, 0),

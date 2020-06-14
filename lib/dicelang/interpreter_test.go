@@ -124,11 +124,6 @@ func TestRoll(t *testing.T) {
 	}
 }
 
-type rollBucket struct {
-	result int64
-	count  int64
-}
-
 func testRoll(t *testing.T, biasMod int64, biasTo int64, biasFreq float64, loops int, minPValue float64, numberOfDice int64, sides int64) (bool, error) {
 	m := make(map[int64]int)
 	for i := numberOfDice; i < numberOfDice*sides; i++ {
@@ -219,7 +214,7 @@ func TestMinMaxValues(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.cmd, func(t *testing.T) {
 			p := NewParser(tt.cmd)
-			stmts, err := p.Statements()
+			stmts, _ := p.Statements()
 			_, diceSet, err := stmts.GetDiceSet()
 			if err != nil {
 				t.Errorf("There was an error parsing a test case: %v", tt.cmd)

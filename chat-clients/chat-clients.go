@@ -33,54 +33,19 @@ import (
 // intended to be overwritten during build
 var gitCommitID string
 
-type externalClientType int
-
-const (
-	slackClientType externalClientType = iota
-	diceServerClient
-	httpClient
-	webSocketClient
-	redisClient
-	datastoreClient
-	kmsClient
-)
-
 type environment struct {
 	config         *envConfig
 	ShuttingDown   bool
 	configReloader func() (*envConfig, error)
 }
 type externalClientsManager struct {
-	slackClient      *SlackChatClient
 	diceServerClient *grpc.ClientConn
 	httpClient       *http.Client
 	webSocketClient  *websocket.Dialer
 	redisClient      *redis.ClusterClient
 	datastoreClient  *datastore.Client
 	kmsClient        *cloudkms.Service
-	grpcClient       *grpc.ClientConn
 	loggingClient    *log.Logger
-}
-
-func (ecm *externalClientsManager) getClient(ect externalClientType) interface{} {
-	switch ect {
-	case slackClientType:
-		return ecm.slackClient
-	case diceServerClient:
-		return ecm.diceServerClient
-	case httpClient:
-		return ecm.httpClient
-	case webSocketClient:
-		return ecm.webSocketClient
-	case redisClient:
-		return ecm.redisClient
-	case datastoreClient:
-		return ecm.datastoreClient
-	case kmsClient:
-		return ecm.kmsClient
-	default:
-		return nil
-	}
 }
 
 type envConfig struct {
@@ -111,9 +76,9 @@ type envConfig struct {
 
 // GetEnvironmentalConfigr reparses all data gathered from environment
 // variables and Kubernetes
-func getEnvironmentalConfig() (*envConfig, error) {
+func getEnvironmentalConfig(options ...envreader.ReaderOption) (*envConfig, error) {
 	// Gather Environment Variables
-	configReader := new(envreader.EnvReader)
+	configReader := envreader.NewEnvReader(options...)
 	config := &envConfig{
 		projectID:             configReader.GetEnv("PROJECT_ID"),
 		kmsKeyring:            configReader.GetEnv("KMS_KEYRING"),
@@ -140,7 +105,7 @@ func getEnvironmentalConfig() (*envConfig, error) {
 		encSlackClientSecret:  base64.StdEncoding.EncodeToString(configReader.GetFromFile("/etc/slack-secrets/slack-client-secret")),
 	}
 	if configReader.Errors {
-		return nil, fmt.Errorf("Could not gather config. Failed variables: %v", configReader.MissingKeys)
+		return nil, fmt.Errorf("could not gather config. failed variables: %v", configReader.MissingKeys)
 	}
 	return config, nil
 }
@@ -253,7 +218,7 @@ func main() {
 			if err != nil {
 				log.Criticalf("Failed to get new config: %v", err)
 			}
-			currentRedisClient := ecm.getClient(redisClient).(*redis.ClusterClient)
+			currentRedisClient := ecm.redisClient
 			if pingResponse, err := currentRedisClient.Ping().Result(); pingResponse != "PONG" || err != nil {
 				log.Errorf("Lost connection to Redis Client, recreating: %s: %v", pingResponse, err)
 				log.Debugf("Creating redis cluster client with URIs: %v\n", env.redisClusterAddresses())
@@ -272,9 +237,9 @@ func main() {
 		os.Setenv("DATASTORE_EMULATOR_HOST", env.config.mockDatastoreHost+":"+env.config.mockDatastorePort)
 		os.Setenv("DATASTORE_EMULATOR_HOST_PATH", env.config.mockDatastoreHost+":"+env.config.mockDatastorePort+"/datastore")
 		dsClient, err = datastore.NewClient(ctx,
-			env.config.projectID, option.WithoutAuthentication(),
-			option.WithGRPCDialOption(grpc.WithInsecure()),
-			option.WithGRPCDialOption(grpc.WithTimeout(time.Second*10)))
+			env.config.projectID,
+			option.WithoutAuthentication(),
+			option.WithGRPCDialOption(grpc.WithInsecure()))
 	} else {
 		dsClient, err = datastore.NewClient(ctx, env.config.projectID)
 	}

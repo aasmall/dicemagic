@@ -20,9 +20,6 @@ import (
 type kmsConfig struct {
 	keyData []byte
 }
-type server struct {
-	env *env
-}
 type env struct {
 	config *kmsConfig
 }
