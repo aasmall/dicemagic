@@ -65,6 +65,7 @@ spec:
         image: registry.gitlab.com/aasmall/dicemagic/chat-clients:latest
         ports:
         - containerPort: 7070
+        - containerPort: 5051
         resources:
           limits:
             cpu: 200m
@@ -115,6 +116,10 @@ spec:
   - protocol: "TCP"
     port: 80
     targetPort: 7070
+    name: http
+  - port: 5051
+    targetPort: 5051
+    name: grpc
   selector:
     k8s-app: dicemagic
 ---

@@ -50,13 +50,16 @@ out/bin/chat-clients: $(shell find "chat-clients" -maxdepth 1 -type f | grep -E 
 out/bin/dice-server: $(shell find "dice-server" -maxdepth 1 -type f | grep -E '.*\.(go|mod|sum)$$') $(LIBS)
 	go build -o $@ github.com/aasmall/dicemagic/dice-server
 
+out/bin/dicemagic:  $(shell find "cmd" -maxdepth 1 -type f | grep -E '.*\.(go|mod|sum)$$') $(LIBS)
+	go build -o $@ github.com/aasmall/dicemagic/cmd
+
 out/bin/redis-cluster: $(shell find "redis" -maxdepth 1 -type f | grep -E '.*\.(go|mod|sum|sh|conf)$$') $(LIBS)
 	@mkdir -p out/include/redis-cluster
 	go build -o $@ github.com/aasmall/dicemagic/redis
 	cp redis/bootstrap-pod.sh redis/redis.conf out/include/redis-cluster
 
 .PHONY: core
-core: out/bin/chat-clients out/bin/dice-server out/bin/redis-cluster
+core: out/bin/chat-clients out/bin/dice-server out/bin/redis-cluster out/bin/dicemagic
 
 out/bin/mocks/datastore: $(shell find "mocks/datastore" -maxdepth 1 -type f | grep -E '.*\.(go|mod|sum|sh)$$') config/minikube/secrets/google/k8s-dice-magic.json
 	@mkdir -p out/include/mocks/datastore/

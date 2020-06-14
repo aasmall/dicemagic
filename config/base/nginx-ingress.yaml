@@ -29,3 +29,25 @@ spec:
         backend:
           serviceName: dicemagic-service
           servicePort: 80
+---
+apiVersion: networking.k8s.io/v1beta1
+kind: Ingress
+metadata:
+  name: grpc-ingress
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/backend-protocol: "GRPC"
+  namespace: default
+spec:
+  tls:
+    - hosts:
+      - grpc.dicemagic.io
+      secretName: letsencrypt-certs
+  rules:
+  - host: grpc.dicemagic.io
+    http:
+      paths:
+      - backend:
+          serviceName: dicemagic-service
+          servicePort: grpc

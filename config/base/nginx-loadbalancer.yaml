@@ -15,5 +15,9 @@ spec:
     targetPort: 443
     protocol: TCP
     name: https
+  - port: 5051
+    targetPort: 5051
+    protocol: TCP
+    name: grpc
   selector:
     app: nginx-ingress

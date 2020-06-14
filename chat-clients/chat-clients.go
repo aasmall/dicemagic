@@ -19,6 +19,7 @@ import (
 
 	"cloud.google.com/go/datastore"
 	"cloud.google.com/go/logging"
+	"github.com/aasmall/dicemagic/lib/dicelang"
 	"github.com/aasmall/dicemagic/lib/envreader"
 	"github.com/aasmall/dicemagic/lib/handler"
 	log "github.com/aasmall/dicemagic/lib/logger"
@@ -37,6 +38,10 @@ type environment struct {
 	config         *envConfig
 	ShuttingDown   bool
 	configReloader func() (*envConfig, error)
+}
+type grpcProxy struct {
+	env *environment
+	ecm *externalClientsManager
 }
 type externalClientsManager struct {
 	diceServerClient *grpc.ClientConn
@@ -64,6 +69,7 @@ type envConfig struct {
 	slackAppID            string
 	redisPort             string
 	podName               string
+	grpcClientPort        string
 	localRedirectURI      string
 	slackProxyURL         string
 	mockKMSURL            string
@@ -93,6 +99,7 @@ func getEnvironmentalConfig(options ...envreader.ReaderOption) (*envConfig, erro
 		diceServerPort:        configReader.GetEnv("DICE_SERVER_PORT"),
 		redisPort:             configReader.GetEnv("REDIS_PORT"),
 		podName:               configReader.GetEnv("POD_NAME"),
+		grpcClientPort:        configReader.GetEnv("GRPC_CLIENT_PORT"),
 		localRedirectURI:      configReader.GetEnvOpt("REDIRECT_URI"),
 		slackProxyURL:         configReader.GetEnvOpt("SLACK_PROXY_URL"),
 		mockKMSURL:            configReader.GetEnvOpt("MOCK_KMS_URL"),
@@ -289,6 +296,22 @@ func main() {
 		err := srv.ListenAndServe()
 		if err != nil {
 			log.Infof("ListenAndServe error: %+v", err)
+		}
+	}()
+
+	go func() {
+		lis, err := net.Listen("tcp", ":"+env.config.grpcClientPort)
+		if err != nil {
+			log.Fatalf("failed to listen: %v", err)
+			return
+		}
+		s := grpc.NewServer()
+		dicelang.RegisterRollerServer(s, grpcProxy{env: env, ecm: ecm})
+
+		log.Infof("grpc client up on: %s", lis.Addr().String())
+		if err := s.Serve(lis); err != nil {
+			log.Fatalf("failed to serve: %v", err)
+			return
 		}
 	}()
 

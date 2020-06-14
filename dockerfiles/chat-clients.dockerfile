@@ -12,3 +12,4 @@ USER 1000
 ENTRYPOINT /go/bin/chat-clients
 
 EXPOSE 7070
+EXPOSE 5051

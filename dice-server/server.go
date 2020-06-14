@@ -83,7 +83,6 @@ func main() {
 		return
 	}
 }
-
 func (s *server) handleExposedErrors(e error, response *dicelang.RollResponse) error {
 	log := s.env.log
 	response.Error = &dicelang.RollError{}
@@ -168,31 +167,6 @@ func (s *server) astToDiceSets(p bool, c bool, tree *dicelang.AST) (*dicelang.Di
 	}
 	return outDiceSets, nil
 }
-
-// func diceTodicelangDice(p bool, c bool, dice ...dicelang.Dice) []*dicelang.Dice {
-// 	var outDice []*dicelang.Dice
-// 	for _, d := range dice {
-// 		var dice dicelang.Dice
-// 		dice.Color = d.Color
-// 		dice.Count = d.Count
-// 		dice.DropHighest = d.DropHighest
-// 		dice.DropLowest = d.DropLowest
-// 		dice.Faces = d.Faces
-// 		dice.Max = d.Max
-// 		dice.Min = d.Min
-// 		dice.Sides = d.Sides
-// 		dice.Total = d.Total
-// 		if p {
-// 			dice.Probabilities = dicelang.DiceProbability(dice.Count, dice.Sides, dice.DropHighest, dice.DropLowest)
-// 		}
-// 		if c {
-// 			dice.Chart = []byte{}
-// 		}
-// 		outDice = append(outDice, &dice)
-// 	}
-
-// 	return outDice
-// }
 
 func (s *server) Roll(ctx context.Context, in *dicelang.RollRequest) (*dicelang.RollResponse, error) {
 	log := s.env.log
