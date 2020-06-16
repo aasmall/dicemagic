@@ -1,974 +1,651 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: nginx-ingress 
+  name: ingress-nginx
+  labels:
+    app.kubernetes.io/name: ingress-nginx
+    app.kubernetes.io/instance: ingress-nginx
+
 ---
+# Source: ingress-nginx/templates/controller-serviceaccount.yaml
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: nginx-ingress 
-  namespace: nginx-ingress
+  labels:
+    helm.sh/chart: ingress-nginx-2.4.0
+    app.kubernetes.io/name: ingress-nginx
+    app.kubernetes.io/instance: ingress-nginx
+    app.kubernetes.io/version: 0.33.0
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: controller
+  name: ingress-nginx
+  namespace: ingress-nginx
 ---
-kind: ClusterRole
-apiVersion: rbac.authorization.k8s.io/v1beta1
-metadata:
-  name: nginx-ingress
-rules:
-- apiGroups:
-  - ""
-  resources:
-  - services
-  - endpoints
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - secrets
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - configmaps
-  verbs:
-  - get
-  - list
-  - watch
-  - update
-  - create
-- apiGroups:
-  - ""
-  resources:
-  - pods
-  verbs:
-  - list
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - events
-  verbs:
-  - create
-  - patch
-- apiGroups:
-  - extensions
-  resources:
-  - ingresses
-  verbs:
-  - list
-  - watch
-  - get
-- apiGroups:
-  - "extensions"
-  resources:
-  - ingresses/status
-  verbs:
-  - update
-- apiGroups:
-  - k8s.nginx.org
-  resources:
-  - virtualservers
-  - virtualserverroutes
-  - globalconfigurations
-  - transportservers
-  verbs:
-  - list
-  - watch
-  - get
----
-kind: ClusterRoleBinding
-apiVersion: rbac.authorization.k8s.io/v1beta1
-metadata:
-  name: nginx-ingress
-subjects:
-- kind: ServiceAccount
-  name: nginx-ingress
-  namespace: nginx-ingress
-roleRef:
-  kind: ClusterRole
-  name: nginx-ingress
-  apiGroup: rbac.authorization.k8s.io
----
-kind: ConfigMap
+# Source: ingress-nginx/templates/controller-configmap.yaml
 apiVersion: v1
+kind: ConfigMap
 metadata:
-  name: nginx-config
-  namespace: nginx-ingress
+  labels:
+    helm.sh/chart: ingress-nginx-2.4.0
+    app.kubernetes.io/name: ingress-nginx
+    app.kubernetes.io/instance: ingress-nginx
+    app.kubernetes.io/version: 0.33.0
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: controller
+  name: ingress-nginx-controller
+  namespace: ingress-nginx
 data:
 ---
-apiVersion: apiextensions.k8s.io/v1beta1
-kind: CustomResourceDefinition
+# Source: ingress-nginx/templates/clusterrole.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
 metadata:
-  name: virtualservers.k8s.nginx.org
-spec:
-  group: k8s.nginx.org
-  versions:
-  - name: v1
-    served: true
-    storage: true
-  scope: Namespaced
-  names:
-    kind: VirtualServer
-    plural: virtualservers
-    singular: virtualserver
-    shortNames:
-    - vs
-  # preserveUnknownFields: false
-  validation:
-    openAPIV3Schema:
-      description: VirtualServer defines the VirtualServer resource.
-      type: object
-      properties:
-        apiVersion:
-          description: 'APIVersion defines the versioned schema of this representation
-            of an object. Servers should convert recognized schemas to the latest
-            internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
-          type: string
-        kind:
-          description: 'Kind is a string value representing the REST resource this
-            object represents. Servers may infer this from the endpoint the client
-            submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
-          type: string
-        metadata:
-          type: object
-        spec:
-          description: VirtualServerSpec is the spec of the VirtualServer resource.
-          type: object
-          properties:
-            host:
-              type: string
-            routes:
-              type: array
-              items:
-                description: Route defines a route.
-                type: object
-                properties:
-                  action:
-                    description: Action defines an action.
-                    type: object
-                    properties:
-                      pass:
-                        type: string
-                      redirect:
-                        description: ActionRedirect defines a redirect in an Action.
-                        type: object
-                        properties:
-                          code:
-                            type: integer
-                          url:
-                            type: string
-                      return:
-                        description: ActionReturn defines a return in an Action.
-                        type: object
-                        properties:
-                          body:
-                            type: string
-                          code:
-                            type: integer
-                          type:
-                            type: string
-                  errorPages:
-                    type: array
-                    items:
-                      description: ErrorPage defines an ErrorPage in a Route.
-                      type: object
-                      properties:
-                        codes:
-                          type: array
-                          items:
-                            type: integer
-                        redirect:
-                          description: ErrorPageRedirect defines a redirect for an
-                            ErrorPage.
-                          type: object
-                          properties:
-                            code:
-                              type: integer
-                            url:
-                              type: string
-                        return:
-                          description: ErrorPageReturn defines a return for an ErrorPage.
-                          type: object
-                          properties:
-                            body:
-                              type: string
-                            code:
-                              type: integer
-                            headers:
-                              type: array
-                              items:
-                                description: Header defines an HTTP Header.
-                                type: object
-                                properties:
-                                  name:
-                                    type: string
-                                  value:
-                                    type: string
-                            type:
-                              type: string
-                  matches:
-                    type: array
-                    items:
-                      description: Match defines a match.
-                      type: object
-                      properties:
-                        action:
-                          description: Action defines an action.
-                          type: object
-                          properties:
-                            pass:
-                              type: string
-                            redirect:
-                              description: ActionRedirect defines a redirect in an
-                                Action.
-                              type: object
-                              properties:
-                                code:
-                                  type: integer
-                                url:
-                                  type: string
-                            return:
-                              description: ActionReturn defines a return in an Action.
-                              type: object
-                              properties:
-                                body:
-                                  type: string
-                                code:
-                                  type: integer
-                                type:
-                                  type: string
-                        conditions:
-                          type: array
-                          items:
-                            description: Condition defines a condition in a MatchRule.
-                            type: object
-                            properties:
-                              argument:
-                                type: string
-                              cookie:
-                                type: string
-                              header:
-                                type: string
-                              value:
-                                type: string
-                              variable:
-                                type: string
-                        splits:
-                          type: array
-                          items:
-                            description: Split defines a split.
-                            type: object
-                            properties:
-                              action:
-                                description: Action defines an action.
-                                type: object
-                                properties:
-                                  pass:
-                                    type: string
-                                  redirect:
-                                    description: ActionRedirect defines a redirect
-                                      in an Action.
-                                    type: object
-                                    properties:
-                                      code:
-                                        type: integer
-                                      url:
-                                        type: string
-                                  return:
-                                    description: ActionReturn defines a return in
-                                      an Action.
-                                    type: object
-                                    properties:
-                                      body:
-                                        type: string
-                                      code:
-                                        type: integer
-                                      type:
-                                        type: string
-                              weight:
-                                type: integer
-                  path:
-                    type: string
-                  route:
-                    type: string
-                  splits:
-                    type: array
-                    items:
-                      description: Split defines a split.
-                      type: object
-                      properties:
-                        action:
-                          description: Action defines an action.
-                          type: object
-                          properties:
-                            pass:
-                              type: string
-                            redirect:
-                              description: ActionRedirect defines a redirect in an
-                                Action.
-                              type: object
-                              properties:
-                                code:
-                                  type: integer
-                                url:
-                                  type: string
-                            return:
-                              description: ActionReturn defines a return in an Action.
-                              type: object
-                              properties:
-                                body:
-                                  type: string
-                                code:
-                                  type: integer
-                                type:
-                                  type: string
-                        weight:
-                          type: integer
-            tls:
-              description: TLS defines TLS configuration for a VirtualServer.
-              type: object
-              properties:
-                redirect:
-                  description: TLSRedirect defines a redirect for a TLS.
-                  type: object
-                  properties:
-                    basedOn:
-                      type: string
-                    code:
-                      type: integer
-                    enable:
-                      type: boolean
-                secret:
-                  type: string
-            upstreams:
-              type: array
-              items:
-                description: Upstream defines an upstream.
-                type: object
-                properties:
-                  buffer-size:
-                    type: string
-                  buffering:
-                    type: boolean
-                  buffers:
-                    description: UpstreamBuffers defines Buffer Configuration for
-                      an Upstream.
-                    type: object
-                    properties:
-                      number:
-                        type: integer
-                      size:
-                        type: string
-                  client-max-body-size:
-                    type: string
-                  connect-timeout:
-                    type: string
-                  fail-timeout:
-                    type: string
-                  healthCheck:
-                    description: HealthCheck defines the parameters for active Upstream
-                      HealthChecks.
-                    type: object
-                    properties:
-                      connect-timeout:
-                        type: string
-                      enable:
-                        type: boolean
-                      fails:
-                        type: integer
-                      headers:
-                        type: array
-                        items:
-                          description: Header defines an HTTP Header.
-                          type: object
-                          properties:
-                            name:
-                              type: string
-                            value:
-                              type: string
-                      interval:
-                        type: string
-                      jitter:
-                        type: string
-                      passes:
-                        type: integer
-                      path:
-                        type: string
-                      port:
-                        type: integer
-                      read-timeout:
-                        type: string
-                      send-timeout:
-                        type: string
-                      statusMatch:
-                        type: string
-                      tls:
-                        description: UpstreamTLS defines a TLS configuration for an
-                          Upstream.
-                        type: object
-                        properties:
-                          enable:
-                            type: boolean
-                  keepalive:
-                    type: integer
-                  lb-method:
-                    type: string
-                  max-conns:
-                    type: integer
-                  max-fails:
-                    type: integer
-                  name:
-                    type: string
-                  next-upstream:
-                    type: string
-                  next-upstream-timeout:
-                    type: string
-                  next-upstream-tries:
-                    type: integer
-                  port:
-                    type: integer
-                  queue:
-                    description: UpstreamQueue defines Queue Configuration for an
-                      Upstream.
-                    type: object
-                    properties:
-                      size:
-                        type: integer
-                      timeout:
-                        type: string
-                  read-timeout:
-                    type: string
-                  send-timeout:
-                    type: string
-                  service:
-                    type: string
-                  sessionCookie:
-                    description: SessionCookie defines the parameters for session
-                      persistence.
-                    type: object
-                    properties:
-                      domain:
-                        type: string
-                      enable:
-                        type: boolean
-                      expires:
-                        type: string
-                      httpOnly:
-                        type: boolean
-                      name:
-                        type: string
-                      path:
-                        type: string
-                      secure:
-                        type: boolean
-                  slow-start:
-                    type: string
-                  subselector:
-                    type: object
-                    additionalProperties:
-                      type: string
-                  tls:
-                    description: UpstreamTLS defines a TLS configuration for an Upstream.
-                    type: object
-                    properties:
-                      enable:
-                        type: boolean
+  labels:
+    helm.sh/chart: ingress-nginx-2.4.0
+    app.kubernetes.io/name: ingress-nginx
+    app.kubernetes.io/instance: ingress-nginx
+    app.kubernetes.io/version: 0.33.0
+    app.kubernetes.io/managed-by: Helm
+  name: ingress-nginx
+  namespace: ingress-nginx
+rules:
+  - apiGroups:
+      - ''
+    resources:
+      - configmaps
+      - endpoints
+      - nodes
+      - pods
+      - secrets
+    verbs:
+      - list
+      - watch
+  - apiGroups:
+      - ''
+    resources:
+      - nodes
+    verbs:
+      - get
+  - apiGroups:
+      - ''
+    resources:
+      - services
+    verbs:
+      - get
+      - list
+      - update
+      - watch
+  - apiGroups:
+      - extensions
+      - networking.k8s.io   # k8s 1.14+
+    resources:
+      - ingresses
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - ''
+    resources:
+      - events
+    verbs:
+      - create
+      - patch
+  - apiGroups:
+      - extensions
+      - networking.k8s.io   # k8s 1.14+
+    resources:
+      - ingresses/status
+    verbs:
+      - update
+  - apiGroups:
+      - networking.k8s.io   # k8s 1.14+
+    resources:
+      - ingressclasses
+    verbs:
+      - get
+      - list
+      - watch
 ---
-apiVersion: apiextensions.k8s.io/v1beta1
-kind: CustomResourceDefinition
+# Source: ingress-nginx/templates/clusterrolebinding.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
 metadata:
-  name: virtualserverroutes.k8s.nginx.org
-spec:
-  group: k8s.nginx.org
-  versions:
-  - name: v1
-    served: true
-    storage: true
-  scope: Namespaced
-  names:
-    kind: VirtualServerRoute
-    plural: virtualserverroutes
-    singular: virtualserverroute
-    shortNames:
-    - vsr
-  # preserveUnknownFields: false
-  validation:
-    openAPIV3Schema:
-      type: object
-      properties:
-        apiVersion:
-          description: 'APIVersion defines the versioned schema of this representation
-            of an object. Servers should convert recognized schemas to the latest
-            internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
-          type: string
-        kind:
-          description: 'Kind is a string value representing the REST resource this
-            object represents. Servers may infer this from the endpoint the client
-            submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
-          type: string
-        metadata:
-          type: object
-        spec:
-          type: object
-          properties:
-            host:
-              type: string
-            subroutes:
-              type: array
-              items:
-                description: Route defines a route.
-                type: object
-                properties:
-                  action:
-                    description: Action defines an action.
-                    type: object
-                    properties:
-                      pass:
-                        type: string
-                      redirect:
-                        description: ActionRedirect defines a redirect in an Action.
-                        type: object
-                        properties:
-                          code:
-                            type: integer
-                          url:
-                            type: string
-                      return:
-                        description: ActionReturn defines a return in an Action.
-                        type: object
-                        properties:
-                          body:
-                            type: string
-                          code:
-                            type: integer
-                          type:
-                            type: string
-                  errorPages:
-                    type: array
-                    items:
-                      description: ErrorPage defines an ErrorPage in a Route.
-                      type: object
-                      properties:
-                        codes:
-                          type: array
-                          items:
-                            type: integer
-                        redirect:
-                          description: ErrorPageRedirect defines a redirect for an
-                            ErrorPage.
-                          type: object
-                          properties:
-                            code:
-                              type: integer
-                            url:
-                              type: string
-                        return:
-                          description: ErrorPageReturn defines a return for an ErrorPage.
-                          type: object
-                          properties:
-                            body:
-                              type: string
-                            code:
-                              type: integer
-                            headers:
-                              type: array
-                              items:
-                                description: Header defines an HTTP Header.
-                                type: object
-                                properties:
-                                  name:
-                                    type: string
-                                  value:
-                                    type: string
-                            type:
-                              type: string
-                  matches:
-                    type: array
-                    items:
-                      description: Match defines a match.
-                      type: object
-                      properties:
-                        action:
-                          description: Action defines an action.
-                          type: object
-                          properties:
-                            pass:
-                              type: string
-                            redirect:
-                              description: ActionRedirect defines a redirect in an
-                                Action.
-                              type: object
-                              properties:
-                                code:
-                                  type: integer
-                                url:
-                                  type: string
-                            return:
-                              description: ActionReturn defines a return in an Action.
-                              type: object
-                              properties:
-                                body:
-                                  type: string
-                                code:
-                                  type: integer
-                                type:
-                                  type: string
-                        conditions:
-                          type: array
-                          items:
-                            description: Condition defines a condition in a MatchRule.
-                            type: object
-                            properties:
-                              argument:
-                                type: string
-                              cookie:
-                                type: string
-                              header:
-                                type: string
-                              value:
-                                type: string
-                              variable:
-                                type: string
-                        splits:
-                          type: array
-                          items:
-                            description: Split defines a split.
-                            type: object
-                            properties:
-                              action:
-                                description: Action defines an action.
-                                type: object
-                                properties:
-                                  pass:
-                                    type: string
-                                  redirect:
-                                    description: ActionRedirect defines a redirect
-                                      in an Action.
-                                    type: object
-                                    properties:
-                                      code:
-                                        type: integer
-                                      url:
-                                        type: string
-                                  return:
-                                    description: ActionReturn defines a return in
-                                      an Action.
-                                    type: object
-                                    properties:
-                                      body:
-                                        type: string
-                                      code:
-                                        type: integer
-                                      type:
-                                        type: string
-                              weight:
-                                type: integer
-                  path:
-                    type: string
-                  route:
-                    type: string
-                  splits:
-                    type: array
-                    items:
-                      description: Split defines a split.
-                      type: object
-                      properties:
-                        action:
-                          description: Action defines an action.
-                          type: object
-                          properties:
-                            pass:
-                              type: string
-                            redirect:
-                              description: ActionRedirect defines a redirect in an
-                                Action.
-                              type: object
-                              properties:
-                                code:
-                                  type: integer
-                                url:
-                                  type: string
-                            return:
-                              description: ActionReturn defines a return in an Action.
-                              type: object
-                              properties:
-                                body:
-                                  type: string
-                                code:
-                                  type: integer
-                                type:
-                                  type: string
-                        weight:
-                          type: integer
-            upstreams:
-              type: array
-              items:
-                description: Upstream defines an upstream.
-                type: object
-                properties:
-                  buffer-size:
-                    type: string
-                  buffering:
-                    type: boolean
-                  buffers:
-                    description: UpstreamBuffers defines Buffer Configuration for
-                      an Upstream.
-                    type: object
-                    properties:
-                      number:
-                        type: integer
-                      size:
-                        type: string
-                  client-max-body-size:
-                    type: string
-                  connect-timeout:
-                    type: string
-                  fail-timeout:
-                    type: string
-                  healthCheck:
-                    description: HealthCheck defines the parameters for active Upstream
-                      HealthChecks.
-                    type: object
-                    properties:
-                      connect-timeout:
-                        type: string
-                      enable:
-                        type: boolean
-                      fails:
-                        type: integer
-                      headers:
-                        type: array
-                        items:
-                          description: Header defines an HTTP Header.
-                          type: object
-                          properties:
-                            name:
-                              type: string
-                            value:
-                              type: string
-                      interval:
-                        type: string
-                      jitter:
-                        type: string
-                      passes:
-                        type: integer
-                      path:
-                        type: string
-                      port:
-                        type: integer
-                      read-timeout:
-                        type: string
-                      send-timeout:
-                        type: string
-                      statusMatch:
-                        type: string
-                      tls:
-                        description: UpstreamTLS defines a TLS configuration for an
-                          Upstream.
-                        type: object
-                        properties:
-                          enable:
-                            type: boolean
-                  keepalive:
-                    type: integer
-                  lb-method:
-                    type: string
-                  max-conns:
-                    type: integer
-                  max-fails:
-                    type: integer
-                  name:
-                    type: string
-                  next-upstream:
-                    type: string
-                  next-upstream-timeout:
-                    type: string
-                  next-upstream-tries:
-                    type: integer
-                  port:
-                    type: integer
-                  queue:
-                    description: UpstreamQueue defines Queue Configuration for an
-                      Upstream.
-                    type: object
-                    properties:
-                      size:
-                        type: integer
-                      timeout:
-                        type: string
-                  read-timeout:
-                    type: string
-                  send-timeout:
-                    type: string
-                  service:
-                    type: string
-                  sessionCookie:
-                    description: SessionCookie defines the parameters for session
-                      persistence.
-                    type: object
-                    properties:
-                      domain:
-                        type: string
-                      enable:
-                        type: boolean
-                      expires:
-                        type: string
-                      httpOnly:
-                        type: boolean
-                      name:
-                        type: string
-                      path:
-                        type: string
-                      secure:
-                        type: boolean
-                  slow-start:
-                    type: string
-                  subselector:
-                    type: object
-                    additionalProperties:
-                      type: string
-                  tls:
-                    description: UpstreamTLS defines a TLS configuration for an Upstream.
-                    type: object
-                    properties:
-                      enable:
-                        type: boolean
+  labels:
+    helm.sh/chart: ingress-nginx-2.4.0
+    app.kubernetes.io/name: ingress-nginx
+    app.kubernetes.io/instance: ingress-nginx
+    app.kubernetes.io/version: 0.33.0
+    app.kubernetes.io/managed-by: Helm
+  name: ingress-nginx
+  namespace: ingress-nginx
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: ingress-nginx
+subjects:
+  - kind: ServiceAccount
+    name: ingress-nginx
+    namespace: ingress-nginx
 ---
-apiVersion: apiextensions.k8s.io/v1beta1
-kind: CustomResourceDefinition
+# Source: ingress-nginx/templates/controller-role.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
 metadata:
-  name: transportservers.k8s.nginx.org
-spec:
-  group: k8s.nginx.org
-  versions:
-  - name: v1alpha1
-    served: true
-    storage: true
-  scope: Namespaced
-  names:
-    plural: transportservers
-    singular: transportserver
-    kind: TransportServer
-    shortNames:
-    - ts
-  # preserveUnknownFields: false
-  validation:
-    openAPIV3Schema:
-      description: TransportServer defines the TransportServer resource.
-      type: object
-      properties:
-        apiVersion:
-          description: 'APIVersion defines the versioned schema of this representation
-            of an object. Servers should convert recognized schemas to the latest
-            internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
-          type: string
-        kind:
-          description: 'Kind is a string value representing the REST resource this
-            object represents. Servers may infer this from the endpoint the client
-            submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
-          type: string
-        metadata:
-          type: object
-        spec:
-          description: TransportServerSpec is the spec of the TransportServer resource.
-          type: object
-          properties:
-            action:
-              description: Action defines an action.
-              type: object
-              properties:
-                pass:
-                  type: string
-            host:
-              type: string
-            listener:
-              description: TransportServerListener defines a listener for a TransportServer.
-              type: object
-              properties:
-                name:
-                  type: string
-                protocol:
-                  type: string
-            upstreamParameters:
-              description: UpstreamParameters defines parameters for an upstream.
-              type: object
-              properties:
-                udpRequests:
-                  type: integer
-                udpResponses:
-                  type: integer
-            upstreams:
-              type: array
-              items:
-                description: Upstream defines an upstream.
-                type: object
-                properties:
-                  name:
-                    type: string
-                  port:
-                    type: integer
-                  service:
-                    type: string
+  labels:
+    helm.sh/chart: ingress-nginx-2.4.0
+    app.kubernetes.io/name: ingress-nginx
+    app.kubernetes.io/instance: ingress-nginx
+    app.kubernetes.io/version: 0.33.0
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: controller
+  name: ingress-nginx
+  namespace: ingress-nginx
+rules:
+  - apiGroups:
+      - ''
+    resources:
+      - namespaces
+    verbs:
+      - get
+  - apiGroups:
+      - ''
+    resources:
+      - configmaps
+      - pods
+      - secrets
+      - endpoints
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - ''
+    resources:
+      - services
+    verbs:
+      - get
+      - list
+      - update
+      - watch
+  - apiGroups:
+      - extensions
+      - networking.k8s.io   # k8s 1.14+
+    resources:
+      - ingresses
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - extensions
+      - networking.k8s.io   # k8s 1.14+
+    resources:
+      - ingresses/status
+    verbs:
+      - update
+  - apiGroups:
+      - networking.k8s.io   # k8s 1.14+
+    resources:
+      - ingressclasses
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - ''
+    resources:
+      - configmaps
+    resourceNames:
+      - ingress-controller-leader-nginx
+    verbs:
+      - get
+      - update
+  - apiGroups:
+      - ''
+    resources:
+      - configmaps
+    verbs:
+      - create
+  - apiGroups:
+      - ''
+    resources:
+      - endpoints
+    verbs:
+      - create
+      - get
+      - update
+  - apiGroups:
+      - ''
+    resources:
+      - events
+    verbs:
+      - create
+      - patch
 ---
+# Source: ingress-nginx/templates/controller-rolebinding.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  labels:
+    helm.sh/chart: ingress-nginx-2.4.0
+    app.kubernetes.io/name: ingress-nginx
+    app.kubernetes.io/instance: ingress-nginx
+    app.kubernetes.io/version: 0.33.0
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: controller
+  name: ingress-nginx
+  namespace: ingress-nginx
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ingress-nginx
+subjects:
+  - kind: ServiceAccount
+    name: ingress-nginx
+    namespace: ingress-nginx
+---
+# Source: ingress-nginx/templates/controller-service-webhook.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    helm.sh/chart: ingress-nginx-2.4.0
+    app.kubernetes.io/name: ingress-nginx
+    app.kubernetes.io/instance: ingress-nginx
+    app.kubernetes.io/version: 0.33.0
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: controller
+  name: ingress-nginx-controller-admission
+  namespace: ingress-nginx
+spec:
+  type: ClusterIP
+  ports:
+    - name: https-webhook
+      port: 443
+      targetPort: webhook
+  selector:
+    app.kubernetes.io/name: ingress-nginx
+    app.kubernetes.io/instance: ingress-nginx
+    app.kubernetes.io/component: controller
+---
+# Source: ingress-nginx/templates/controller-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    helm.sh/chart: ingress-nginx-2.4.0
+    app.kubernetes.io/name: ingress-nginx
+    app.kubernetes.io/instance: ingress-nginx
+    app.kubernetes.io/version: 0.33.0
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: controller
+  name: ingress-nginx-controller
+  namespace: ingress-nginx
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Local
+  ports:
+    - name: http
+      port: 80
+      protocol: TCP
+      targetPort: http
+    - name: https
+      port: 443
+      protocol: TCP
+      targetPort: https
+    - name: grpc
+      port: 5051
+      protocol: TCP
+      targetPort: grpc
+  selector:
+    app.kubernetes.io/name: ingress-nginx
+    app.kubernetes.io/instance: ingress-nginx
+    app.kubernetes.io/component: controller
+---
+# Source: ingress-nginx/templates/controller-deployment.yaml
 apiVersion: apps/v1
-kind: DaemonSet
+kind: Deployment
 metadata:
-  name: nginx-ingress
-  namespace: nginx-ingress
+  labels:
+    helm.sh/chart: ingress-nginx-2.4.0
+    app.kubernetes.io/name: ingress-nginx
+    app.kubernetes.io/instance: ingress-nginx
+    app.kubernetes.io/version: 0.33.0
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: controller
+  name: ingress-nginx-controller
+  namespace: ingress-nginx
 spec:
   selector:
     matchLabels:
-      app: nginx-ingress
+      app.kubernetes.io/name: ingress-nginx
+      app.kubernetes.io/instance: ingress-nginx
+      app.kubernetes.io/component: controller
+  revisionHistoryLimit: 10
+  minReadySeconds: 0
   template:
     metadata:
       labels:
-        app: nginx-ingress
-     #annotations:
-       #prometheus.io/scrape: "true"
-       #prometheus.io/port: "9113"
+        app.kubernetes.io/name: ingress-nginx
+        app.kubernetes.io/instance: ingress-nginx
+        app.kubernetes.io/component: controller
     spec:
-      serviceAccountName: nginx-ingress
+      dnsPolicy: ClusterFirst
       containers:
-      - image: nginx/nginx-ingress:edge
-        imagePullPolicy: Always
-        name: nginx-ingress
-        ports:
-        - name: http
-          containerPort: 80
-          hostPort: 80
-        - name: https
-          containerPort: 443
-          hostPort: 443
-       #- name: prometheus
-         #containerPort: 9113
-        securityContext:
-          allowPrivilegeEscalation: true
-          runAsUser: 101 #nginx
-          capabilities:
-            drop:
-            - ALL
-            add:
-            - NET_BIND_SERVICE
-        env:
-        - name: POD_NAMESPACE
-          valueFrom:
-            fieldRef:
-              fieldPath: metadata.namespace
-        - name: POD_NAME
-          valueFrom:
-            fieldRef:
-              fieldPath: metadata.name
-        args:
-          - -nginx-configmaps=$(POD_NAMESPACE)/nginx-config
-          - -default-server-tls-secret=$(POD_NAMESPACE)/default-ingress-certs
-         #- -v=3 # Enables extensive logging. Useful for troubleshooting.
-         #- -report-ingress-status
-         #- -external-service=nginx-ingress
-         #- -enable-leader-election
-         #- -enable-prometheus-metrics
-         #- -global-configuration=$(POD_NAMESPACE)/nginx-configuration
+        - name: controller
+          image: quay.io/kubernetes-ingress-controller/nginx-ingress-controller:0.33.0
+          imagePullPolicy: IfNotPresent
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - /wait-shutdown
+          args:
+            - /nginx-ingress-controller
+            - --publish-service=ingress-nginx/ingress-nginx-controller
+            - --election-id=ingress-controller-leader
+            - --ingress-class=nginx
+            - --configmap=ingress-nginx/ingress-nginx-controller
+            - --validating-webhook=:8443
+            - --validating-webhook-certificate=/usr/local/certificates/cert
+            - --validating-webhook-key=/usr/local/certificates/key
+          securityContext:
+            capabilities:
+              drop:
+                - ALL
+              add:
+                - NET_BIND_SERVICE
+            runAsUser: 101
+            allowPrivilegeEscalation: true
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 10254
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 1
+            successThreshold: 1
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 10254
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 1
+            successThreshold: 1
+            failureThreshold: 3
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+            - name: https
+              containerPort: 443
+              protocol: TCP
+            - name: webhook
+              containerPort: 8443
+              protocol: TCP
+          volumeMounts:
+            - name: webhook-cert
+              mountPath: /usr/local/certificates/
+              readOnly: true
+          resources:
+            requests:
+              cpu: 100m
+              memory: 90Mi
+      serviceAccountName: ingress-nginx
+      terminationGracePeriodSeconds: 300
+      volumes:
+        - name: webhook-cert
+          secret:
+            secretName: ingress-nginx-admission
+---
+# Source: ingress-nginx/templates/admission-webhooks/validating-webhook.yaml
+apiVersion: admissionregistration.k8s.io/v1beta1
+kind: ValidatingWebhookConfiguration
+metadata:
+  labels:
+    helm.sh/chart: ingress-nginx-2.4.0
+    app.kubernetes.io/name: ingress-nginx
+    app.kubernetes.io/instance: ingress-nginx
+    app.kubernetes.io/version: 0.33.0
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: admission-webhook
+  name: ingress-nginx-admission
+  namespace: ingress-nginx
+webhooks:
+  - name: validate.nginx.ingress.kubernetes.io
+    rules:
+      - apiGroups:
+          - extensions
+          - networking.k8s.io
+        apiVersions:
+          - v1beta1
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - ingresses
+    failurePolicy: Fail
+    clientConfig:
+      service:
+        namespace: ingress-nginx
+        name: ingress-nginx-controller-admission
+        path: /extensions/v1beta1/ingresses
+---
+# Source: ingress-nginx/templates/admission-webhooks/job-patch/clusterrole.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ingress-nginx-admission
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade,post-install,post-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+  labels:
+    helm.sh/chart: ingress-nginx-2.4.0
+    app.kubernetes.io/name: ingress-nginx
+    app.kubernetes.io/instance: ingress-nginx
+    app.kubernetes.io/version: 0.33.0
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: admission-webhook
+  namespace: ingress-nginx
+rules:
+  - apiGroups:
+      - admissionregistration.k8s.io
+    resources:
+      - validatingwebhookconfigurations
+    verbs:
+      - get
+      - update
+---
+# Source: ingress-nginx/templates/admission-webhooks/job-patch/clusterrolebinding.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: ingress-nginx-admission
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade,post-install,post-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+  labels:
+    helm.sh/chart: ingress-nginx-2.4.0
+    app.kubernetes.io/name: ingress-nginx
+    app.kubernetes.io/instance: ingress-nginx
+    app.kubernetes.io/version: 0.33.0
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: admission-webhook
+  namespace: ingress-nginx
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: ingress-nginx-admission
+subjects:
+  - kind: ServiceAccount
+    name: ingress-nginx-admission
+    namespace: ingress-nginx
+---
+# Source: ingress-nginx/templates/admission-webhooks/job-patch/job-createSecret.yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ingress-nginx-admission-create
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+  labels:
+    helm.sh/chart: ingress-nginx-2.4.0
+    app.kubernetes.io/name: ingress-nginx
+    app.kubernetes.io/instance: ingress-nginx
+    app.kubernetes.io/version: 0.33.0
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: admission-webhook
+  namespace: ingress-nginx
+spec:
+  template:
+    metadata:
+      name: ingress-nginx-admission-create
+      labels:
+        helm.sh/chart: ingress-nginx-2.4.0
+        app.kubernetes.io/name: ingress-nginx
+        app.kubernetes.io/instance: ingress-nginx
+        app.kubernetes.io/version: 0.33.0
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/component: admission-webhook
+    spec:
+      containers:
+        - name: create
+          image: jettech/kube-webhook-certgen:v1.2.0
+          imagePullPolicy: IfNotPresent
+          args:
+            - create
+            - --host=ingress-nginx-controller-admission,ingress-nginx-controller-admission.ingress-nginx.svc
+            - --namespace=ingress-nginx
+            - --secret-name=ingress-nginx-admission
+      restartPolicy: OnFailure
+      serviceAccountName: ingress-nginx-admission
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 2000
+---
+# Source: ingress-nginx/templates/admission-webhooks/job-patch/job-patchWebhook.yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ingress-nginx-admission-patch
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+  labels:
+    helm.sh/chart: ingress-nginx-2.4.0
+    app.kubernetes.io/name: ingress-nginx
+    app.kubernetes.io/instance: ingress-nginx
+    app.kubernetes.io/version: 0.33.0
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: admission-webhook
+  namespace: ingress-nginx
+spec:
+  template:
+    metadata:
+      name: ingress-nginx-admission-patch
+      labels:
+        helm.sh/chart: ingress-nginx-2.4.0
+        app.kubernetes.io/name: ingress-nginx
+        app.kubernetes.io/instance: ingress-nginx
+        app.kubernetes.io/version: 0.33.0
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/component: admission-webhook
+    spec:
+      containers:
+        - name: patch
+          image: jettech/kube-webhook-certgen:v1.2.0
+          imagePullPolicy: IfNotPresent
+          args:
+            - patch
+            - --webhook-name=ingress-nginx-admission
+            - --namespace=ingress-nginx
+            - --patch-mutating=false
+            - --secret-name=ingress-nginx-admission
+            - --patch-failure-policy=Fail
+      restartPolicy: OnFailure
+      serviceAccountName: ingress-nginx-admission
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 2000
+---
+# Source: ingress-nginx/templates/admission-webhooks/job-patch/role.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ingress-nginx-admission
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade,post-install,post-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+  labels:
+    helm.sh/chart: ingress-nginx-2.4.0
+    app.kubernetes.io/name: ingress-nginx
+    app.kubernetes.io/instance: ingress-nginx
+    app.kubernetes.io/version: 0.33.0
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: admission-webhook
+  namespace: ingress-nginx
+rules:
+  - apiGroups:
+      - ''
+    resources:
+      - secrets
+    verbs:
+      - get
+      - create
+---
+# Source: ingress-nginx/templates/admission-webhooks/job-patch/rolebinding.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ingress-nginx-admission
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade,post-install,post-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+  labels:
+    helm.sh/chart: ingress-nginx-2.4.0
+    app.kubernetes.io/name: ingress-nginx
+    app.kubernetes.io/instance: ingress-nginx
+    app.kubernetes.io/version: 0.33.0
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: admission-webhook
+  namespace: ingress-nginx
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ingress-nginx-admission
+subjects:
+  - kind: ServiceAccount
+    name: ingress-nginx-admission
+    namespace: ingress-nginx
+---
+# Source: ingress-nginx/templates/admission-webhooks/job-patch/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ingress-nginx-admission
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade,post-install,post-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+  labels:
+    helm.sh/chart: ingress-nginx-2.4.0
+    app.kubernetes.io/name: ingress-nginx
+    app.kubernetes.io/instance: ingress-nginx
+    app.kubernetes.io/version: 0.33.0
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: admission-webhook
+  namespace: ingress-nginx

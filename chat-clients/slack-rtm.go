@@ -199,7 +199,7 @@ func (c *SlackChatClient) IsMention(text string, botID string) (bool, string) {
 func (c *SlackChatClient) Reply(conn *SlackConnection, cmd string, channel string) {
 	var rollResponse *dicelang.RollResponse
 	var err error
-	rollResponse, err = Roll(c.ecm.diceServerClient, cmd, RollOptionWithContext(context.TODO()), RollOptionWithTimeout(time.Second*2))
+	rollResponse, err = Roll(c.ecm.rollerClient, cmd, RollOptionWithContext(context.TODO()), RollOptionWithTimeout(time.Second*2))
 	if err != nil {
 		c.log.Errorf("Unexpected error: %+v", err)
 		conn.client.PostMessage(channel, slack.MsgOptionText(fmt.Sprintf("Oops! an unexpected error occured: %s", err), false))

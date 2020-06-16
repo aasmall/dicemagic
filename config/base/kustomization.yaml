@@ -4,7 +4,6 @@ resources:
 - dice-magic-app.yaml
 - nginx-ingress-controller.yaml
 - nginx-ingress.yaml
-- nginx-loadbalancer.yaml
 - psp.yaml
 - rbac.yaml
 - redis-primary.yaml

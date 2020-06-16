@@ -40,7 +40,7 @@ func RESTRollHandler(e interface{}, w http.ResponseWriter, r *http.Request) erro
 		return err
 	}
 	resp := &RESTRollResponse{Cmd: req.Cmd}
-	diceServerResponse, err := Roll(ecm.diceServerClient, req.Cmd, RollOptionWithProbability(req.Probability), RollOptionWithChart(req.Chart), RollOptionWithContext(context.TODO()), RollOptionWithTimeout(time.Second*2))
+	diceServerResponse, err := Roll(ecm.rollerClient, req.Cmd, RollOptionWithProbability(req.Probability), RollOptionWithChart(req.Chart), RollOptionWithContext(context.TODO()), RollOptionWithTimeout(time.Second*2))
 	if err != nil {
 		errString := fmt.Sprintf("Unexpected error: %+v", err)
 		resp.Ok = false

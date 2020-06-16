@@ -29,6 +29,7 @@ import (
 	"google.golang.org/api/cloudkms/v1"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
 )
 
 // intended to be overwritten during build
@@ -51,6 +52,7 @@ type externalClientsManager struct {
 	datastoreClient  *datastore.Client
 	kmsClient        *cloudkms.Service
 	loggingClient    *log.Logger
+	rollerClient     dicelang.RollerClient
 }
 
 type envConfig struct {
@@ -208,6 +210,7 @@ func main() {
 		panic(err)
 	}
 	ecm.diceServerClient = diceServerClient
+	ecm.rollerClient = dicelang.NewRollerClient(diceServerClient)
 
 	// Redis Client
 	log.Infof("Creating redis cluster client with URIs: %v\n", env.redisClusterAddresses())
@@ -306,6 +309,7 @@ func main() {
 			return
 		}
 		s := grpc.NewServer()
+		reflection.Register(s)
 		dicelang.RegisterRollerServer(s, grpcProxy{env: env, ecm: ecm})
 
 		log.Infof("grpc client up on: %s", lis.Addr().String())
