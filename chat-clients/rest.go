@@ -5,11 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strconv"
-	"strings"
 	"time"
 
-	"github.com/aasmall/dicemagic/lib/dicelang"
 	errors "github.com/aasmall/dicemagic/lib/dicelang-errors"
 )
 
@@ -50,7 +47,7 @@ func RESTRollHandler(e interface{}, w http.ResponseWriter, r *http.Request) erro
 	}
 	if diceServerResponse.Ok {
 		resp.Ok = true
-		resp.Result = StringFromRollResponse(diceServerResponse)
+		resp.Result = diceServerResponse.StringFromRollResponse()
 	} else {
 		if diceServerResponse.Error.Code == errors.Friendly {
 			resp.Ok = true
@@ -63,22 +60,4 @@ func RESTRollHandler(e interface{}, w http.ResponseWriter, r *http.Request) erro
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
 	return nil
-}
-
-// StringFromRollResponse parses the response from the dice-server into a human readable format
-func StringFromRollResponse(rr *dicelang.RollResponse) string {
-	var s []string
-	var finalTotal int64
-	for _, ds := range rr.DiceSets {
-		var faces []interface{}
-		for _, d := range ds.Dice {
-			faces = append(faces, facesSliceString(d.Faces))
-		}
-		s = append(s, fmt.Sprintf("%s = *%s*", fmt.Sprintf(ds.ReString, faces...), strconv.FormatInt(ds.Total, 10)))
-		finalTotal = finalTotal + ds.Total
-	}
-	if len(rr.DiceSets) > 1 {
-		s = append(s, fmt.Sprintf("Total: %s", strconv.FormatInt(finalTotal, 10)))
-	}
-	return strings.Join(s, "\n")
 }

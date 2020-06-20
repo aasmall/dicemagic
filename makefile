@@ -14,6 +14,12 @@ ALL=$(shell find -type f)
 GENDEPS=$(shell grep -rl . -e '//go:generate' ; find -type f -name "*.proto" )
 GIT_COMMIT=$(shell git rev-list -1 HEAD)
 
+VERSION=$(shell git describe --tags --always --long --dirty)
+
+CLIENT_EXECUTABLE=out/bin/dicemagic
+WINDOWS=$(CLIENT_EXECUTABLE)_windows_amd64.exe
+LINUX=$(CLIENT_EXECUTABLE)_linux_amd64
+DARWIN=$(CLIENT_EXECUTABLE)_darwin_amd64
 
 # DOCKERFILES=$(shell find "dockerfiles" -maxdepth 1 -type f | grep -E '.*\.(dockerfile)$$')
 # NAMES=$(subst dockerfiles/,,$(subst .dockerfile,,$(DOCKERFILES)))
@@ -44,14 +50,22 @@ gen: $(GENDEPS)
 	go get golang.org/x/tools/cmd/stringer
 	PATH=${HOME}/.local/bin:${PATH} go generate ./...
 
+windows: $(WINDOWS) ## Build for Windows
+linux: $(LINUX) ## Build for Linux
+darwin: $(DARWIN) ## Build for Darwin (macOS)
+
+$(WINDOWS):$(shell find "cmd" -maxdepth 1 -type f | grep -E '.*\.(go|mod|sum)$$') $(LIBS)
+	env GOOS=windows GOARCH=amd64 go build -o $(WINDOWS) -ldflags="-s -w -X main.version=$(VERSION)" github.com/aasmall/dicemagic/cmd
+$(LINUX):$(shell find "cmd" -maxdepth 1 -type f | grep -E '.*\.(go|mod|sum)$$') $(LIBS)
+	env GOOS=linux GOARCH=amd64 go build  -o $(LINUX) -ldflags="-s -w -X main.version=$(VERSION)" github.com/aasmall/dicemagic/cmd
+$(DARWIN):$(shell find "cmd" -maxdepth 1 -type f | grep -E '.*\.(go|mod|sum)$$') $(LIBS)
+	env GOOS=darwin GOARCH=amd64 go build -o $(DARWIN) -ldflags="-s -w -X main.version=$(VERSION)" github.com/aasmall/dicemagic/cmd
+
 out/bin/chat-clients: $(shell find "chat-clients" -maxdepth 1 -type f | grep -E '.*\.(go|mod|sum)$$') $(LIBS)
 	go build -ldflags "-X main.gitCommitID=$(GIT_COMMIT)" -o $@ github.com/aasmall/dicemagic/chat-clients
 
 out/bin/dice-server: $(shell find "dice-server" -maxdepth 1 -type f | grep -E '.*\.(go|mod|sum)$$') $(LIBS)
 	go build -o $@ github.com/aasmall/dicemagic/dice-server
-
-out/bin/dicemagic:  $(shell find "cmd" -maxdepth 1 -type f | grep -E '.*\.(go|mod|sum)$$') $(LIBS)
-	go build -o $@ github.com/aasmall/dicemagic/cmd
 
 out/bin/redis-cluster: $(shell find "redis" -maxdepth 1 -type f | grep -E '.*\.(go|mod|sum|sh|conf)$$') $(LIBS)
 	@mkdir -p out/include/redis-cluster
@@ -59,7 +73,7 @@ out/bin/redis-cluster: $(shell find "redis" -maxdepth 1 -type f | grep -E '.*\.(
 	cp redis/bootstrap-pod.sh redis/redis.conf out/include/redis-cluster
 
 .PHONY: core
-core: out/bin/chat-clients out/bin/dice-server out/bin/redis-cluster out/bin/dicemagic
+core: out/bin/chat-clients out/bin/dice-server out/bin/redis-cluster windows linux darwin
 
 out/bin/mocks/datastore: $(shell find "mocks/datastore" -maxdepth 1 -type f | grep -E '.*\.(go|mod|sum|sh)$$') config/minikube/secrets/google/k8s-dice-magic.json
 	@mkdir -p out/include/mocks/datastore/

@@ -5,8 +5,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"io"
-	"io/ioutil"
 	"os"
 	"strings"
 	"time"
@@ -25,23 +23,11 @@ var client dicelang.RollerClient
 
 func main() {
 	log := log.New("dicemagic-cli", log.WithDebug(true), log.WithDefaultSeverity(logging.Info))
-
-	certpool, _ := x509.SystemCertPool()
-	transportCreds := credentials.NewTLS(&tls.Config{
-		RootCAs: certpool,
-	})
-	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	grpcOpts := []grpc.DialOption{
-		grpc.FailOnNonTempDialError(true),
-		grpc.WithTransportCredentials(transportCreds),
-	}
-	diceMagicGRPCClient, err := grpc.DialContext(timeoutCtx, os.Args[1], grpcOpts...)
+	cancelFunc, err := connect(os.Args[1])
 	if err != nil {
-		log.Fatalf("did not connect to dice-server: %v", err)
+		log.Fatalf("%v", err)
 	}
-	client = dicelang.NewRollerClient(diceMagicGRPCClient)
-	defer diceMagicGRPCClient.Close()
+	defer cancelFunc()
 
 	g, err := gocui.NewGui(gocui.Output256)
 	if err != nil {
@@ -49,7 +35,10 @@ func main() {
 	}
 
 	defer g.Close()
+
 	g.Cursor = true
+	g.Mouse = true
+
 	g.SetManagerFunc(layout)
 
 	if err := keybindings(g); err != nil {
@@ -61,9 +50,28 @@ func main() {
 	}
 
 }
-
+func connect(grpcServer string) (func() error, error) {
+	certpool, _ := x509.SystemCertPool()
+	transportCreds := credentials.NewTLS(&tls.Config{
+		RootCAs: certpool,
+	})
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	grpcOpts := []grpc.DialOption{
+		grpc.FailOnNonTempDialError(true),
+		grpc.WithTransportCredentials(transportCreds),
+	}
+	diceMagicGRPCClient, err := grpc.DialContext(timeoutCtx, grpcServer, grpcOpts...)
+	if err != nil {
+		return nil, fmt.Errorf("did not connect to dice-server: %v", err)
+	}
+	client = dicelang.NewRollerClient(diceMagicGRPCClient)
+	return func() error { return diceMagicGRPCClient.Close() }, nil
+}
 func cmdEditor(v *gocui.View, key gocui.Key, ch rune, mod gocui.Modifier) {
 	switch {
+	case key == gocui.KeyEnter:
+		return
 	case ch != 0 && mod == 0:
 		v.EditWrite(ch)
 	case key == gocui.KeySpace:
@@ -72,8 +80,10 @@ func cmdEditor(v *gocui.View, key gocui.Key, ch rune, mod gocui.Modifier) {
 		v.EditDelete(true)
 	case key == gocui.KeyDelete:
 		v.EditDelete(false)
-	case key == gocui.KeyEnter:
-		return
+	case key == gocui.KeyArrowLeft:
+		v.MoveCursor(-1, 0, true)
+	case key == gocui.KeyArrowRight:
+		v.MoveCursor(1, 0, true)
 	}
 }
 
@@ -89,10 +99,15 @@ func Roll(cmd string) (*dicelang.RollResponse, error) {
 
 func nextView(g *gocui.Gui, v *gocui.View) error {
 	if v == nil || v.Name() == "side" {
-		_, err := g.SetCurrentView("main")
+		_, err := g.SetCurrentView("input")
+		v, _ := g.View("side")
+		g.Cursor = true
+		v.Highlight = false
 		return err
 	}
-	_, err := g.SetCurrentView("side")
+	v, err := g.SetCurrentView("side")
+	g.Cursor = false
+	v.Highlight = true
 	return err
 }
 
@@ -159,10 +174,9 @@ func quit(g *gocui.Gui, v *gocui.View) error {
 }
 
 func keybindings(g *gocui.Gui) error {
-	if err := g.SetKeybinding("side", gocui.KeyCtrlSpace, gocui.ModNone, nextView); err != nil {
-		return err
-	}
-	if err := g.SetKeybinding("main", gocui.KeyCtrlSpace, gocui.ModNone, nextView); err != nil {
+
+	//static keybinds
+	if err := g.SetKeybinding("side", gocui.KeyTab, gocui.ModNone, nextView); err != nil {
 		return err
 	}
 	if err := g.SetKeybinding("side", gocui.KeyArrowDown, gocui.ModNone, cursorDown); err != nil {
@@ -180,31 +194,39 @@ func keybindings(g *gocui.Gui) error {
 	if err := g.SetKeybinding("msg", gocui.KeyEnter, gocui.ModNone, delMsg); err != nil {
 		return err
 	}
-
-	if err := g.SetKeybinding("main", gocui.KeyCtrlS, gocui.ModNone, saveMain); err != nil {
-		return err
-	}
-	if err := g.SetKeybinding("main", gocui.KeyCtrlW, gocui.ModNone, saveVisualMain); err != nil {
-		return err
-	}
 	if err := g.SetKeybinding("input", gocui.KeyCtrlW, gocui.ModNone, changeColor); err != nil {
 		return err
 	}
 	if err := g.SetKeybinding("input", gocui.KeyEnter, gocui.ModNone, executeCommand); err != nil {
 		return err
 	}
+	if err := g.SetKeybinding("input", gocui.KeyTab, gocui.ModNone, nextView); err != nil {
+		return err
+	}
 	return nil
 }
 func executeCommand(g *gocui.Gui, v *gocui.View) error {
-	cmd := v.Buffer()
+	cmd := strings.TrimSpace(v.Buffer())
 	f, _ := g.View("main")
 	result, _ := Roll(cmd)
-	fmt.Fprintf(f, "%s\n----------\n", result)
+	// x, _ := v.Size()
+	// sepBuilder := strings.Builder{}
+	// for i := 0; i < x-1; i++ {
+	// 	sepBuilder.WriteRune('-')
+	// }
+	indented := result.StringFromRollResponse()
+	var formatted strings.Builder
+	for _, line := range strings.Split(indented, "\n") {
+		formatted.WriteRune(' ')
+		formatted.WriteString(line)
+		formatted.WriteRune('\n')
+	}
+	fmt.Fprintf(f, "$%s\n%s\n", cmd, formatted.String())
 	inputView, _ := g.View("input")
 	inputView.SetCursor(0, 0)
 	inputView.Clear()
 	historyView, _ := g.View("side")
-	fmt.Fprint(historyView, cmd)
+	fmt.Fprint(historyView, cmd+"\n")
 	return nil
 }
 func changeColor(g *gocui.Gui, v *gocui.View) error {
@@ -214,49 +236,9 @@ func changeColor(g *gocui.Gui, v *gocui.View) error {
 	fmt.Fprint(f, f.BgColor)
 	return nil
 }
-func saveMain(g *gocui.Gui, v *gocui.View) error {
-	f, err := ioutil.TempFile("", "gocui_demo_")
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	p := make([]byte, 5)
-	v.Rewind()
-	for {
-		n, err := v.Read(p)
-		if n > 0 {
-			if _, err := f.Write(p[:n]); err != nil {
-				return err
-			}
-		}
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func saveVisualMain(g *gocui.Gui, v *gocui.View) error {
-	f, err := ioutil.TempFile("", "gocui_demo_")
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	vb := v.ViewBuffer()
-	if _, err := io.Copy(f, strings.NewReader(vb)); err != nil {
-		return err
-	}
-	return nil
-}
-
 func layout(g *gocui.Gui) error {
 	maxX, maxY := g.Size()
-	if v, err := g.SetView("side", 0, 0, 15, maxY-2); err != nil {
+	if v, err := g.SetView("side", 0, 0, 19, maxY-2); err != nil {
 		if err != gocui.ErrUnknownView {
 			return err
 		}
@@ -264,7 +246,7 @@ func layout(g *gocui.Gui) error {
 		v.SelBgColor = gocui.ColorCyan
 		v.SelFgColor = gocui.ColorBlack
 	}
-	if v, err := g.SetView("main", 16, 0, maxX-1, maxY-5); err != nil {
+	if v, err := g.SetView("main", 20, 0, maxX-1, maxY-5); err != nil {
 		if err != gocui.ErrUnknownView {
 			return err
 		}
@@ -273,7 +255,7 @@ func layout(g *gocui.Gui) error {
 		v.Editable = false
 		v.Wrap = true
 	}
-	if v, err := g.SetView("input", 16, maxY-4, maxX-1, maxY-2); err != nil {
+	if v, err := g.SetView("input", 20, maxY-4, maxX-1, maxY-2); err != nil {
 		if err != gocui.ErrUnknownView {
 			return err
 		}
@@ -282,10 +264,9 @@ func layout(g *gocui.Gui) error {
 		v.SelFgColor = gocui.ColorBlack
 		v.Highlight = false
 		v.Frame = true
-		v.Title = "input"
-		fmt.Fprint(v, ">>")
 		v.Editable = true
 		v.Wrap = false
+		v.Title = "input"
 		if _, err := g.SetCurrentView("input"); err != nil {
 			return err
 		}
