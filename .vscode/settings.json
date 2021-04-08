@@ -5,4 +5,21 @@
         }
     },
     "go.inferGopath": false,
+    "cSpell.words": [
+        "aasmall",
+        "cmds",
+        "gitlab",
+        "gizak",
+        "gobuffalo",
+        "gocui",
+        "grpc",
+        "kubernetes",
+        "kustomize",
+        "mgutz",
+        "mkdir",
+        "printf",
+        "probs",
+        "rbac",
+        "termui"
+    ],
 }

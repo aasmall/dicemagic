@@ -112,11 +112,11 @@ func (s *server) handleExposedErrors(e error, response *dicelang.RollResponse) e
 }
 
 func (s *server) astToDiceSets(p bool, c bool, tree *dicelang.AST) (*dicelang.DiceSets, error) {
-	fmt.Printf("----------PRINTING AST--------\n%s\n++++++++++++++++++++++++++++\n", dicelang.PrintAST(tree, 2))
 	log := s.env.log
 	if tree == nil {
 		return nil, errors.NewDicelangError("No dice sets resulted from that command", errors.InvalidCommand, nil)
 	}
+	log.Debugf("----------PRINTING AST--------\n%s\n++++++++++++++++++++++++++++\n", dicelang.PrintAST(tree, 2))
 	var outDiceSets = &dicelang.DiceSets{}
 	for _, child := range tree.Children {
 		log.Debugf("child: %+v", child)

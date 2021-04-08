@@ -1,10 +1,28 @@
 # How-To Create a new cluster
 
-Written for GKE clusters. 
+Written for GKE clusters.
 
 ## create the cluster
 
 1) Enable workload identity on cluster and node pools
+
+## Ensure kubectl is up to date
+
+```bash
+curl -LO "https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl"
+chmod +x ./kubectl
+mv ./kubectl /usr/local/bin/kubectl
+```
+
+## Install FluxV2 locally
+
+```bash
+curl -s https://toolkit.fluxcd.io/install.sh | sudo bash
+```
+
+## Install FluxV2 to cluster
+
+https://toolkit.fluxcd.io/guides/installation/#gitlab-and-gitlab-enterprise
 
 
 ## create slack secrets
@@ -16,20 +34,23 @@ gcloud services enable cloudkms.googleapis.com
 ```
 
 create KMS key
+
 ```bash
 gcloud kms keyrings create "dice-magic" --location "us-central1"
-gcloud kms keys create "slack" \ 
+gcloud kms keys create "slack" \
     --location "us-central1" \
     --keyring "dice-magic" \
     --purpose encryption
 ```
 
 ensure there is a place to put the secrets for the generator
+
 ```bash
 mkdir -p ./config/development/secrets
 ```
 
 encrypt secrets from slack
+
 ```bash
 CLIENT_SECRET=dbf4596580742777700138e4b433c6fd
 SIGNING_SECRET=4608932ec5f334fbbbe65f370b530e5a
@@ -74,9 +95,11 @@ gcloud iam service-accounts add-iam-policy-binding \
 ```bash
 gcloud services enable datastore.googleapis.com
 ```
+
 open `https://console.cloud.google.com/datastore/setup?project=dicemagic-dev` in a browser and select `datastore` then pick a sensible location.
 
 grant datastore permissions to GSA
+
 ```bash
 PROJECT_ID=dicemagic-dev
 gcloud projects add-iam-policy-binding ${PROJECT_ID} \
@@ -86,7 +109,7 @@ gcloud projects add-iam-policy-binding ${PROJECT_ID} \
 
 ## create static IP and update local config file
 
-```bash 
+```bash
 gcloud compute addresses create dicemagic-ip --region us-central1
 IP=$(gcloud compute addresses describe dicemagic-ip --region us-central1 | awk '$1=="address:" {print $2}')
 sed -i --regexp-extended "s/loadBalancerIP: \".*\"/loadBalancerIP: \"${IP}\"/g" \
@@ -97,7 +120,7 @@ sed -i --regexp-extended "s/loadBalancerIP: \".*\"/loadBalancerIP: \"${IP}\"/g" 
 
 ## run certbot job
 
-grant certbot permissions 
+grant certbot permissions
 
 ```bash
 PROJECT_ID=dicemagic-dev
@@ -105,12 +128,15 @@ gcloud projects add-iam-policy-binding ${PROJECT_ID} \
   --role roles/dns.admin \
   --member serviceAccount:certbot-ksa@${PROJECT_ID}.iam.gserviceaccount.com
 ```
+
 run the job to get certs once
+
 ```bash
 kubectl create job --from=cronjob/letsencrypt-job certbot
 ```
 
 ## grant dicemagic-serviceaccount permission to decrypt
+
 dicemagic-ksa@dicemagic-dev.iam.gserviceaccount.com
 roles/cloudkms.cryptoKeyDecrypter
 
@@ -125,21 +151,28 @@ gcloud projects add-iam-policy-binding ${PROJECT_ID} \
   --member serviceAccount:dicemagic-ksa@${PROJECT_ID}.iam.gserviceaccount.com
 ```
 
-## base64 encrypted secrets and add to CI config 
+## base64 encrypted secrets and add to CI config
 
 SLACK_CLIENT_SECRET
+
 ```bash
 base64 config/development/secrets/slack/slack-client-secret -w 0 | xclip -sel clip
 ```
+
 SLACK_SIGNING_SECRET
+
 ```bash
 base64 config/development/secrets/slack/slack-signing-secret -w 0 | xclip -sel clip
 ```
+
 SELF_CERT
+
 ```bash
 base64 config/development/secrets/letsencrypt-certs/tls.crt -w 0 | xclip -sel clip
 ```
+
 SELF_KEY
+
 ```bash
 base64 config/development/secrets/letsencrypt-certs/tls.key -w 0 | xclip -sel clip
 ```

@@ -1,10 +1,10 @@
-FROM golang:alpine
+FROM golang:alpine3.13
 RUN apk add --no-cache \
             build-base make git
 COPY . /dicemagic
 WORKDIR /dicemagic
 RUN go get -u golang.org/x/lint/golint
-RUN go install github.com/gohugoio/hugo
+RUN go get github.com/gohugoio/hugo && go install github.com/gohugoio/hugo
 RUN go get ./...
 
 FROM golang:buster

@@ -57,7 +57,7 @@ darwin: $(DARWIN) ## Build for Darwin (macOS)
 $(WINDOWS):$(shell find "cmd" -maxdepth 1 -type f | grep -E '.*\.(go|mod|sum)$$') $(LIBS)
 	env GOOS=windows GOARCH=amd64 go build -o $(WINDOWS) -ldflags="-s -w -X main.version=$(VERSION)" github.com/aasmall/dicemagic/cmd
 $(LINUX):$(shell find "cmd" -maxdepth 1 -type f | grep -E '.*\.(go|mod|sum)$$') $(LIBS)
-	env GOOS=linux GOARCH=amd64 go build  -o $(LINUX) -ldflags="-s -w -X main.version=$(VERSION)" github.com/aasmall/dicemagic/cmd
+	env GOOS=linux GOARCH=amd64 go build  -o $(LINUX) -gcflags "-N -l" -ldflags="-X main.version=$(VERSION)" github.com/aasmall/dicemagic/cmd
 $(DARWIN):$(shell find "cmd" -maxdepth 1 -type f | grep -E '.*\.(go|mod|sum)$$') $(LIBS)
 	env GOOS=darwin GOARCH=amd64 go build -o $(DARWIN) -ldflags="-s -w -X main.version=$(VERSION)" github.com/aasmall/dicemagic/cmd
 

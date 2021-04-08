@@ -1,0 +1,5 @@
+cmd-file: .cmds
+crit-color: "100"
+endpoint: grpc.dicemagic.io:443
+history-file: .history
+prompt-color: "8"
