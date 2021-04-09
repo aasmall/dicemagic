@@ -202,7 +202,7 @@ func (c *SlackChatClient) Reply(conn *SlackConnection, cmd string, channel strin
 	rollResponse, err = Roll(c.ecm.rollerClient, cmd, RollOptionWithContext(context.TODO()), RollOptionWithTimeout(time.Second*2))
 	if err != nil {
 		c.log.Errorf("Unexpected error: %+v", err)
-		conn.client.PostMessage(channel, slack.MsgOptionText(fmt.Sprintf("Oops! an unexpected error occured: %s", err), false))
+		conn.client.PostMessage(channel, slack.MsgOptionText(fmt.Sprintf("Oops! an unexpected error occurred: %s", err), false))
 		return
 	}
 	if !rollResponse.Ok {
@@ -210,7 +210,7 @@ func (c *SlackChatClient) Reply(conn *SlackConnection, cmd string, channel strin
 			conn.client.PostMessage(channel, slack.MsgOptionText(rollResponse.Error.Msg, false))
 			return
 		}
-		conn.client.PostMessage(channel, slack.MsgOptionText(fmt.Sprintf("Oops! an error occured: %s", rollResponse.Error.Msg), false))
+		conn.client.PostMessage(channel, slack.MsgOptionText(fmt.Sprintf("Oops! an error occurred: %s", rollResponse.Error.Msg), false))
 		return
 	}
 	attachments := SlackAttachmentsFromRollResponse(rollResponse)
@@ -225,7 +225,7 @@ func (c *SlackChatClient) ManageSlackConnections(ctx context.Context, freq time.
 		if c.ShuttingDown {
 			return
 		}
-		teams, err := c.GetTeamsAssignedtoPod()
+		teams, err := c.GetTeamsAssignedToPod()
 		if err != nil {
 			c.log.Errorf("could not retrive teams assigned to pod(%s): %v", c.config.podName, err)
 			continue

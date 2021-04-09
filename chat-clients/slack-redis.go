@@ -88,7 +88,7 @@ func (c *SlackChatClient) GetCachedChannelType(teamID string, channel string) (C
 	if err != nil {
 		return Unknown, nil
 	}
-	fmt.Printf("channel type before unmarshall is: %#v\n", b)
+	fmt.Printf("channel type before unmarshal is: %#v\n", b)
 	var ret ChannelType
 	err = ret.UnmarshalBinary(b)
 	return ret, err
@@ -180,13 +180,13 @@ func (c *SlackChatClient) reap(key string, freq time.Duration, age time.Duration
 	}
 	for k, v := range hashMap {
 		c.log.Debugf("k: %v v: %v\n", k, v)
-		lastCheckin, err := time.Parse(timeFormat, v)
+		lastCheckIn, err := time.Parse(timeFormat, v)
 		if err != nil {
 			c.log.Criticalf("Error parsing time. Deleting offending entry(%s): %v\n", k, err)
 			c.ecm.redisClient.HDel(key, k)
 			continue
 		}
-		if time.Since(lastCheckin) >= age {
+		if time.Since(lastCheckIn) >= age {
 			c.log.Debugf("Reaping %s: %s. They were %.3f seconds old", key, k, age.Seconds())
 			c.ecm.redisClient.HDel(key, k).Err()
 		}
@@ -200,13 +200,13 @@ func (c *SlackChatClient) GetHashKeys(key string) ([]string, error) {
 }
 
 // AssignTeamToPod records teams assignment to pods
-func (c *SlackChatClient) AssignTeamToPod(teamID string, podName string, expirey time.Duration) error {
+func (c *SlackChatClient) AssignTeamToPod(teamID string, podName string, expiry time.Duration) error {
 	key := fmt.Sprintf("team-assignment:%s", teamID)
-	return c.ecm.redisClient.Set(key, podName, expirey).Err()
+	return c.ecm.redisClient.Set(key, podName, expiry).Err()
 }
 
-// GetTeamsAssignedtoPod assigns teams to pods
-func (c *SlackChatClient) GetTeamsAssignedtoPod() ([]string, error) {
+// GetTeamsAssignedToPod assigns teams to pods
+func (c *SlackChatClient) GetTeamsAssignedToPod() ([]string, error) {
 	teams, err := c.GetHashKeys("teams")
 	if err != nil {
 		return nil, err

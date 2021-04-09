@@ -6,6 +6,9 @@
     },
     "go.inferGopath": false,
     "cSpell.words": [
+        "Criticalf",
+        "Debugf",
+        "Infof",
         "aasmall",
         "cmds",
         "gitlab",
@@ -20,6 +23,8 @@
         "printf",
         "probs",
         "rbac",
-        "termui"
+        "serialx",
+        "termui",
+        "unmarshals"
     ],
 }

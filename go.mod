@@ -31,6 +31,7 @@ require (
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/viper v1.7.1
 	golang.org/x/net v0.0.0-20210405180319-a5a99cb37ef4
+	golang.org/x/tools v0.1.0 // indirect
 	gonum.org/v1/gonum v0.9.1
 	google.golang.org/api v0.44.0
 	google.golang.org/grpc v1.37.0
