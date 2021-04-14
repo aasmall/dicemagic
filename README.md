@@ -1,3 +1,4 @@
+# [MOVED Here](https://gitlab.com/dicemagic/dicemagic)
 
 # Dice Magic
 
